@@ -1,0 +1,55 @@
+name: Release Tag
+
+on:
+  push:
+    branches:
+      - release
+
+jobs:
+  tag:
+    name: Create Release Tag
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # 전체 히스토리 + 태그 조회를 위해 필요
+
+      - name: Get latest tag and bump patch version
+        id: version
+        run: |
+          # 가장 최신 v*.*.* 태그 조회 (없으면 v1.0.0 을 초기값으로 사용)
+          LATEST=$(git tag --list 'v*.*.*' --sort=-version:refname | head -n 1)
+
+          if [ -z "$LATEST" ]; then
+            NEW_TAG="v1.0.0"
+          else
+            # major.minor.patch 분리
+            VERSION="${LATEST#v}"
+            MAJOR=$(echo "$VERSION" | cut -d. -f1)
+            MINOR=$(echo "$VERSION" | cut -d. -f2)
+            PATCH=$(echo "$VERSION" | cut -d. -f3)
+            NEW_PATCH=$((PATCH + 1))
+            NEW_TAG="v${MAJOR}.${MINOR}.${NEW_PATCH}"
+          fi
+
+          echo "latest=$LATEST" >> $GITHUB_OUTPUT
+          echo "new_tag=$NEW_TAG" >> $GITHUB_OUTPUT
+          echo "이전 태그: $LATEST → 신규 태그: $NEW_TAG"
+
+      - name: Create and push tag
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag ${{ steps.version.outputs.new_tag }}
+          git push origin ${{ steps.version.outputs.new_tag }}
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.new_tag }}
+          name: Release ${{ steps.version.outputs.new_tag }}
+          generate_release_notes: true  # 이전 태그 이후 커밋 메시지를 자동으로 릴리즈 노트로 생성
