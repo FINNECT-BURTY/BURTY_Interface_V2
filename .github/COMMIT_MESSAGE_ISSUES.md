@@ -31,4 +31,4 @@
 
 ## 저장소 이슈 링크
 
-[FINNECT-NURI/NURI_Interface Issues](https://github.com/FINNECT-NURI/NURI_Interface/issues)
+[FINNECT-BERTY/BERTY_Interface Issues](https://github.com/FINNECT-BERTY/BERTY_Interface/issues)
