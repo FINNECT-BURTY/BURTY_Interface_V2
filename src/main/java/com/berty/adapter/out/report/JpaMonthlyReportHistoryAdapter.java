@@ -1,0 +1,64 @@
+package com.berty.adapter.out.report;
+
+import com.berty.application.port.out.MonthlyReportHistoryPort;
+import com.berty.domain.entity.MonthlyReportEntity;
+import com.berty.domain.entity.UserEntity;
+import com.berty.domain.repository.MonthlyReportRepository;
+import com.berty.domain.repository.UserRepository;
+import org.springframework.context.annotation.Primary;
+import org.springframework.stereotype.Component;
+
+import java.time.LocalDate;
+import java.time.YearMonth;
+import java.util.Optional;
+import java.util.UUID;
+
+@Primary
+@Component
+public class JpaMonthlyReportHistoryAdapter implements MonthlyReportHistoryPort {
+    private final MonthlyReportRepository monthlyReportRepository;
+    private final UserRepository userRepository;
+
+    public JpaMonthlyReportHistoryAdapter(MonthlyReportRepository monthlyReportRepository, UserRepository userRepository) {
+        this.monthlyReportRepository = monthlyReportRepository;
+        this.userRepository = userRepository;
+    }
+
+    @Override
+    public void saveHistory(String userId, String month, String status, String detail) {
+        UUID uuid = parseUuid(userId);
+        if (uuid == null) return;
+
+        Optional<UserEntity> userOpt = userRepository.findById(uuid);
+        if (userOpt.isEmpty()) return;
+
+        YearMonth ym = YearMonth.parse(month);
+        LocalDate periodMonth = ym.atDay(1);
+
+        MonthlyReportEntity entity = monthlyReportRepository.findByUser_UserIdAndPeriodMonth(uuid, periodMonth)
+                .orElseGet(MonthlyReportEntity::new);
+        entity.setReportId(entity.getReportId() == null ? UUID.randomUUID() : entity.getReportId());
+        entity.setUser(userOpt.get());
+        entity.setPeriodMonth(periodMonth);
+        entity.setStatus(toStatus(status));
+        entity.setFailedReason("FAILED".equalsIgnoreCase(status) ? detail : null);
+        if ("SUCCESS".equalsIgnoreCase(status)) {
+            entity.setDeliveredAt(java.time.LocalDateTime.now());
+        }
+        monthlyReportRepository.save(entity);
+    }
+
+    private MonthlyReportEntity.ReportStatus toStatus(String status) {
+        if ("SUCCESS".equalsIgnoreCase(status)) return MonthlyReportEntity.ReportStatus.DELIVERED;
+        if ("FAILED".equalsIgnoreCase(status)) return MonthlyReportEntity.ReportStatus.FAILED;
+        return MonthlyReportEntity.ReportStatus.READY;
+    }
+
+    private UUID parseUuid(String userId) {
+        try {
+            return UUID.fromString(userId);
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+}
