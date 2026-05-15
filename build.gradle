@@ -51,3 +51,9 @@ dependencies {
 tasks.named('test') {
     useJUnitPlatform()
 }
+
+// Spring Boot 3.x+ 는 bootJar 외에 plain jar 까지 생성하여 build/libs/ 안에 jar 가 2개 생김.
+// Dockerfile 의 COPY *.jar 패턴이 단일 destination 으로 실패하는 문제 회피용으로 plain jar 비활성화.
+tasks.named('jar') {
+    enabled = false
+}
