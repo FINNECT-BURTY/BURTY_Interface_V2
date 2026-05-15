@@ -53,37 +53,21 @@ pipeline {
             }
         }
 
-        stage('Health Check') {
-            steps {
-                sh '''
-                    set -e
-                    echo "burty 컨테이너 healthcheck 대기..."
-                    STATUS=starting
-                    for i in $(seq 1 36); do
-                      STATUS=$(docker inspect -f "{{.State.Health.Status}}" "${CONTAINER}" 2>/dev/null || echo starting)
-                      echo "[$i/36] status=$STATUS"
-                      [ "$STATUS" = "healthy" ] && break
-                      sleep 5
-                    done
-                    if [ "$STATUS" != "healthy" ]; then
-                      echo "기동 실패 — 최근 로그:"
-                      docker logs --tail 100 "${CONTAINER}" || true
-                      exit 1
-                    fi
-                '''
-            }
-        }
-
         stage('Smoke Test') {
             steps {
                 sh '''
                     set -e
-                    CODE=$(curl -s -o /dev/null -w "%{http_code}" \
-                      -H "Host: ${SERVER_HOST}" \
-                      "http://${PROXY_HOST}/health" || echo 000)
+                    CODE=000
+                    for i in $(seq 1 20); do
+                      CODE=$(curl -s -o /dev/null -w "%{http_code}" \
+                        -H "Host: ${SERVER_HOST}" \
+                        "http://${PROXY_HOST}/health" || echo 000)
+                      [ "$CODE" = "200" ] && break
+                      sleep 3
+                    done
                     echo "GET http://${PROXY_HOST}/health (Host: ${SERVER_HOST}) -> HTTP ${CODE}"
                     if [ "$CODE" != "200" ]; then
-                      docker logs --tail 50 "${CONTAINER}" || true
+                      docker logs --tail 80 "${CONTAINER}" || true
                       exit 1
                     fi
                 '''
