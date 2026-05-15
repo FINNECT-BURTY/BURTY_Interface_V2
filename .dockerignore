@@ -5,10 +5,11 @@
 .env
 .env.*
 !/.env.example
-build
+# 빌드 산출물 — 패턴이 Java 패키지(com.burty.application.port.out)와 충돌하지 않도록
+# 루트 + 모듈 루트 단계에서만 매칭되게 좁힘 (**/out 같은 광역 패턴은 사용하지 않음)
+/build
 .gradle
-**/build
-**/out
+/out
 **/.DS_Store
 secrets/
 !secrets/.gitkeep
