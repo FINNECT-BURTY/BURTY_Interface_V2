@@ -1,78 +1,82 @@
-version: '3.8'
-
 services:
-  storyg:
+  burty:
     build:
       context: .
       dockerfile: Dockerfile
     image: burty:latest
-    container_name: burty_interface
-
-    ports:
-      - "80:8080"
-    environment:
-      # Spring Profile
-      - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-dev}
-
-      # Database (호스트 MariaDB)
-      - DB_HOST=${DB_HOST:-host.docker.internal}
-      - DB_PORT=${DB_PORT:-3306}
-      - DB_NAME=${DB_NAME:-berty}
-      - DB_USER=${DB_USER}
-      - DB_PASSWORD=${DB_PASSWORD}
-
-      # Redis
-      - REDIS_HOST=${REDIS_HOST:-host.docker.internal}
-      - REDIS_PORT=${REDIS_PORT:-6379}
-      - REDIS_PASSWORD=${REDIS_PASSWORD:-}
-
-      # JWT
-      - JWT_SECRET=${JWT_SECRET}
-      - JWT_ACCESS_EXPIRATION=${JWT_ACCESS_EXPIRATION:-10800000}
-      - JWT_REFRESH_EXPIRATION=${JWT_REFRESH_EXPIRATION:-604800000}
-
-      # CORS
-      - CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS:-http://localhost:3000}
-
-      # Frontend URL
-      - FRONTEND_URL=${FRONTEND_URL:-http://localhost:3000}
-
-      # Mail (Optional)
-      - MAIL_HOST=${MAIL_HOST:-smtp.gmail.com}
-      - MAIL_PORT=${MAIL_PORT:-587}
-      - MAIL_USERNAME=${MAIL_USERNAME:-}
-      - MAIL_PASSWORD=${MAIL_PASSWORD:-}
-
-      # Gemini / Vertex AI
-      - GEMINI_ENABLED=${GEMINI_ENABLED:-false}
-      - GEMINI_PROJECT_ID=${GEMINI_PROJECT_ID:-}
-      - GEMINI_MODEL=${GEMINI_MODEL:-gemini-2.5-flash}
-      - GOOGLE_APPLICATION_CREDENTIALS=/app/secrets/keys.json
-
-      # Upload Path (Docker volume 마운트 경로와 일치시켜야 파일이 유지됨)
-      - UPLOAD_PATH=/app/uploads/
-
-      # Log Path (Docker volume 마운트 경로와 일치시켜야 함)
-      - LOG_PATH=/app/logs
-
-      # JVM Options
-      - JAVA_OPTS=-Xms512m -Xmx1024m -XX:+UseContainerSupport -Duser.timezone=Asia/Seoul -Dio.grpc.netty.shaded.io.netty.handler.ssl.noOpenSsl=true
+    container_name: burty
+    restart: unless-stopped
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    ports:
+      - "${APP_PORT:-8080}:8080"
+    environment:
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-dev}
+
+      # MariaDB (호스트 또는 컨테이너)
+      DB_HOST: ${DB_HOST:-host.docker.internal}
+      DB_PORT: ${DB_PORT:-3306}
+      DB_NAME: ${DB_NAME:-burty_dev}
+      DB_USER: ${DB_USER:-root}
+      DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
+
+      # nginx-proxy (서버 배포 시 Jenkinsfile 과 동일)
+      VIRTUAL_HOST: ${VIRTUAL_HOST:-localhost}
+      VIRTUAL_PORT: "8080"
+      LETSENCRYPT_HOST: ${LETSENCRYPT_HOST:-}
+
+      # Redis
+      REDIS_HOST: ${REDIS_HOST:-host.docker.internal}
+      REDIS_PORT: ${REDIS_PORT:-6379}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+      burty.redis.enabled: ${BURTY_REDIS_ENABLED:-false}
+
+      # JWT / Burty 설정
+      JWT_SECRET: ${JWT_SECRET:-change-me-jwt-secret-key-minimum-256-bits}
+      burty.jwt.secret: ${JWT_SECRET:-change-me-jwt-secret-key-minimum-256-bits}
+
+      # CORS / 쿠키
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:3000,http://localhost:8080}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:8080}
+      COOKIE_DOMAIN: ${COOKIE_DOMAIN:-localhost}
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+
+      # Mail (optional)
+      MAIL_HOST: ${MAIL_HOST:-smtp.gmail.com}
+      MAIL_PORT: ${MAIL_PORT:-587}
+      MAIL_USERNAME: ${MAIL_USERNAME:-}
+      MAIL_PASSWORD: ${MAIL_PASSWORD:-}
+
+      # Gemini / Vertex AI (optional)
+      GEMINI_ENABLED: ${GEMINI_ENABLED:-false}
+      GEMINI_PROJECT_ID: ${GEMINI_PROJECT_ID:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.5-flash}
+      GOOGLE_APPLICATION_CREDENTIALS: /app/secrets/keys.json
+
+      UPLOAD_PATH: /app/uploads/
+      LOG_PATH: /app/logs
+      JAVA_OPTS: >-
+        -Xms512m -Xmx1024m -XX:+UseContainerSupport
+        -Duser.timezone=Asia/Seoul
+        -Dio.grpc.netty.shaded.io.netty.handler.ssl.noOpenSsl=true
     volumes:
-      - /home/ubuntu/jenkins_home/ws/burty/logs:/app/logs
-      - /home/ubuntu/jenkins_home/ws/burty/uploads:/app/uploads
-      - /home/ubuntu/jenkins_home/ws/burty/secrets/keys.json:/app/secrets/keys.json:ro
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/api/v1/actuator/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 60s
+      - burty-logs:/app/logs
+      - burty-uploads:/app/uploads
+      # GCP 키: docker-compose.override.yml 에서 keys.json 마운트 (예시는 .env.example 참고)
     networks:
-      - burty-network
+      - global-nginx
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 90s
 
 networks:
-  burty-network:
+  global-nginx:
+    name: global-nginx
     driver: bridge
+
+volumes:
+  burty-logs:
+  burty-uploads:

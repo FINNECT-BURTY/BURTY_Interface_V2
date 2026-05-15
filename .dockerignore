@@ -1,0 +1,14 @@
+.git
+.gitignore
+.idea
+*.md
+.env
+.env.*
+!/.env.example
+build
+.gradle
+**/build
+**/out
+**/.DS_Store
+secrets/
+!secrets/.gitkeep
