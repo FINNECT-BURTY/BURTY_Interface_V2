@@ -5,8 +5,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    image: berty:latest
-    container_name: berty_interface
+    image: burty:latest
+    container_name: burty_interface
 
     ports:
       - "80:8080"
@@ -60,9 +60,9 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
-      - /home/ubuntu/jenkins_home/ws/berty/logs:/app/logs
-      - /home/ubuntu/jenkins_home/ws/berty/uploads:/app/uploads
-      - /home/ubuntu/jenkins_home/ws/berty/secrets/keys.json:/app/secrets/keys.json:ro
+      - /home/ubuntu/jenkins_home/ws/burty/logs:/app/logs
+      - /home/ubuntu/jenkins_home/ws/burty/uploads:/app/uploads
+      - /home/ubuntu/jenkins_home/ws/burty/secrets/keys.json:/app/secrets/keys.json:ro
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/api/v1/actuator/health"]
@@ -71,8 +71,8 @@ services:
       retries: 3
       start_period: 60s
     networks:
-      - berty-network
+      - burty-network
 
 networks:
-  berty-network:
+  burty-network:
     driver: bridge

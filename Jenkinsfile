@@ -4,7 +4,7 @@ pipeline {
         disableConcurrentBuilds()
     }
     environment {
-        IMAGE_NAME = "berty"
+        IMAGE_NAME = "burty"
         DOCKER = "/usr/bin/docker"
     }
     stages {
@@ -20,11 +20,11 @@ pipeline {
         }
         stage('Deploy') {
             steps {
-                sh 'mkdir -p /var/jenkins_home/ws/berty/uploads'
-                sh 'chmod -R 777 /var/jenkins_home/ws/berty/uploads || true'
-                sh 'mkdir -p /var/jenkins_home/ws/berty/secrets'
-                sh 'mkdir -p /var/jenkins_home/ws/berty/logs'
-                sh 'chmod -R 777 /var/jenkins_home/ws/berty/logs || true'
+                sh 'mkdir -p /var/jenkins_home/ws/burty/uploads'
+                sh 'chmod -R 777 /var/jenkins_home/ws/burty/uploads || true'
+                sh 'mkdir -p /var/jenkins_home/ws/burty/secrets'
+                sh 'mkdir -p /var/jenkins_home/ws/burty/logs'
+                sh 'chmod -R 777 /var/jenkins_home/ws/burty/logs || true'
                 sh '''
                     ${DOCKER} stop ${IMAGE_NAME} || true
                     ${DOCKER} rm -f ${IMAGE_NAME} || true
@@ -34,16 +34,16 @@ pipeline {
                     fi
                 '''
                 withCredentials([
-                    file(credentialsId: 'BERTY_ENV_FILE', variable: 'ENV_FILE'),
+                    file(credentialsId: 'BURTY_ENV_FILE', variable: 'ENV_FILE'),
                     file(credentialsId: 'gcp-keys-json', variable: 'GCP_KEYS_FILE')
                 ]) {
                     sh '''
-                        rm -rf /var/jenkins_home/ws/berty/secrets/keys.json
-                        cp "${GCP_KEYS_FILE}" /var/jenkins_home/ws/berty/secrets/keys.json
-                        chmod 644 /var/jenkins_home/ws/berty/secrets/keys.json
+                        rm -rf /var/jenkins_home/ws/burty/secrets/keys.json
+                        cp "${GCP_KEYS_FILE}" /var/jenkins_home/ws/burty/secrets/keys.json
+                        chmod 644 /var/jenkins_home/ws/burty/secrets/keys.json
                         echo "=== keys.json 상태 확인 ==="
-                        ls -la /var/jenkins_home/ws/berty/secrets/keys.json
-                        [ -f /var/jenkins_home/ws/berty/secrets/keys.json ] || (echo "ERROR: keys.json이 파일이 아닙니다" && exit 1)
+                        ls -la /var/jenkins_home/ws/burty/secrets/keys.json
+                        [ -f /var/jenkins_home/ws/burty/secrets/keys.json ] || (echo "ERROR: keys.json이 파일이 아닙니다" && exit 1)
                         echo "=== keys.json 정상 생성 완료 ==="
                     '''
                     sh '''
@@ -55,18 +55,18 @@ pipeline {
                         -e SPRING_PROFILES_ACTIVE=prod \
                         -e DB_HOST=host.docker.internal \
                         -e DB_PORT=3306 \
-                        -e DB_NAME=berty \
+                        -e DB_NAME=burty \
                         -e DB_USER=root \
                         -e GOOGLE_APPLICATION_CREDENTIALS=/app/secrets/keys.json \
-                        -e VIRTUAL_HOST=api.berty.kr \
+                        -e VIRTUAL_HOST=api.burty.kr \
                         -e VIRTUAL_PORT=8080 \
-                        -e FRONTEND_URL=https://berty.kr \
-                        -e SERVER_URL=https://berty.kr/api/v1 \
-                        -e COOKIE_DOMAIN=berty.kr \
+                        -e FRONTEND_URL=https://burty.kr \
+                        -e SERVER_URL=https://burty.kr/api/v1 \
+                        -e COOKIE_DOMAIN=burty.kr \
                         -e COOKIE_SECURE=true \
-                        -v /home/ubuntu/jenkins_home/ws/berty/uploads:/app/uploads \
-                        -v /home/ubuntu/jenkins_home/ws/berty/logs:/app/logs \
-                        -v /home/ubuntu/jenkins_home/ws/berty/secrets/keys.json:/app/secrets/keys.json:ro \
+                        -v /home/ubuntu/jenkins_home/ws/burty/uploads:/app/uploads \
+                        -v /home/ubuntu/jenkins_home/ws/burty/logs:/app/logs \
+                        -v /home/ubuntu/jenkins_home/ws/burty/secrets/keys.json:/app/secrets/keys.json:ro \
                         -e UPLOAD_PATH=/app/uploads/ \
                         -e LOG_PATH=/app/logs \
                         --restart unless-stopped \

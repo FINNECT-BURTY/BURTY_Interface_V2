@@ -31,4 +31,4 @@
 
 ## 저장소 이슈 링크
 
-[FINNECT-BERTY/BERTY_Interface Issues](https://github.com/FINNECT-BERTY/BERTY_Interface/issues)
+[FINNECT-BURTY/BURTY_Interface Issues](https://github.com/FINNECT-BURTY/BURTY_Interface/issues)
