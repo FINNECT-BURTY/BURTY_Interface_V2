@@ -1,0 +1,12 @@
+# prod override — docker-compose.yml 와 함께 사용
+#
+# 사용:
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+#
+# 차이점:
+#   - 호스트 포트 노출 제거 (nginx-proxy 가 global-nginx 네트워크 내부로 접근)
+#   - 그 외 환경변수는 .env 로 주입 (VIRTUAL_HOST, COOKIE_DOMAIN, FRONTEND_URL 등)
+
+services:
+  burty:
+    ports: !reset []
