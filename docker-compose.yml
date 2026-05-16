@@ -13,6 +13,9 @@ services:
     environment:
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-dev}
 
+      # 첫 배포: update (Hibernate 가 스키마 생성). 운영 안정화 후 validate 로 전환.
+      SPRING_JPA_DDLAUTO: ${SPRING_JPA_DDLAUTO:-update}
+
       # MariaDB (호스트 또는 컨테이너)
       DB_HOST: ${DB_HOST:-host.docker.internal}
       DB_PORT: ${DB_PORT:-3306}
