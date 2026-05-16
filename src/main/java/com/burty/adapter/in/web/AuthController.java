@@ -1,8 +1,10 @@
 package com.burty.adapter.in.web;
 
+import com.burty.adapter.in.web.dto.RefreshTokenRequest;
 import com.burty.adapter.in.web.dto.SocialLoginRequest;
 import com.burty.adapter.in.web.dto.SocialLoginResponse;
 import com.burty.adapter.in.web.dto.TokenIssueRequest;
+import com.burty.adapter.in.web.dto.TokenPairResponse;
 import com.burty.adapter.in.web.dto.TokenResponse;
 import com.burty.adapter.in.web.dto.AuthorizeUrlResponse;
 import com.burty.adapter.in.web.dto.LogoutResponse;
@@ -15,6 +17,7 @@ import com.burty.core.exception.BusinessException;
 import com.burty.domain.model.SocialLoginResult;
 import com.burty.security.JwtBlacklistService;
 import com.burty.security.JwtTokenProvider;
+import com.burty.security.RefreshTokenService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -26,21 +29,24 @@ import java.util.UUID;
 
 @RestController
 @RequestMapping("/auth")
-@Tag(name = "BURTY Auth", description = "BURTY 인증(JWT 발급/로그아웃) API")
+@Tag(name = "BURTY Auth", description = "BURTY 인증(JWT 발급/Refresh/로그아웃) API")
 public class AuthController extends BaseController {
     private final JwtTokenProvider jwtTokenProvider;
     private final JwtBlacklistService jwtBlacklistService;
+    private final RefreshTokenService refreshTokenService;
     private final SocialLoginUseCase socialLoginUseCase;
     private final BurtyAuthProperties burtyAuthProperties;
     private final Environment environment;
 
     public AuthController(JwtTokenProvider jwtTokenProvider,
                           JwtBlacklistService jwtBlacklistService,
+                          RefreshTokenService refreshTokenService,
                           SocialLoginUseCase socialLoginUseCase,
                           BurtyAuthProperties burtyAuthProperties,
                           Environment environment) {
         this.jwtTokenProvider = jwtTokenProvider;
         this.jwtBlacklistService = jwtBlacklistService;
+        this.refreshTokenService = refreshTokenService;
         this.socialLoginUseCase = socialLoginUseCase;
         this.burtyAuthProperties = burtyAuthProperties;
         this.environment = environment;
@@ -48,7 +54,7 @@ public class AuthController extends BaseController {
 
     @PostMapping("/token")
     @Operation(
-            summary = "JWT 발급",
+            summary = "JWT 발급 (테스트용)",
             description = "userId 기반으로 접근 토큰을 발급합니다. `burty.auth.test-token-enabled=true`이고 `prod` 프로파일이 아닐 때만 허용됩니다.",
             security = {}
     )
@@ -60,6 +66,22 @@ public class AuthController extends BaseController {
         String userId = request.getUserId() != null ? request.getUserId() : UUID.randomUUID().toString();
         String token = jwtTokenProvider.generateToken(userId);
         return ApiResponse.ok(new TokenResponse(token));
+    }
+
+    @PostMapping("/refresh")
+    @Operation(
+            summary = "Access / Refresh token 재발급",
+            description = "유효한 refresh token 으로 access + refresh 쌍을 재발급합니다. 매 호출 시 refresh token 도 회전(rotation)됩니다. 이미 revoke 된 refresh token 이 들어오면 도난 의심으로 해당 사용자의 모든 세션이 강제 종료됩니다.",
+            security = {}
+    )
+    public ApiResponse<TokenPairResponse> refresh(@RequestBody RefreshTokenRequest request) {
+        RefreshTokenService.TokenPair pair = refreshTokenService.rotate(request.getRefreshToken());
+        return ApiResponse.ok(new TokenPairResponse(
+                pair.accessToken(),
+                pair.refreshToken(),
+                pair.accessExpiresInSeconds(),
+                pair.refreshExpiresInSeconds()
+        ));
     }
 
     @GetMapping("/social/{provider}/authorize-url")
@@ -77,7 +99,7 @@ public class AuthController extends BaseController {
     @PostMapping("/social/{provider}/login")
     @Operation(
             summary = "소셜 로그인",
-            description = "GOOGLE/KAKAO/NAVER/APPLE authorization code를 검증하고 BURTY JWT를 발급합니다.",
+            description = "GOOGLE/KAKAO/NAVER/APPLE authorization code를 검증하고 BURTY access + refresh token 쌍을 발급합니다.",
             security = {}
     )
     public ApiResponse<SocialLoginResponse> socialLogin(@PathVariable String provider,
@@ -93,6 +115,9 @@ public class AuthController extends BaseController {
                 result.getUserId(),
                 result.getProvider(),
                 result.getAccessToken(),
+                result.getRefreshToken(),
+                result.getAccessExpiresInSeconds(),
+                result.getRefreshExpiresInSeconds(),
                 result.isNewUser(),
                 result.isProfileComplete()
         ));
@@ -101,12 +126,16 @@ public class AuthController extends BaseController {
     @PostMapping("/logout")
     @Operation(
             summary = "로그아웃",
-            description = "현재 Bearer 토큰을 블랙리스트에 등록합니다.",
+            description = "현재 access token 을 블랙리스트에 등록하고, body 로 받은 refresh token 을 revoke 합니다.",
             security = { @SecurityRequirement(name = "bearerAuth") }
     )
-    public ApiResponse<LogoutResponse> logout(@RequestHeader("Authorization") String authHeader) {
+    public ApiResponse<LogoutResponse> logout(@RequestHeader("Authorization") String authHeader,
+                                              @RequestBody(required = false) RefreshTokenRequest request) {
         String token = authHeader.replace("Bearer ", "");
         jwtBlacklistService.blacklist(token);
+        if (request != null) {
+            refreshTokenService.revoke(request.getRefreshToken());
+        }
         return ApiResponse.ok(new LogoutResponse(true));
     }
 }

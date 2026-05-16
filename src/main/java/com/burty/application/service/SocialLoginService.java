@@ -13,7 +13,7 @@ import com.burty.domain.model.SocialLoginResult;
 import com.burty.domain.repository.SocialAccountRepository;
 import com.burty.domain.repository.UserProfileRepository;
 import com.burty.domain.repository.UserRepository;
-import com.burty.security.JwtTokenProvider;
+import com.burty.security.RefreshTokenService;
 import com.burty.security.oauth.OAuthStateStore;
 import com.burty.util.EncryptionUtil;
 import org.springframework.http.MediaType;
@@ -38,7 +38,7 @@ public class SocialLoginService implements SocialLoginUseCase {
     private final SocialAccountRepository socialAccountRepository;
     private final UserRepository userRepository;
     private final UserProfileRepository userProfileRepository;
-    private final JwtTokenProvider jwtTokenProvider;
+    private final RefreshTokenService refreshTokenService;
     private final EncryptionUtil encryptionUtil;
     private final AuditLogPort auditLogPort;
     private final OAuthStateStore oAuthStateStore;
@@ -48,7 +48,7 @@ public class SocialLoginService implements SocialLoginUseCase {
                               SocialAccountRepository socialAccountRepository,
                               UserRepository userRepository,
                               UserProfileRepository userProfileRepository,
-                              JwtTokenProvider jwtTokenProvider,
+                              RefreshTokenService refreshTokenService,
                               EncryptionUtil encryptionUtil,
                               AuditLogPort auditLogPort,
                               OAuthStateStore oAuthStateStore) {
@@ -56,7 +56,7 @@ public class SocialLoginService implements SocialLoginUseCase {
         this.socialAccountRepository = socialAccountRepository;
         this.userRepository = userRepository;
         this.userProfileRepository = userProfileRepository;
-        this.jwtTokenProvider = jwtTokenProvider;
+        this.refreshTokenService = refreshTokenService;
         this.encryptionUtil = encryptionUtil;
         this.auditLogPort = auditLogPort;
         this.oAuthStateStore = oAuthStateStore;
@@ -138,7 +138,20 @@ public class SocialLoginService implements SocialLoginUseCase {
                 LocalDateTime.now()
         ));
         boolean profileComplete = userProfileRepository.existsById(UUID.fromString(userId));
-        return new SocialLoginResult(userId, provider, jwtTokenProvider.generateToken(userId), newUser, profileComplete);
+
+        // refresh token 까지 발급. deviceId 는 추후 클라이언트 헤더에서 전달받도록 확장 가능.
+        RefreshTokenService.TokenPair tokens = refreshTokenService.issueNewSession(userId, null);
+
+        return new SocialLoginResult(
+                userId,
+                provider,
+                tokens.accessToken(),
+                tokens.refreshToken(),
+                tokens.accessExpiresInSeconds(),
+                tokens.refreshExpiresInSeconds(),
+                newUser,
+                profileComplete
+        );
     }
 
     private SocialProfile fetchProfile(String provider, String code, String redirectUri, String codeVerifier) {
