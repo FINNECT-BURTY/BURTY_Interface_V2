@@ -25,7 +25,7 @@ import java.util.Arrays;
 import java.util.UUID;
 
 @RestController
-@RequestMapping("/api/burty/auth")
+@RequestMapping("/auth")
 @Tag(name = "BURTY Auth", description = "BURTY 인증(JWT 발급/로그아웃) API")
 public class AuthController extends BaseController {
     private final JwtTokenProvider jwtTokenProvider;

@@ -1,5 +1,7 @@
 package com.burty.adapter.in.web;
 
+import com.burty.core.controller.BaseController;
+
 import com.burty.adapter.in.web.dto.AiFallbackTemplateRequest;
 import com.burty.adapter.in.web.dto.SimpleResultResponse;
 import com.burty.core.dto.response.ApiResponse;
@@ -13,9 +15,9 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/burty/admin/ai-templates")
+@RequestMapping("/admin/ai-templates")
 @Tag(name = "BURTY AI Template Admin", description = "AI fallback 문구 템플릿 관리 API")
-public class AiTemplateAdminController {
+public class AiTemplateAdminController extends BaseController {
     private final AiFallbackTemplateRepository repository;
 
     public AiTemplateAdminController(AiFallbackTemplateRepository repository) {

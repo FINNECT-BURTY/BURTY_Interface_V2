@@ -1,5 +1,7 @@
 package com.burty.adapter.in.web;
 
+import com.burty.core.controller.BaseController;
+
 import com.burty.application.port.in.PersonaInferenceUseCase;
 import com.burty.core.dto.response.ApiResponse;
 import com.burty.domain.entity.PersonaProfileEntity;
@@ -12,9 +14,9 @@ import org.springframework.web.bind.annotation.*;
 import java.time.LocalDateTime;
 
 @RestController
-@RequestMapping("/api/burty/persona")
+@RequestMapping("/persona")
 @Tag(name = "BURTY Persona", description = "사용자 페르소나 (직업/거주/소득) 조회·수정 API")
-public class PersonaController {
+public class PersonaController extends BaseController {
 
     private final PersonaInferenceUseCase personaInferenceUseCase;
 

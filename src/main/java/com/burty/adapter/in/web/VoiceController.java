@@ -12,7 +12,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.Map;
 
 @RestController
-@RequestMapping("/api/burty/voice")
+@RequestMapping("/voice")
 public class VoiceController extends BaseController {
     private final VoiceUseCase voiceUseCase;
 

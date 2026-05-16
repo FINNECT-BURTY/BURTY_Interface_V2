@@ -1,5 +1,7 @@
 package com.burty.adapter.in.web;
 
+import com.burty.core.controller.BaseController;
+
 import com.burty.application.port.in.RegisteredAccountUseCase;
 import com.burty.core.dto.response.ApiResponse;
 import com.burty.security.AuthLevel;
@@ -12,9 +14,9 @@ import java.util.List;
 import java.util.Map;
 
 @RestController
-@RequestMapping("/api/burty/registered-accounts")
+@RequestMapping("/registered-accounts")
 @Tag(name = "BURTY Registered Accounts", description = "이체 등록 계좌 (해시+암호화+마스킹) 관리")
-public class RegisteredAccountController {
+public class RegisteredAccountController extends BaseController {
 
     private final RegisteredAccountUseCase useCase;
 

@@ -1,5 +1,7 @@
 package com.burty.adapter.in.web;
 
+import com.burty.core.controller.BaseController;
+
 import com.burty.adapter.in.web.dto.ConsentResponse;
 import com.burty.adapter.in.web.dto.SimpleResultResponse;
 import com.burty.core.dto.response.ApiResponse;
@@ -22,9 +24,9 @@ import java.util.List;
 import java.util.UUID;
 
 @RestController
-@RequestMapping("/api/burty/consents")
+@RequestMapping("/consents")
 @Tag(name = "BURTY Consent Management", description = "동의/연결 해제 관리 API")
-public class ConsentManagementController {
+public class ConsentManagementController extends BaseController {
     private final ConsentRecordRepository consentRecordRepository;
     private final MyDataLinkStatusRepository myDataLinkStatusRepository;
     private final SocialAccountRepository socialAccountRepository;

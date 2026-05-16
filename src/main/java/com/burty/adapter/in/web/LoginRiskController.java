@@ -1,5 +1,7 @@
 package com.burty.adapter.in.web;
 
+import com.burty.core.controller.BaseController;
+
 import com.burty.adapter.in.web.dto.LoginRiskEvaluateRequest;
 import com.burty.adapter.in.web.dto.LoginRiskEvaluateResponse;
 import com.burty.core.dto.response.ApiResponse;
@@ -21,9 +23,9 @@ import java.util.List;
 import java.util.UUID;
 
 @RestController
-@RequestMapping("/api/burty/security/login-risk")
+@RequestMapping("/security/login-risk")
 @Tag(name = "BURTY Login Risk", description = "새 기기/IP/시간대 기반 이상 로그인 평가 API")
-public class LoginRiskController {
+public class LoginRiskController extends BaseController {
     private final DeviceRepository deviceRepository;
     private final UserRepository userRepository;
     private final NotificationRepository notificationRepository;

@@ -11,7 +11,7 @@ import org.springframework.stereotype.Component;
 public class BurtyAuthProperties {
 
     /**
-     * {@code POST /api/burty/auth/token} 허용 여부. {@code spring.profiles.active}에 prod가 있으면 무조건 비활성화됩니다.
+     * {@code POST /api/v1/auth/token} 허용 여부. {@code spring.profiles.active}에 prod가 있으면 무조건 비활성화됩니다.
      */
     private boolean testTokenEnabled = false;
 

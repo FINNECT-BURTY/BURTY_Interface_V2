@@ -56,8 +56,8 @@ public class ResourceOwnershipInterceptor implements HandlerInterceptor {
     }
 
     private boolean shouldSkip(String path) {
-        return path.startsWith("/api/burty/auth/")
-                || path.startsWith("/api/burty/admin/");
+        return path.startsWith("/api/v1/auth/")
+                || path.startsWith("/api/v1/admin/");
     }
 
     private String resolveRequestedUserId(HttpServletRequest request) {

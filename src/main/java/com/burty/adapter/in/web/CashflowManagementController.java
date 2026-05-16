@@ -1,5 +1,7 @@
 package com.burty.adapter.in.web;
 
+import com.burty.core.controller.BaseController;
+
 import com.burty.adapter.in.web.dto.*;
 import com.burty.application.port.in.CashflowForecastUseCase;
 import com.burty.core.dto.response.ApiResponse;
@@ -19,9 +21,9 @@ import java.time.LocalDate;
 import java.util.*;
 
 @RestController
-@RequestMapping("/api/burty/cashflow-management")
+@RequestMapping("/cashflow-management")
 @Tag(name = "BURTY Cashflow Management", description = "현금흐름 캘린더/고정지출/위험원인 관리 API")
-public class CashflowManagementController {
+public class CashflowManagementController extends BaseController {
     private final CashflowScheduleRepository scheduleRepository;
     private final RecurringExpenseRepository recurringExpenseRepository;
     private final CashflowForecastUseCase cashflowForecastUseCase;

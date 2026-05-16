@@ -1,5 +1,7 @@
 package com.burty.adapter.in.web;
 
+import com.burty.core.controller.BaseController;
+
 import com.burty.adapter.in.web.dto.ActionTrackingResponse;
 import com.burty.application.port.in.RiskAssessmentUseCase;
 import com.burty.core.dto.response.ApiResponse;
@@ -13,9 +15,9 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
-@RequestMapping("/api/burty/actions/tracking")
+@RequestMapping("/actions/tracking")
 @Tag(name = "BURTY Action Tracking", description = "추천 행동 수락/실행/효과 추적 API")
-public class ActionTrackingController {
+public class ActionTrackingController extends BaseController {
     private final ActionExecutionRepository actionExecutionRepository;
     private final ActionFeedbackRepository actionFeedbackRepository;
     private final RiskAssessmentUseCase riskAssessmentUseCase;

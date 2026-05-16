@@ -1,5 +1,7 @@
 package com.burty.adapter.in.web;
 
+import com.burty.core.controller.BaseController;
+
 import com.burty.adapter.in.web.dto.DeviceNameUpdateRequest;
 import com.burty.adapter.in.web.dto.DeviceResponse;
 import com.burty.adapter.in.web.dto.SimpleResultResponse;
@@ -19,9 +21,9 @@ import java.util.List;
 import java.util.UUID;
 
 @RestController
-@RequestMapping("/api/burty/devices")
+@RequestMapping("/devices")
 @Tag(name = "BURTY Device Management", description = "신뢰 디바이스 조회/이름 변경/해제 API")
-public class DeviceManagementController {
+public class DeviceManagementController extends BaseController {
     private final DeviceRepository deviceRepository;
     private final BiometricCredentialRepository biometricCredentialRepository;
 

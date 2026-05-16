@@ -1,5 +1,7 @@
 package com.burty.adapter.in.web;
 
+import com.burty.core.controller.BaseController;
+
 import com.burty.adapter.in.web.dto.OnboardingProfileResponse;
 import com.burty.adapter.in.web.dto.ProfileOnboardingRequest;
 import com.burty.application.port.in.UserOnboardingUseCase;
@@ -17,9 +19,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("/api/burty/onboarding")
+@RequestMapping("/onboarding")
 @Tag(name = "BURTY Onboarding", description = "소셜 로그인 이후 추가 프로필 등록")
-public class UserOnboardingController {
+public class UserOnboardingController extends BaseController {
 
     private final UserOnboardingUseCase userOnboardingUseCase;
 

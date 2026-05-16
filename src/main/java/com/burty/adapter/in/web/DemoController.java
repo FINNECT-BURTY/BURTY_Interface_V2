@@ -1,5 +1,7 @@
 package com.burty.adapter.in.web;
 
+import com.burty.core.controller.BaseController;
+
 import com.burty.core.dto.response.ApiResponse;
 import com.burty.domain.entity.CashflowScheduleEntity;
 import com.burty.domain.entity.PersonaProfileEntity;
@@ -28,9 +30,9 @@ import java.util.Map;
 import java.util.UUID;
 
 @RestController
-@RequestMapping("/api/burty/auth/demo")
+@RequestMapping("/auth/demo")
 @Tag(name = "BURTY Demo", description = "MVP 시연용 사용자와 현금흐름 데이터를 생성합니다.")
-public class DemoController {
+public class DemoController extends BaseController {
     private static final Logger log = LoggerFactory.getLogger(DemoController.class);
     private static final String DEMO_USER_ID = "demo-user";
 

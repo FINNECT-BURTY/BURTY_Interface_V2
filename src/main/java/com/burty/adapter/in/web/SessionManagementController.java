@@ -1,5 +1,7 @@
 package com.burty.adapter.in.web;
 
+import com.burty.core.controller.BaseController;
+
 import com.burty.adapter.in.web.dto.*;
 import com.burty.core.dto.response.ApiResponse;
 import com.burty.domain.entity.UserSessionEntity;
@@ -19,9 +21,9 @@ import java.util.List;
 import java.util.UUID;
 
 @RestController
-@RequestMapping("/api/burty/sessions")
+@RequestMapping("/sessions")
 @Tag(name = "BURTY Session Management", description = "refresh token 및 기기별 세션 관리 API")
-public class SessionManagementController {
+public class SessionManagementController extends BaseController {
     private final UserSessionRepository userSessionRepository;
     private final JwtTokenProvider jwtTokenProvider;
 

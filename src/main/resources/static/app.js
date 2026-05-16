@@ -25,7 +25,7 @@ async function api(path, options = {}) {
 
 async function bootstrap() {
   setLoading("데모 세션을 준비하고 있습니다.");
-  const demo = await api("/api/burty/auth/demo/session", { method: "POST", body: "{}" });
+  const demo = await api("/api/v1/auth/demo/session", { method: "POST", body: "{}" });
   state.token = demo.accessToken;
   state.userId = demo.userId;
   el("scenarioText").textContent = demo.scenario;
@@ -36,16 +36,16 @@ async function loadDashboard() {
   setLoading("현금흐름을 분석하고 있습니다.");
   const query = `userId=${encodeURIComponent(state.userId)}`;
   const [forecast, risk, action, causes, policies, report, calendar] = await Promise.all([
-    api(`/api/burty/cashflow/forecast?${query}`),
-    api(`/api/burty/cashflow/risk?${query}`),
-    api(`/api/burty/cashflow/action?${query}`),
-    api(`/api/burty/cashflow-management/risk-causes?${query}`),
-    api(`/api/burty/policy/match?${query}`),
-    api("/api/burty/ai/consult", {
+    api(`/api/v1/cashflow/forecast?${query}`),
+    api(`/api/v1/cashflow/risk?${query}`),
+    api(`/api/v1/cashflow/action?${query}`),
+    api(`/api/v1/cashflow-management/risk-causes?${query}`),
+    api(`/api/v1/policy/match?${query}`),
+    api("/api/v1/ai/consult", {
       method: "POST",
       body: JSON.stringify({ userId: state.userId, question: "이번 달을 무사히 넘기려면 지금 무엇부터 해야 해?" })
     }),
-    api(`/api/burty/cashflow-management/calendar?${query}`)
+    api(`/api/v1/cashflow-management/calendar?${query}`)
   ]);
 
   renderRisk(forecast, risk);
@@ -175,12 +175,12 @@ function drawChart(points, safetyBalance) {
 
 async function acceptAction() {
   if (!state.actionType) return;
-  await api("/api/burty/cashflow/action/feedback", {
+  await api("/api/v1/cashflow/action/feedback", {
     method: "POST",
     body: JSON.stringify({ userId: state.userId, actionType: state.actionType, feedback: "accept" })
   });
-  const proof = await api("/api/burty/security/level2/proof", { method: "POST", body: "{}" });
-  await api("/api/burty/cashflow/action/execute", {
+  const proof = await api("/api/v1/security/level2/proof", { method: "POST", body: "{}" });
+  await api("/api/v1/cashflow/action/execute", {
     method: "POST",
     headers: { "X-Risk-Proof": proof.riskProof },
     body: JSON.stringify({ userId: state.userId, actionType: state.actionType })

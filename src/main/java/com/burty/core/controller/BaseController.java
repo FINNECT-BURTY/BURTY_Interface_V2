@@ -1,6 +1,5 @@
 package com.burty.core.controller;
 
-import com.burty.core.constants.CommonConstants;
 import com.burty.core.dto.response.ApiResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -13,9 +12,10 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.Map;
 
+// 공통 API base path(/api/v1) 는 BurtyWebConfig.configurePathMatch() 에서
+// com.burty.adapter.in.web 패키지의 @RestController 에 자동으로 prepend 된다.
+// 이 클래스는 응답/인증 유틸리티만 담당한다.
 @Slf4j
-@RestController
-@RequestMapping(CommonConstants.API_BASE_PATH)
 public abstract class BaseController {
 
     /**

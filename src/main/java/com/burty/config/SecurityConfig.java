@@ -41,8 +41,8 @@ public class SecurityConfig {
                                 "/swagger-resources/**",
                                 "/webjars/**"
                         ).permitAll()
-                        .requestMatchers("/api/burty/auth/**").permitAll()
-                        .requestMatchers("/api/burty/**").authenticated()
+                        .requestMatchers("/api/v1/auth/**").permitAll()
+                        .requestMatchers("/api/v1/**").authenticated()
                         .anyRequest().permitAll());
 
         if (resourceServerRequested) {

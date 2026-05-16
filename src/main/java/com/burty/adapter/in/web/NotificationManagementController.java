@@ -1,5 +1,7 @@
 package com.burty.adapter.in.web;
 
+import com.burty.core.controller.BaseController;
+
 import com.burty.adapter.in.web.dto.NotificationResponse;
 import com.burty.adapter.in.web.dto.ReminderGenerateResponse;
 import com.burty.core.dto.response.ApiResponse;
@@ -26,9 +28,9 @@ import java.util.List;
 import java.util.UUID;
 
 @RestController
-@RequestMapping("/api/burty/notifications")
+@RequestMapping("/notifications")
 @Tag(name = "BURTY Notifications", description = "위험일/결제일/정책 마감 알림 API")
-public class NotificationManagementController {
+public class NotificationManagementController extends BaseController {
     private final NotificationRepository notificationRepository;
     private final UserRepository userRepository;
     private final CashflowForecastUseCase cashflowForecastUseCase;

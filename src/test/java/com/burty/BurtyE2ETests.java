@@ -56,7 +56,7 @@ class BurtyE2ETests {
     void socialLoginIssuesBurtyTokenAndPersistsAccount() {
         String base = "http://localhost:" + port;
         ResponseEntity<String> login = restTemplate.postForEntity(
-                base + "/api/burty/auth/social/kakao/login",
+                base + "/api/v1/auth/social/kakao/login",
                 new HttpEntity<>("{\"code\":\"test-social-code\",\"state\":\"state-1\"}", jsonHeaders()),
                 String.class
         );
@@ -74,7 +74,7 @@ class BurtyE2ETests {
     void googleSocialLoginIssuesBurtyToken() {
         String base = "http://localhost:" + port;
         ResponseEntity<String> login = restTemplate.postForEntity(
-                base + "/api/burty/auth/social/google/login",
+                base + "/api/v1/auth/social/google/login",
                 new HttpEntity<>("{\"code\":\"test-google-code\",\"state\":\"state-g\"}", jsonHeaders()),
                 String.class
         );
@@ -91,7 +91,7 @@ class BurtyE2ETests {
         String base = "http://localhost:" + port;
         String code = "onboard-" + UUID.randomUUID();
         ResponseEntity<String> login = restTemplate.postForEntity(
-                base + "/api/burty/auth/social/kakao/login",
+                base + "/api/v1/auth/social/kakao/login",
                 new HttpEntity<>("{\"code\":\"" + code + "\"}", jsonHeaders()),
                 String.class
         );
@@ -112,7 +112,7 @@ class BurtyE2ETests {
         HttpHeaders authHeaders = jsonHeaders();
         authHeaders.setBearerAuth(token);
         ResponseEntity<String> onboard = restTemplate.postForEntity(
-                base + "/api/burty/onboarding/profile",
+                base + "/api/v1/onboarding/profile",
                 new HttpEntity<>(onboardJson, authHeaders),
                 String.class
         );
@@ -126,7 +126,7 @@ class BurtyE2ETests {
         Assertions.assertTrue(consentRecordRepository.findByUser_UserId(UUID.fromString(socialUserId)).size() >= 2);
 
         ResponseEntity<String> login2 = restTemplate.postForEntity(
-                base + "/api/burty/auth/social/kakao/login",
+                base + "/api/v1/auth/social/kakao/login",
                 new HttpEntity<>("{\"code\":\"" + code + "\"}", jsonHeaders()),
                 String.class
         );
@@ -136,7 +136,7 @@ class BurtyE2ETests {
         Assertions.assertTrue(login2.getBody().contains("\"newUser\":false"));
 
         ResponseEntity<String> onboard2 = restTemplate.postForEntity(
-                base + "/api/burty/onboarding/profile",
+                base + "/api/v1/onboarding/profile",
                 new HttpEntity<>(onboardJson, authHeaders),
                 String.class
         );
@@ -149,7 +149,7 @@ class BurtyE2ETests {
     void demoSessionSeedsCashflowScenarioAndReturnsToken() {
         String base = "http://localhost:" + port;
         ResponseEntity<String> demo = restTemplate.postForEntity(
-                base + "/api/burty/auth/demo/session",
+                base + "/api/v1/auth/demo/session",
                 new HttpEntity<>("{}", jsonHeaders()),
                 String.class
         );
@@ -166,7 +166,7 @@ class BurtyE2ETests {
     void authToConsultToFamilyAlertFlow() throws Exception {
         String base = "http://localhost:" + port;
         ResponseEntity<String> tokenEntity = restTemplate.postForEntity(
-                base + "/api/burty/auth/token",
+                base + "/api/v1/auth/token",
                 new HttpEntity<>("{\"userId\":\"" + userId + "\"}", jsonHeaders()),
                 String.class
         );
@@ -176,7 +176,7 @@ class BurtyE2ETests {
         HttpHeaders authHeaders = jsonHeaders();
         authHeaders.set("Authorization", "Bearer " + token);
         ResponseEntity<String> consult = restTemplate.postForEntity(
-                base + "/api/burty/consult",
+                base + "/api/v1/consult",
                 new HttpEntity<>("{\"userId\":\"" + userId + "\",\"question\":\"이번달 괜찮아?\"}", authHeaders),
                 String.class
         );
@@ -185,7 +185,7 @@ class BurtyE2ETests {
         HttpHeaders getHeaders = new HttpHeaders();
         getHeaders.set("Authorization", "Bearer " + token);
         ResponseEntity<String> alerts = restTemplate.exchange(
-                base + "/api/burty/family-alerts?userId=" + userId,
+                base + "/api/v1/family-alerts?userId=" + userId,
                 org.springframework.http.HttpMethod.GET,
                 new HttpEntity<>(getHeaders),
                 String.class
@@ -210,7 +210,7 @@ class BurtyE2ETests {
         userRepository.save(otherUser);
 
         ResponseEntity<String> tokenEntity = restTemplate.postForEntity(
-                base + "/api/burty/auth/token",
+                base + "/api/v1/auth/token",
                 new HttpEntity<>("{\"userId\":\"" + userId + "\"}", jsonHeaders()),
                 String.class
         );
@@ -221,7 +221,7 @@ class BurtyE2ETests {
         authHeaders.setBearerAuth(token);
         HttpClientErrorException ex = Assertions.assertThrows(HttpClientErrorException.class, () ->
                 restTemplate.exchange(
-                        base + "/api/burty/persona/" + other,
+                        base + "/api/v1/persona/" + other,
                         HttpMethod.GET,
                         new HttpEntity<>(authHeaders),
                         String.class

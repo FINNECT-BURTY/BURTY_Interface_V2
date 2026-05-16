@@ -1,5 +1,7 @@
 package com.burty.adapter.in.web;
 
+import com.burty.core.controller.BaseController;
+
 import com.burty.application.port.in.MyDataAuthUseCase;
 import com.burty.core.dto.response.ApiResponse;
 import com.burty.domain.entity.MyDataLinkStatusEntity;
@@ -14,9 +16,9 @@ import java.util.List;
 import java.util.Map;
 
 @RestController
-@RequestMapping("/api/burty/mydata/institutions")
+@RequestMapping("/mydata/institutions")
 @Tag(name = "BURTY MyData Institutions", description = "MyData 기관 다중 연동 관리 API")
-public class MyDataInstitutionController {
+public class MyDataInstitutionController extends BaseController {
 
     private final MyDataAuthUseCase myDataAuthUseCase;
 

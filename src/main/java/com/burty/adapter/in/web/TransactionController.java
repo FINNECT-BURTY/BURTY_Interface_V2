@@ -1,5 +1,7 @@
 package com.burty.adapter.in.web;
 
+import com.burty.core.controller.BaseController;
+
 import com.burty.application.port.in.TransactionSyncUseCase;
 import com.burty.core.dto.response.ApiResponse;
 import com.burty.domain.entity.TransactionEntity;
@@ -15,9 +17,9 @@ import java.util.List;
 import java.util.Map;
 
 @RestController
-@RequestMapping("/api/burty/transactions")
+@RequestMapping("/transactions")
 @Tag(name = "BURTY Transactions", description = "거래내역 동기화·조회·재분류 API")
-public class TransactionController {
+public class TransactionController extends BaseController {
 
     private final TransactionSyncUseCase transactionSyncUseCase;
 

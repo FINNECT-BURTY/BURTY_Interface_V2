@@ -23,7 +23,6 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import com.burty.adapter.out.alert.FamilyAlertSseBroker;
 
 @RestController
-@RequestMapping("/api/burty")
 @Tag(name = "BURTY Finance API", description = "BURTY 금융 상담/보안/가족보호/외부금융 연동 API")
 public class BurtyController extends BaseController {
     private final BurtyUseCase moneyAgentUseCase;

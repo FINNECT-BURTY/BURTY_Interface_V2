@@ -12,7 +12,7 @@ public class MyDataProperties {
     private String tokenUrl = "https://sandbox.mydata.local/oauth2/token";
     private String refreshUrl = "https://sandbox.mydata.local/oauth2/token";
     private String assetUrl = "https://sandbox.mydata.local/api/v1/assets";
-    private String redirectUri = "http://localhost:8080/api/burty/mydata/oauth/callback";
+    private String redirectUri = "http://localhost:8080/api/v1/mydata/oauth/callback";
     private String scope = "asset.read transfer.read";
     private boolean stubMode = true;
     private int retryCount = 2;

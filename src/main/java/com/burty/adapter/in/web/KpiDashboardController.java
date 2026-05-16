@@ -1,5 +1,7 @@
 package com.burty.adapter.in.web;
 
+import com.burty.core.controller.BaseController;
+
 import com.burty.application.port.in.KpiDashboardUseCase;
 import com.burty.core.dto.response.ApiResponse;
 import com.burty.security.AuthLevel;
@@ -11,9 +13,9 @@ import org.springframework.web.bind.annotation.*;
 import java.util.Map;
 
 @RestController
-@RequestMapping("/api/burty/kpi")
+@RequestMapping("/kpi")
 @Tag(name = "BURTY KPI Dashboard", description = "행동 채택률·예측 정확도·위험단계 분포 대시보드")
-public class KpiDashboardController {
+public class KpiDashboardController extends BaseController {
 
     private final KpiDashboardUseCase useCase;
 

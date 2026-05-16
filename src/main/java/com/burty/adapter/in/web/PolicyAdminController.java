@@ -1,5 +1,7 @@
 package com.burty.adapter.in.web;
 
+import com.burty.core.controller.BaseController;
+
 import com.burty.adapter.in.web.dto.PolicyAdminRequest;
 import com.burty.adapter.in.web.dto.PolicyAdminResponse;
 import com.burty.adapter.in.web.dto.SimpleResultResponse;
@@ -15,9 +17,9 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/burty/admin/policies")
+@RequestMapping("/admin/policies")
 @Tag(name = "BURTY Policy Admin", description = "정책 데이터 최신화/관리자 API")
-public class PolicyAdminController {
+public class PolicyAdminController extends BaseController {
     private final PolicyRepository policyRepository;
 
     public PolicyAdminController(PolicyRepository policyRepository) {

@@ -1,5 +1,7 @@
 package com.burty.adapter.in.web;
 
+import com.burty.core.controller.BaseController;
+
 import com.burty.adapter.in.web.dto.SimpleResultResponse;
 import com.burty.adapter.in.web.dto.UserFeedbackRequest;
 import com.burty.core.dto.response.ApiResponse;
@@ -14,9 +16,9 @@ import org.springframework.web.bind.annotation.*;
 import java.time.LocalDateTime;
 
 @RestController
-@RequestMapping("/api/burty/feedback")
+@RequestMapping("/feedback")
 @Tag(name = "BURTY Feedback", description = "추천 도움 여부/실행 여부/금액 정확도/고정비 여부 피드백 API")
-public class UserFeedbackController {
+public class UserFeedbackController extends BaseController {
     private final ActionFeedbackRepository actionFeedbackRepository;
 
     public UserFeedbackController(ActionFeedbackRepository actionFeedbackRepository) {

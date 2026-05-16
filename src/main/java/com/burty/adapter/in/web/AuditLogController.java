@@ -1,5 +1,7 @@
 package com.burty.adapter.in.web;
 
+import com.burty.core.controller.BaseController;
+
 import com.burty.adapter.in.web.dto.AuditLogResponse;
 import com.burty.core.dto.response.ApiResponse;
 import com.burty.domain.entity.AuditLogEntity;
@@ -14,9 +16,9 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/burty/audit-logs")
+@RequestMapping("/audit-logs")
 @Tag(name = "BURTY Audit Logs", description = "로그인/생체/마이데이터/정책/추천 실행 감사로그 조회 API")
-public class AuditLogController {
+public class AuditLogController extends BaseController {
     private final AuditLogRepository auditLogRepository;
 
     public AuditLogController(AuditLogRepository auditLogRepository) {

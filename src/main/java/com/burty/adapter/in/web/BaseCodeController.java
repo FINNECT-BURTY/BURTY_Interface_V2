@@ -1,5 +1,7 @@
 package com.burty.adapter.in.web;
 
+import com.burty.core.controller.BaseController;
+
 import com.burty.application.port.in.BaseCodeUseCase;
 import com.burty.core.dto.response.ApiResponse;
 import com.burty.domain.entity.BaseCodeEntity;
@@ -14,9 +16,9 @@ import java.util.List;
 import java.util.Map;
 
 @RestController
-@RequestMapping("/api/burty/codes")
+@RequestMapping("/codes")
 @Tag(name = "BURTY Base Code", description = "기준정보(tbl_code) 조회/관리 API")
-public class BaseCodeController {
+public class BaseCodeController extends BaseController {
 
     private final BaseCodeUseCase baseCodeUseCase;
 
