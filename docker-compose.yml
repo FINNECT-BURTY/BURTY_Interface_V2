@@ -23,10 +23,14 @@ services:
       DB_USER: ${DB_USER:-root}
       DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
 
-      # nginx-proxy (서버 배포 시 Jenkinsfile 과 동일)
+      # nginx-proxy + acme-companion 연동
+      # VIRTUAL_HOST: nginx-proxy 라우팅용 (Host 헤더 매칭)
+      # LETSENCRYPT_HOST: acme-companion 이 인증서 발급할 도메인 (보통 VIRTUAL_HOST 와 동일)
+      # LETSENCRYPT_EMAIL: Let's Encrypt 만료 알림 / 복구용 이메일
       VIRTUAL_HOST: ${VIRTUAL_HOST:-localhost}
       VIRTUAL_PORT: "8080"
       LETSENCRYPT_HOST: ${LETSENCRYPT_HOST:-}
+      LETSENCRYPT_EMAIL: ${LETSENCRYPT_EMAIL:-}
 
       # Redis
       REDIS_HOST: ${REDIS_HOST:-host.docker.internal}
@@ -40,7 +44,7 @@ services:
 
       # 소셜 로그인 redirect_uri 가 OAuth provider 콘솔 등록값과 정확히 일치해야 함.
       # application-{prod,dev}.properties 의 ${app.base-url}/api/v1/auth/social/{p}/callback 패턴 사용.
-      APP_BASE_URL: ${APP_BASE_URL:-http://44.194.3.230:8080}
+      APP_BASE_URL: ${APP_BASE_URL:-https://burty.co.kr}
 
       # 소셜 로그인 (실키는 .env / Jenkins BURTY_ENV_FILE 에 보관)
       # stub-mode=false 로 두면 실제 OAuth provider 와 통신.

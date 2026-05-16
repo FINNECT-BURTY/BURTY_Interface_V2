@@ -82,8 +82,9 @@ pipeline {
         success {
             echo """
             배포 완료
-            - API:     http://${SERVER_HOST}/api/burty
-            - Health:  http://${SERVER_HOST}/health
+            - API:     https://burty.co.kr/api/v1
+            - Swagger: https://burty.co.kr/api/v1/swagger-ui/index.html
+            - Health:  https://burty.co.kr/health
             - Jenkins: http://${SERVER_HOST}:8081/
             """
         }
