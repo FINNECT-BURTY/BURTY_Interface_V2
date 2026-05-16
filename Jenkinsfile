@@ -41,19 +41,20 @@ pipeline {
             }
         }
 
-        stage('Verify global-nginx') {
+        stage('Verify ingress') {
             steps {
                 sh '''
                     set -e
                     # global-nginx 네트워크가 미리 만들어져 있어야 burty 가 가입 가능.
-                    # infra/global-nginx 스택 (별도 운영) 이 떠 있는지 확인.
+                    # 운영 전환 중에는 자체 global-nginx 또는 기존 nginx-proxy 둘 중 하나가 ingress 역할을 한다.
                     if ! docker network inspect global-nginx >/dev/null 2>&1; then
-                      echo "❌ global-nginx 네트워크 없음. infra/global-nginx 스택을 먼저 기동하세요."
-                      echo "   cd infra/global-nginx && ./init-letsencrypt.sh"
+                      echo "❌ global-nginx 네트워크 없음. ingress 스택을 먼저 기동하세요."
                       exit 1
                     fi
-                    if ! docker ps --format '{{.Names}}' | grep -q '^global-nginx$'; then
-                      echo "⚠️  global-nginx 컨테이너가 실행 중이 아닙니다. 배포는 계속 진행하지만 외부 접근은 안 됩니다."
+                    if docker ps --format '{{.Names}}' | grep -Eq '^(global-nginx|nginx-proxy)$'; then
+                      echo "✅ ingress 컨테이너 실행 중"
+                    else
+                      echo "⚠️  ingress 컨테이너(global-nginx 또는 nginx-proxy)가 실행 중이 아닙니다. 배포는 계속 진행하지만 외부 접근은 안 됩니다."
                     fi
                 '''
             }
@@ -75,7 +76,7 @@ pipeline {
             steps {
                 sh '''
                     set -e
-                    # burty 컨테이너 내부 health (global-nginx 와 무관)
+                    # burty 컨테이너 내부 health (ingress 와 무관)
                     CODE=000
                     for i in $(seq 1 20); do
                       CODE=$(docker exec "${CONTAINER}" curl -s -o /dev/null -w "%{http_code}" \
@@ -89,9 +90,9 @@ pipeline {
                       exit 1
                     fi
 
-                    # 외부 도메인 (global-nginx 경유 HTTPS) — 실패해도 경고만
-                    EXT=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 https://${DOMAIN}/health || echo 000)
-                    echo "external https://${DOMAIN}/health → HTTP ${EXT}"
+                    # 외부 도메인 (ingress 경유 HTTPS) — 실패해도 경고만
+                    EXT=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 https://${DOMAIN}/api/v1/swagger-ui/index.html || echo 000)
+                    echo "external https://${DOMAIN}/api/v1/swagger-ui/index.html → HTTP ${EXT}"
                 '''
             }
         }
