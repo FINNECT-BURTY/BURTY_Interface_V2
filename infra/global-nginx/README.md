@@ -21,7 +21,7 @@
     │ (Next.js 등)│ │   :8080     │
     └─────────────┘ └─────────────┘
 
-  /api/*, /swagger-ui/*, /v3/api-docs, /webjars/*, /health → burty:8080
+  /api/v1/*, /swagger-ui/*, /v3/api-docs, /webjars/*, /health → burty:8080
   /                                                       → frontend:80
 ```
 
