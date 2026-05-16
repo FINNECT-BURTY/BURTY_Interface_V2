@@ -17,7 +17,7 @@ pipeline {
 
     environment {
         SERVER_HOST = '44.194.3.230'
-        PROXY_HOST  = 'nginx-proxy'
+        DOMAIN      = 'burty.co.kr'
         CONTAINER   = 'burty'
     }
 
@@ -41,6 +41,24 @@ pipeline {
             }
         }
 
+        stage('Verify global-nginx') {
+            steps {
+                sh '''
+                    set -e
+                    # global-nginx 네트워크가 미리 만들어져 있어야 burty 가 가입 가능.
+                    # infra/global-nginx 스택 (별도 운영) 이 떠 있는지 확인.
+                    if ! docker network inspect global-nginx >/dev/null 2>&1; then
+                      echo "❌ global-nginx 네트워크 없음. infra/global-nginx 스택을 먼저 기동하세요."
+                      echo "   cd infra/global-nginx && ./init-letsencrypt.sh"
+                      exit 1
+                    fi
+                    if ! docker ps --format '{{.Names}}' | grep -q '^global-nginx$'; then
+                      echo "⚠️  global-nginx 컨테이너가 실행 중이 아닙니다. 배포는 계속 진행하지만 외부 접근은 안 됩니다."
+                    fi
+                '''
+            }
+        }
+
         stage('Deploy') {
             steps {
                 sh '''
@@ -57,19 +75,23 @@ pipeline {
             steps {
                 sh '''
                     set -e
+                    # burty 컨테이너 내부 health (global-nginx 와 무관)
                     CODE=000
                     for i in $(seq 1 20); do
-                      CODE=$(curl -s -o /dev/null -w "%{http_code}" \
-                        -H "Host: ${SERVER_HOST}" \
-                        "http://${PROXY_HOST}/health" || echo 000)
+                      CODE=$(docker exec "${CONTAINER}" curl -s -o /dev/null -w "%{http_code}" \
+                        http://localhost:8080/health || echo 000)
                       [ "$CODE" = "200" ] && break
                       sleep 3
                     done
-                    echo "GET http://${PROXY_HOST}/health (Host: ${SERVER_HOST}) -> HTTP ${CODE}"
+                    echo "burty internal /health → HTTP ${CODE}"
                     if [ "$CODE" != "200" ]; then
                       docker logs --tail 80 "${CONTAINER}" || true
                       exit 1
                     fi
+
+                    # 외부 도메인 (global-nginx 경유 HTTPS) — 실패해도 경고만
+                    EXT=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 https://${DOMAIN}/health || echo 000)
+                    echo "external https://${DOMAIN}/health → HTTP ${EXT}"
                 '''
             }
         }

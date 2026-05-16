@@ -1,0 +1,63 @@
+# 글로벌 인그레스 스택 — burty.co.kr 의 모든 인입 트래픽을 처리.
+#
+# 구성:
+#   - global-nginx : 단일 nginx (자체 작성 nginx.conf). 80/443 노출. TLS 종단.
+#   - certbot      : Let's Encrypt 인증서 자동 갱신 (12h 주기 renew).
+#
+# 네트워크:
+#   - global-nginx : 단일 도커 네트워크. FE/BE 가 이 네트워크에 가입하면 nginx 가
+#                    서비스 이름(burty, frontend)으로 upstream 연결.
+#
+# 사용 순서:
+#   1) 최초 1회: ./init-letsencrypt.sh  (인증서 부트스트랩)
+#   2) 이후:     docker compose up -d  (자동 갱신 포함 상시 운영)
+#
+# 의존:
+#   - 이 네트워크에 가입할 BURTY / FE 컴포즈에서 `networks: global-nginx: external: true` 사용.
+
+services:
+  global-nginx:
+    image: nginx:1.27-alpine
+    container_name: global-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./conf.d:/etc/nginx/conf.d:ro
+      - letsencrypt:/etc/letsencrypt:ro
+      - certbot-www:/var/www/certbot:ro
+      - nginx-logs:/var/log/nginx
+    networks:
+      - global-nginx
+    # 12 시간마다 nginx -s reload (cert 갱신 후 적용 위함)
+    command: >
+      /bin/sh -c "while :; do sleep 12h & wait $${!}; nginx -s reload; done & nginx -g 'daemon off;'"
+
+  certbot:
+    image: certbot/certbot:v2.11.0
+    container_name: certbot
+    restart: unless-stopped
+    volumes:
+      - letsencrypt:/etc/letsencrypt
+      - certbot-www:/var/www/certbot
+    # 컨테이너 부팅 시 즉시 1회 renew 시도 후, 12h 주기 반복.
+    entrypoint: >
+      /bin/sh -c "trap exit TERM; while :; do
+        certbot renew --quiet --webroot -w /var/www/certbot;
+        sleep 12h & wait $${!};
+      done"
+
+volumes:
+  letsencrypt:
+    name: global-nginx_letsencrypt
+  certbot-www:
+    name: global-nginx_certbot-www
+  nginx-logs:
+    name: global-nginx_logs
+
+networks:
+  global-nginx:
+    name: global-nginx
+    driver: bridge

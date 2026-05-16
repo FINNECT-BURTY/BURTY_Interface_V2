@@ -23,14 +23,8 @@ services:
       DB_USER: ${DB_USER:-root}
       DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
 
-      # nginx-proxy + acme-companion 연동
-      # VIRTUAL_HOST: nginx-proxy 라우팅용 (Host 헤더 매칭)
-      # LETSENCRYPT_HOST: acme-companion 이 인증서 발급할 도메인 (보통 VIRTUAL_HOST 와 동일)
-      # LETSENCRYPT_EMAIL: Let's Encrypt 만료 알림 / 복구용 이메일
-      VIRTUAL_HOST: ${VIRTUAL_HOST:-localhost}
-      VIRTUAL_PORT: "8080"
-      LETSENCRYPT_HOST: ${LETSENCRYPT_HOST:-}
-      LETSENCRYPT_EMAIL: ${LETSENCRYPT_EMAIL:-}
+      # ※ nginx-proxy / acme-companion 사용 안 함. infra/global-nginx 가 path 기반으로 직접 라우팅.
+      #    VIRTUAL_HOST / LETSENCRYPT_* 환경변수 불필요.
 
       # Redis
       REDIS_HOST: ${REDIS_HOST:-host.docker.internal}
@@ -94,9 +88,10 @@ services:
       start_period: 90s
 
 networks:
+  # infra/global-nginx 스택이 만든 네트워크 재사용 (먼저 그쪽이 떠 있어야 함)
   global-nginx:
+    external: true
     name: global-nginx
-    driver: bridge
 
 volumes:
   burty-logs:
