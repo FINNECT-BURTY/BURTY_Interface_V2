@@ -23,8 +23,12 @@ services:
       DB_USER: ${DB_USER:-root}
       DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
 
-      # ※ nginx-proxy / acme-companion 사용 안 함. infra/global-nginx 가 path 기반으로 직접 라우팅.
-      #    VIRTUAL_HOST / LETSENCRYPT_* 환경변수 불필요.
+      # Current production ingress is nginx-proxy.
+      # Keep API traffic pinned to the backend path so frontend owns /.
+      # If infra/global-nginx is used later, these envs are ignored.
+      VIRTUAL_HOST: www.burty.co.kr,burty.co.kr
+      VIRTUAL_PATH: /api/v1/
+      VIRTUAL_PORT: "8080"
 
       # Redis
       REDIS_HOST: ${REDIS_HOST:-host.docker.internal}

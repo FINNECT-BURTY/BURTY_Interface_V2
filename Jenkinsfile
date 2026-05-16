@@ -90,9 +90,18 @@ pipeline {
                       exit 1
                     fi
 
-                    # 외부 도메인 (ingress 경유 HTTPS) — 실패해도 경고만
-                    EXT=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 https://${DOMAIN}/api/v1/swagger-ui/index.html || echo 000)
+                    # 외부 도메인 (ingress 경유 HTTPS)
+                    EXT=000
+                    for i in $(seq 1 20); do
+                      EXT=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 https://${DOMAIN}/api/v1/swagger-ui/index.html || echo 000)
+                      [ "$EXT" = "200" ] && break
+                      sleep 3
+                    done
                     echo "external https://${DOMAIN}/api/v1/swagger-ui/index.html → HTTP ${EXT}"
+                    if [ "$EXT" != "200" ]; then
+                      docker logs --tail 120 nginx-proxy 2>/dev/null || true
+                      exit 1
+                    fi
                 '''
             }
         }
@@ -107,7 +116,7 @@ pipeline {
             배포 완료
             - API:     https://burty.co.kr/api/v1
             - Swagger: https://burty.co.kr/api/v1/swagger-ui/index.html
-            - Health:  https://burty.co.kr/health
+            - Health:  docker exec ${CONTAINER} curl http://localhost:8080/health
             - Jenkins: http://${SERVER_HOST}:8081/
             """
         }
