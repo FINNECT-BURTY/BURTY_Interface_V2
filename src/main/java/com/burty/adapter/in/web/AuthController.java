@@ -48,12 +48,7 @@ public class AuthController extends BaseController {
     private final Environment environment;
     private final SocialAuthSupport socialAuthSupport;
 
-    public AuthController(JwtTokenProvider jwtTokenProvider,
-                          JwtBlacklistService jwtBlacklistService,
-                          RefreshTokenService refreshTokenService,
-                          BurtyAuthProperties burtyAuthProperties,
-                          Environment environment,
-                          SocialAuthSupport socialAuthSupport) {
+    public AuthController(JwtTokenProvider jwtTokenProvider, JwtBlacklistService jwtBlacklistService, RefreshTokenService refreshTokenService, BurtyAuthProperties burtyAuthProperties, Environment environment, SocialAuthSupport socialAuthSupport) {
         this.jwtTokenProvider = jwtTokenProvider;
         this.jwtBlacklistService = jwtBlacklistService;
         this.refreshTokenService = refreshTokenService;
@@ -62,28 +57,8 @@ public class AuthController extends BaseController {
         this.socialAuthSupport = socialAuthSupport;
     }
 
-    @PostMapping("/token")
-    @Operation(
-            summary = "JWT 발급 (테스트용)",
-            description = "userId 기반으로 접근 토큰을 발급합니다. `burty.auth.test-token-enabled=true`이고 `prod` 프로파일이 아닐 때만 허용됩니다.",
-            security = {}
-    )
-    public ApiResponse<TokenResponse> issueToken(@RequestBody TokenIssueRequest request) {
-        if (Arrays.asList(environment.getActiveProfiles()).contains("prod")
-                || !burtyAuthProperties.isTestTokenEnabled()) {
-            throw new BusinessException(ErrorCode.FORBIDDEN, "테스트용 JWT 발급이 비활성화되어 있습니다. (burty.auth.test-token-enabled, prod 프로파일)");
-        }
-        String userId = request.getUserId() != null ? request.getUserId() : UUID.randomUUID().toString();
-        String token = jwtTokenProvider.generateToken(userId);
-        return ApiResponse.ok(new TokenResponse(token));
-    }
-
     @PostMapping("/refresh")
-    @Operation(
-            summary = "Access / Refresh token 재발급",
-            description = "유효한 refresh token 으로 access + refresh 쌍을 재발급합니다. 매 호출 시 refresh token 도 회전(rotation)됩니다. 이미 revoke 된 refresh token 이 들어오면 도난 의심으로 해당 사용자의 모든 세션이 강제 종료됩니다.",
-            security = {}
-    )
+    @Operation(summary = "Access / Refresh token 재발급", description = "유효한 refresh token 으로 access + refresh 쌍을 재발급합니다. 매 호출 시 refresh token 도 회전(rotation)됩니다. 이미 revoke 된 refresh token 이 들어오면 도난 의심으로 해당 사용자의 모든 세션이 강제 종료됩니다.",)
     public ApiResponse<TokenPairResponse> refresh(@RequestBody RefreshTokenRequest request) {
         RefreshTokenService.TokenPair pair = refreshTokenService.rotate(request.getRefreshToken());
         return ApiResponse.ok(new TokenPairResponse(
@@ -95,19 +70,17 @@ public class AuthController extends BaseController {
     }
 
     @PostMapping("/logout")
-    @Operation(
-            summary = "로그아웃",
-            description = "현재 access token 을 블랙리스트에 등록하고, body 로 받은 refresh token 을 revoke. 쿠키도 즉시 만료.",
-            security = { @SecurityRequirement(name = "bearerAuth") }
-    )
+    @Operation(summary = "로그아웃", description = "현재 access token 을 블랙리스트에 등록하고, body 로 받은 refresh token 을 revoke. 쿠키도 즉시 만료.", security = { @SecurityRequirement(name = "bearerAuth") })
     public ResponseEntity<ApiResponse<LogoutResponse>> logout(@RequestHeader(value = "Authorization", required = false) String authHeader,
                                                               @RequestBody(required = false) RefreshTokenRequest request) {
         if (authHeader != null && authHeader.startsWith("Bearer ")) {
             jwtBlacklistService.blacklist(authHeader.substring(7));
         }
+
         if (request != null) {
             refreshTokenService.revoke(request.getRefreshToken());
         }
+
         ResponseCookie expireAccess = socialAuthSupport.buildCookie(AuthCookies.ACCESS, "", 0);
         ResponseCookie expireRefresh = socialAuthSupport.buildCookie(AuthCookies.REFRESH, "", 0);
         return ResponseEntity.ok()

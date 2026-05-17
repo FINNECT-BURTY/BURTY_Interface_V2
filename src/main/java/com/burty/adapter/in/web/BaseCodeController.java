@@ -87,22 +87,10 @@ public class BaseCodeController extends BaseController {
         return String.valueOf(principal);
     }
 
-    public record CodeItem(
-            String codeId,
-            String codeGroup,
-            String codeValue,
-            String codeNameKo,
-            String codeNameEn,
-            String parentCodeId,
-            Integer sortOrder,
-            String useYn,
-            String description,
-            String attr1,
-            String attr2,
-            String attr3,
-            String attr4,
-            String attr5
-    ) {
+    public record CodeItem(String codeId, String codeGroup, String codeValue,
+                           String codeNameKo, String codeNameEn, String parentCodeId,
+                           Integer sortOrder, String useYn, String description, String attr1,
+                           String attr2, String attr3, String attr4, String attr5) {
         public static CodeItem from(BaseCodeEntity e) {
             return new CodeItem(
                     e.getCodeId(), e.getCodeGroup(), e.getCodeValue(),

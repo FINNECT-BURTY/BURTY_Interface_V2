@@ -30,12 +30,7 @@ public class AppleAuthController extends BaseController {
     }
 
     @GetMapping("/authorize-url")
-    @Operation(
-            summary = "Apple 인가 URL 생성",
-            description = "Apple Sign in 인가 URL과 state를 반환합니다. Apple 은 response_mode=form_post 사용. " +
-                    "redirectUri 는 Apple Developer Console 에 사전 등록 필요.",
-            security = {}
-    )
+    @Operation(summary = "Apple 인가 URL 생성", description = "Apple Sign in 인가 URL과 state를 반환합니다. Apple 은 response_mode=form_post 사용. ")
     public ApiResponse<AuthorizeUrlResponse> authorizeUrl(@RequestParam(required = false) String state,
                                                           @RequestParam(required = false) String redirectUri) {
         SocialAuthorizeUrlResult auth = socialLoginUseCase.createAuthorizeUrl(PROVIDER.name(), state, redirectUri);
@@ -43,11 +38,7 @@ public class AppleAuthController extends BaseController {
     }
 
     @PostMapping("/login")
-    @Operation(
-            summary = "Apple 로그인 (SPA / API client 용)",
-            description = "Apple authorization code를 검증하고 BURTY access + refresh token 쌍을 응답 body 로 반환합니다.",
-            security = {}
-    )
+    @Operation(summary = "Apple 로그인 (SPA / API client 용)", description = "Apple authorization code를 검증하고 BURTY access + refresh token 쌍을 응답 body 로 반환합니다.")
     public ApiResponse<SocialLoginResponse> login(@RequestBody SocialLoginRequest request) {
         SocialLoginResult result = socialLoginUseCase.login(
                 PROVIDER.name(),
@@ -60,11 +51,7 @@ public class AppleAuthController extends BaseController {
     }
 
     @GetMapping("/callback")
-    @Operation(
-            summary = "Apple BFF 콜백",
-            description = "Apple 이 redirect 하는 GET 엔드포인트. id_token 페이로드로 사용자 식별 후 access/refresh 쿠키 set + FE 로 302.",
-            security = {}
-    )
+    @Operation(summary = "Apple BFF 콜백", description = "Apple 이 redirect 하는 GET 엔드포인트. id_token 페이로드로 사용자 식별 후 access/refresh 쿠키 set + FE 로 302.")
     public ResponseEntity<Void> callback(@RequestParam(required = false) String code,
                                          @RequestParam(required = false) String state,
                                          @RequestParam(required = false) String error,
