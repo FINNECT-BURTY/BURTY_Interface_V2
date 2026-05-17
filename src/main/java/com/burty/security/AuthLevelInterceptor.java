@@ -29,16 +29,12 @@ public class AuthLevelInterceptor implements HandlerInterceptor {
             return true;
         }
 
-        String authHeader = request.getHeader("Authorization");
-        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-            response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Bearer token is required");
-            return false;
-        }
-        if (SecurityContextHolder.getContext().getAuthentication() == null) {
+        var authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !authentication.isAuthenticated()) {
             response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Authentication is required");
             return false;
         }
-        String userId = String.valueOf(SecurityContextHolder.getContext().getAuthentication().getPrincipal());
+        String userId = String.valueOf(authentication.getPrincipal());
 
         if (authLevel.value() == RiskLevel.LEVEL_2) {
             String riskProof = request.getHeader("X-Risk-Proof");
