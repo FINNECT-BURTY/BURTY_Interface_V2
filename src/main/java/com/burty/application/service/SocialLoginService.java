@@ -195,7 +195,7 @@ public class SocialLoginService implements SocialLoginUseCase {
         user.setCiHash(sha256("SOCIAL_CI|" + seed));
         user.setCi("SOCIAL_CI|" + seed);
         user.setPhoneHash(sha256("SOCIAL_PHONE|" + seed));
-        user.setPhone("SOCIAL_PHONE_UNVERIFIED");
+        user.setPhone("UNVERIFIED");
         user.setStatus(UserEntity.UserStatus.ACTIVE);
         user.setFailedLoginCount(0);
         user.setLastLoginAt(now);
