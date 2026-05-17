@@ -1,5 +1,6 @@
 package com.burty.config;
 
+import com.burty.domain.model.SocialProvider;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 
@@ -12,6 +13,15 @@ public class SocialLoginProperties {
     private Provider google = new Provider();
     private Provider naver = new Provider();
     private Provider apple = new Provider();
+
+    public Provider get(SocialProvider provider) {
+        return switch (provider) {
+            case KAKAO -> kakao;
+            case GOOGLE -> google;
+            case NAVER -> naver;
+            case APPLE -> apple;
+        };
+    }
 
     public boolean isStubMode() { return stubMode; }
     public void setStubMode(boolean stubMode) { this.stubMode = stubMode; }

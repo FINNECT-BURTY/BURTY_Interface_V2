@@ -1,5 +1,7 @@
 package com.burty.application.service;
 
+import com.burty.adapter.out.social.SocialProviderRegistry;
+import com.burty.adapter.out.social.SocialProviderStrategy;
 import com.burty.application.port.in.SocialLoginUseCase;
 import com.burty.application.port.out.AuditLogPort;
 import com.burty.config.SocialLoginProperties;
@@ -10,6 +12,8 @@ import com.burty.domain.entity.UserEntity;
 import com.burty.domain.model.AuditEvent;
 import com.burty.domain.model.SocialAuthorizeUrlResult;
 import com.burty.domain.model.SocialLoginResult;
+import com.burty.domain.model.SocialProfile;
+import com.burty.domain.model.SocialProvider;
 import com.burty.domain.repository.SocialAccountRepository;
 import com.burty.domain.repository.UserProfileRepository;
 import com.burty.domain.repository.UserRepository;
@@ -18,24 +22,13 @@ import com.burty.security.oauth.OAuthStateStore;
 import com.burty.util.EncryptionUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.http.HttpStatusCode;
-import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.util.LinkedMultiValueMap;
-import org.springframework.util.MultiValueMap;
-import org.springframework.web.reactive.function.BodyInserters;
-import org.springframework.web.reactive.function.client.WebClient;
-import org.springframework.web.reactive.function.client.WebClientResponseException;
 import org.springframework.web.util.UriComponentsBuilder;
-import reactor.core.publisher.Mono;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
-import java.time.Duration;
 import java.time.LocalDateTime;
-import java.util.Base64;
-import java.util.Map;
 import java.util.UUID;
 
 @Service
@@ -43,6 +36,7 @@ public class SocialLoginService implements SocialLoginUseCase {
     private static final Logger log = LoggerFactory.getLogger(SocialLoginService.class);
 
     private final SocialLoginProperties properties;
+    private final SocialProviderRegistry providerRegistry;
     private final SocialAccountRepository socialAccountRepository;
     private final UserRepository userRepository;
     private final UserProfileRepository userProfileRepository;
@@ -50,9 +44,9 @@ public class SocialLoginService implements SocialLoginUseCase {
     private final EncryptionUtil encryptionUtil;
     private final AuditLogPort auditLogPort;
     private final OAuthStateStore oAuthStateStore;
-    private final WebClient webClient;
 
     public SocialLoginService(SocialLoginProperties properties,
+                              SocialProviderRegistry providerRegistry,
                               SocialAccountRepository socialAccountRepository,
                               UserRepository userRepository,
                               UserProfileRepository userProfileRepository,
@@ -61,6 +55,7 @@ public class SocialLoginService implements SocialLoginUseCase {
                               AuditLogPort auditLogPort,
                               OAuthStateStore oAuthStateStore) {
         this.properties = properties;
+        this.providerRegistry = providerRegistry;
         this.socialAccountRepository = socialAccountRepository;
         this.userRepository = userRepository;
         this.userProfileRepository = userProfileRepository;
@@ -68,95 +63,66 @@ public class SocialLoginService implements SocialLoginUseCase {
         this.encryptionUtil = encryptionUtil;
         this.auditLogPort = auditLogPort;
         this.oAuthStateStore = oAuthStateStore;
-        this.webClient = WebClient.create();
     }
 
     @Override
     public SocialAuthorizeUrlResult createAuthorizeUrl(String providerRaw, String state, String requestedRedirectUri) {
-        String provider = normalizeProvider(providerRaw);
-        SocialLoginProperties.Provider config = providerConfig(provider);
+        SocialProvider provider = SocialProvider.parse(providerRaw);
+        SocialProviderStrategy strategy = providerRegistry.get(provider);
+        SocialLoginProperties.Provider config = properties.get(provider);
+
         // 호출자가 redirect_uri 를 지정했으면 그 값을 사용. 단 provider 콘솔에 등록된 URI 와 정확히 일치해야 함
         // (등록 안 된 값이면 카카오 KOE006 / 구글 redirect_uri_mismatch 등).
         String redirectUri = blank(requestedRedirectUri) ? config.getRedirectUri() : requestedRedirectUri.trim();
         String effectiveState = blank(state) ? UUID.randomUUID().toString() : state.trim();
         if (!properties.isStubMode()) {
-            oAuthStateStore.remember(provider, effectiveState);
+            oAuthStateStore.remember(provider.name(), effectiveState);
         }
+
         UriComponentsBuilder builder = UriComponentsBuilder.fromUriString(config.getAuthorizeUrl())
                 .queryParam("response_type", "code")
                 .queryParam("client_id", config.getClientId())
                 .queryParam("redirect_uri", redirectUri)
                 .queryParam("state", effectiveState);
-        if (!blank(config.getScope())) {
-            builder.queryParam("scope", config.getScope());
-        }
-        if ("APPLE".equals(provider)) {
-            builder.queryParam("response_mode", "form_post");
-        }
+        if (!blank(config.getScope())) builder.queryParam("scope", config.getScope());
+        strategy.customizeAuthorizeUrl(builder);
+
         return new SocialAuthorizeUrlResult(builder.build().toUriString(), effectiveState);
     }
 
     @Override
     @Transactional
     public SocialLoginResult login(String providerRaw, String code, String redirectUri, String state, String codeVerifier) {
-        String provider = normalizeProvider(providerRaw);
+        SocialProvider provider = SocialProvider.parse(providerRaw);
         if (blank(code)) {
             throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE, "소셜 로그인 authorization code가 필요합니다.");
         }
-        if (!properties.isStubMode()) {
-            try {
-                oAuthStateStore.verifyAndConsume(provider, state);
-            } catch (IllegalStateException e) {
-                throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE, e.getMessage());
-            }
-        }
+        verifyState(provider, state);
 
         SocialProfile profile = properties.isStubMode()
                 ? stubProfile(provider, code)
-                : fetchProfile(provider, code, redirectUri, codeVerifier);
-
+                : providerRegistry.get(provider).fetchProfile(code, redirectUri, codeVerifier);
         if (blank(profile.providerUserId())) {
             throw new BusinessException(ErrorCode.EXTERNAL_API_ERROR, provider + " 사용자 식별자를 확인할 수 없습니다.");
         }
 
-        String providerUserIdHash = sha256(provider + "|" + profile.providerUserId());
+        String providerUserIdHash = sha256(provider.name() + "|" + profile.providerUserId());
         SocialAccountEntity account = socialAccountRepository
-                .findByProviderAndProviderUserIdHash(provider, providerUserIdHash)
+                .findByProviderAndProviderUserIdHash(provider.name(), providerUserIdHash)
                 .orElse(null);
 
-        boolean newUser = false;
-        Long userId;
-        if (account == null) {
-            UserEntity user = userRepository.save(createSocialUser(provider, profile));
-            userId = user.getUserId();
-
-            account = new SocialAccountEntity();
-            account.setUserId(userId);
-            account.setProvider(provider);
-            account.setProviderUserIdHash(providerUserIdHash);
-            account.setEmailHash(blank(profile.email()) ? null : sha256(profile.email()));
-            account.setEmailEncrypted(blank(profile.email()) ? null : encryptionUtil.encrypt(profile.email()));
-            account.setDisplayNameEncrypted(blank(profile.displayName()) ? null : encryptionUtil.encrypt(profile.displayName()));
-            socialAccountRepository.save(account);
-            newUser = true;
-        } else {
-            userId = account.getUserId();
-            account.setLastLoginAt(LocalDateTime.now());
-            socialAccountRepository.save(account);
-            touchUserLogin(userId);
-        }
+        boolean newUser = account == null;
+        Long userId = newUser
+                ? createNewSocialUser(provider, profile, providerUserIdHash)
+                : touchExistingAccount(account);
 
         boolean profileComplete = userProfileRepository.existsById(userId);
-
-        // refresh token 발급은 트랜잭션 내에서 수행. deviceId 는 추후 헤더에서 받도록 확장 가능.
         RefreshTokenService.TokenPair tokens = refreshTokenService.issueNewSession(userId.toString(), null);
-
-        // audit 은 토큰 발급 후. 실패해도 로그인 흐름을 막지 않도록 격리.
         safeAudit(userId.toString(), provider, newUser, state);
 
         return new SocialLoginResult(
                 userId.toString(),
-                provider,
+                provider.name(),
                 tokens.accessToken(),
                 tokens.refreshToken(),
                 tokens.accessExpiresInSeconds(),
@@ -166,191 +132,50 @@ public class SocialLoginService implements SocialLoginUseCase {
         );
     }
 
-    private void safeAudit(String userId, String provider, boolean newUser, String state) {
+    private void verifyState(SocialProvider provider, String state) {
+        if (properties.isStubMode()) return;
         try {
-            auditLogPort.save(new AuditEvent(
-                    UUID.randomUUID().toString(), userId, "SOCIAL_LOGIN", provider, "SUCCESS",
-                    "provider=" + provider + ", newUser=" + newUser + ", state=" + safeState(state),
-                    LocalDateTime.now()
-            ));
-        } catch (Exception e) {
-            log.warn("social login audit save failed userId={} provider={} reason={}",
-                    userId, provider, e.getClass().getSimpleName());
+            oAuthStateStore.verifyAndConsume(provider.name(), state);
+        } catch (IllegalStateException e) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE, e.getMessage());
         }
     }
 
-    private SocialProfile fetchProfile(String provider, String code, String redirectUri, String codeVerifier) {
-        SocialLoginProperties.Provider config = providerConfig(provider);
-        String accessToken = exchangeAccessToken(provider, config, code, redirectUri, codeVerifier);
-        if ("KAKAO".equals(provider)) {
-            return fetchKakaoProfile(accessToken);
-        }
-        if ("GOOGLE".equals(provider)) {
-            return fetchGoogleProfile(accessToken);
-        }
-        if ("NAVER".equals(provider)) {
-            return fetchNaverProfile(accessToken);
-        }
-        return fetchAppleProfile(accessToken);
+    private Long createNewSocialUser(SocialProvider provider, SocialProfile profile, String providerUserIdHash) {
+        UserEntity user = userRepository.save(buildSocialUser(provider, profile));
+        Long userId = user.getUserId();
+
+        SocialAccountEntity account = new SocialAccountEntity();
+        account.setUserId(userId);
+        account.setProvider(provider.name());
+        account.setProviderUserIdHash(providerUserIdHash);
+        account.setEmailHash(blank(profile.email()) ? null : sha256(profile.email()));
+        account.setEmailEncrypted(blank(profile.email()) ? null : encryptionUtil.encrypt(profile.email()));
+        account.setDisplayNameEncrypted(blank(profile.displayName()) ? null : encryptionUtil.encrypt(profile.displayName()));
+        socialAccountRepository.save(account);
+        return userId;
     }
 
-    @SuppressWarnings("unchecked")
-    private String exchangeAccessToken(String provider, SocialLoginProperties.Provider config, String code, String redirectUri, String codeVerifier) {
-        MultiValueMap<String, String> form = new LinkedMultiValueMap<>();
-        form.add("grant_type", "authorization_code");
-        form.add("client_id", config.getClientId());
-        if (!blank(config.getClientSecret())) form.add("client_secret", config.getClientSecret());
-        form.add("redirect_uri", blank(redirectUri) ? config.getRedirectUri() : redirectUri);
-        form.add("code", code);
-        if (!blank(codeVerifier)) {
-            form.add("code_verifier", codeVerifier);
-        }
-
-        Map<String, Object> response;
-        try {
-            response = webClient.post()
-                    .uri(config.getTokenUrl())
-                    .contentType(MediaType.APPLICATION_FORM_URLENCODED)
-                    .body(BodyInserters.fromFormData(form))
-                    .retrieve()
-                    .onStatus(HttpStatusCode::isError, resp -> resp.bodyToMono(String.class)
-                            .defaultIfEmpty("")
-                            .flatMap(body -> {
-                                log.warn("OAuth token endpoint error provider={} status={} body={}",
-                                        provider, resp.statusCode().value(), truncate(body, 500));
-                                return Mono.error(new BusinessException(
-                                        ErrorCode.EXTERNAL_API_ERROR,
-                                        provider + " 토큰 발급 실패 (status=" + resp.statusCode().value() + ")"));
-                            }))
-                    .bodyToMono(Map.class)
-                    .block(Duration.ofMillis(properties.getTimeoutMs()));
-        } catch (BusinessException be) {
-            throw be;
-        } catch (WebClientResponseException wcre) {
-            log.warn("OAuth token webclient error provider={} status={} body={}",
-                    provider, wcre.getStatusCode().value(), truncate(wcre.getResponseBodyAsString(), 500));
-            throw new BusinessException(ErrorCode.EXTERNAL_API_ERROR, provider + " 토큰 응답 오류");
-        } catch (Exception e) {
-            log.warn("OAuth token request failed provider={} reason={}", provider, e.getClass().getSimpleName(), e);
-            throw new BusinessException(ErrorCode.EXTERNAL_API_ERROR, provider + " 토큰 요청에 실패했습니다.");
-        }
-
-        if (response == null) {
-            throw new BusinessException(ErrorCode.EXTERNAL_API_ERROR, provider + " 토큰 응답이 비어 있습니다.");
-        }
-        Object token = response.get("access_token");
-        if ("APPLE".equals(provider) && response.get("id_token") != null) {
-            token = response.get("id_token");
-        }
-        if (token == null) {
-            log.warn("OAuth token endpoint returned no access_token provider={} body_keys={}",
-                    provider, response.keySet());
-            throw new BusinessException(ErrorCode.EXTERNAL_API_ERROR, provider + " 토큰 발급에 실패했습니다.");
-        }
-        return String.valueOf(token);
+    private Long touchExistingAccount(SocialAccountEntity account) {
+        Long userId = account.getUserId();
+        account.setLastLoginAt(LocalDateTime.now());
+        socialAccountRepository.save(account);
+        userRepository.findById(userId).ifPresent(user -> {
+            LocalDateTime now = LocalDateTime.now();
+            user.setLastLoginAt(now);
+            user.setUpdatedAt(now);
+            userRepository.save(user);
+        });
+        return userId;
     }
 
-    private static String truncate(String s, int max) {
-        if (s == null) return "";
-        return s.length() <= max ? s : s.substring(0, max) + "...(truncated)";
-    }
-
-    @SuppressWarnings("unchecked")
-    private SocialProfile fetchKakaoProfile(String accessToken) {
-        Map<String, Object> response = getUserInfo("KAKAO", accessToken);
-        Object idObj = response.get("id");
-        String id = idObj == null ? null : String.valueOf(idObj);
-        Map<String, Object> account = response.get("kakao_account") instanceof Map<?, ?> map ? (Map<String, Object>) map : Map.of();
-        Map<String, Object> profile = account.get("profile") instanceof Map<?, ?> map ? (Map<String, Object>) map : Map.of();
-
-        // 이메일은 동의 + 검증 통과한 경우에만 사용. 안 받으면 null 로 두고 후속 가입 흐름이 이어지게 함.
-        String email = null;
-        Object hasEmail = account.get("has_email");
-        Object emailValid = account.get("is_email_valid");
-        Object emailVerified = account.get("is_email_verified");
-        Object emailNeedsAgreement = account.get("email_needs_agreement");
-        boolean emailUsable = Boolean.TRUE.equals(hasEmail)
-                && Boolean.TRUE.equals(emailValid)
-                && Boolean.TRUE.equals(emailVerified)
-                && !Boolean.TRUE.equals(emailNeedsAgreement);
-        if (emailUsable) {
-            email = stringValue(account.get("email"));
-        } else if (account.containsKey("email")) {
-            // 일부 케이스: 플래그 없이 email 만 옴 (검수 안 된 앱) — 안전하게 사용
-            email = stringValue(account.get("email"));
-        }
-
-        String nickname = null;
-        Object nicknameNeedsAgreement = account.get("profile_nickname_needs_agreement");
-        if (!Boolean.TRUE.equals(nicknameNeedsAgreement)) {
-            nickname = stringValue(profile.get("nickname"));
-        }
-
-        return new SocialProfile(id, email, nickname);
-    }
-
-    @SuppressWarnings("unchecked")
-    private SocialProfile fetchNaverProfile(String accessToken) {
-        Map<String, Object> response = getUserInfo("NAVER", accessToken);
-        Map<String, Object> body = response.get("response") instanceof Map<?, ?> map ? (Map<String, Object>) map : Map.of();
-        return new SocialProfile(stringValue(body.get("id")), stringValue(body.get("email")), stringValue(body.get("name")));
-    }
-
-    private SocialProfile fetchGoogleProfile(String accessToken) {
-        Map<String, Object> response = getUserInfo("GOOGLE", accessToken);
-        return new SocialProfile(
-                stringValue(response.get("sub")),
-                stringValue(response.get("email")),
-                stringValue(response.get("name"))
-        );
-    }
-
-    private SocialProfile fetchAppleProfile(String idToken) {
-        Map<String, Object> payload = decodeJwtPayload(idToken);
-        return new SocialProfile(stringValue(payload.get("sub")), stringValue(payload.get("email")), null);
-    }
-
-    @SuppressWarnings("unchecked")
-    private Map<String, Object> getUserInfo(String provider, String accessToken) {
-        Map<String, Object> response;
-        try {
-            response = webClient.get()
-                    .uri(providerConfig(provider).getUserInfoUrl())
-                    .headers(headers -> headers.setBearerAuth(accessToken))
-                    .retrieve()
-                    .onStatus(HttpStatusCode::isError, resp -> resp.bodyToMono(String.class)
-                            .defaultIfEmpty("")
-                            .flatMap(body -> {
-                                log.warn("OAuth userinfo endpoint error provider={} status={} body={}",
-                                        provider, resp.statusCode().value(), truncate(body, 500));
-                                return Mono.error(new BusinessException(
-                                        ErrorCode.EXTERNAL_API_ERROR,
-                                        provider + " 사용자 정보 조회 실패 (status=" + resp.statusCode().value() + ")"));
-                            }))
-                    .bodyToMono(Map.class)
-                    .block(Duration.ofMillis(properties.getTimeoutMs()));
-        } catch (BusinessException be) {
-            throw be;
-        } catch (WebClientResponseException wcre) {
-            log.warn("OAuth userinfo webclient error provider={} status={} body={}",
-                    provider, wcre.getStatusCode().value(), truncate(wcre.getResponseBodyAsString(), 500));
-            throw new BusinessException(ErrorCode.EXTERNAL_API_ERROR, provider + " 사용자 정보 응답 오류");
-        } catch (Exception e) {
-            log.warn("OAuth userinfo request failed provider={} reason={}", provider, e.getClass().getSimpleName(), e);
-            throw new BusinessException(ErrorCode.EXTERNAL_API_ERROR, provider + " 사용자 정보 요청에 실패했습니다.");
-        }
-        if (response == null) {
-            throw new BusinessException(ErrorCode.EXTERNAL_API_ERROR, provider + " 사용자 정보 응답이 비어 있습니다.");
-        }
-        return response;
-    }
-
-    private UserEntity createSocialUser(String provider, SocialProfile profile) {
+    private UserEntity buildSocialUser(SocialProvider provider, SocialProfile profile) {
         LocalDateTime now = LocalDateTime.now();
+        String seed = provider.name() + "|" + profile.providerUserId();
         UserEntity user = new UserEntity();
-        user.setCiHash(sha256("SOCIAL_CI|" + provider + "|" + profile.providerUserId()));
-        user.setCiEncrypted(encryptionUtil.encrypt("SOCIAL_CI|" + provider + "|" + profile.providerUserId()).getBytes(StandardCharsets.UTF_8));
-        user.setPhoneHash(sha256("SOCIAL_PHONE|" + provider + "|" + profile.providerUserId()));
+        user.setCiHash(sha256("SOCIAL_CI|" + seed));
+        user.setCiEncrypted(encryptionUtil.encrypt("SOCIAL_CI|" + seed).getBytes(StandardCharsets.UTF_8));
+        user.setPhoneHash(sha256("SOCIAL_PHONE|" + seed));
         user.setPhoneEncrypted(encryptionUtil.encrypt("SOCIAL_PHONE_UNVERIFIED").getBytes(StandardCharsets.UTF_8));
         user.setStatus(UserEntity.UserStatus.ACTIVE);
         user.setFailedLoginCount(0);
@@ -360,51 +185,25 @@ public class SocialLoginService implements SocialLoginUseCase {
         return user;
     }
 
-    private void touchUserLogin(Long userId) {
-        userRepository.findById(userId).ifPresent(user -> {
-            LocalDateTime now = LocalDateTime.now();
-            user.setLastLoginAt(now);
-            user.setUpdatedAt(now);
-            userRepository.save(user);
-        });
+    private SocialProfile stubProfile(SocialProvider provider, String code) {
+        String id = provider.name().toLowerCase() + "-" + sha256(code).substring(0, 16);
+        return new SocialProfile(id, id + "@stub.burty.local", provider.name() + " 사용자");
     }
 
-    private SocialProfile stubProfile(String provider, String code) {
-        String id = provider.toLowerCase() + "-" + sha256(code).substring(0, 16);
-        return new SocialProfile(id, id + "@stub.burty.local", provider + " 사용자");
-    }
-
-    private SocialLoginProperties.Provider providerConfig(String provider) {
-        return switch (provider) {
-            case "KAKAO" -> properties.getKakao();
-            case "GOOGLE" -> properties.getGoogle();
-            case "NAVER" -> properties.getNaver();
-            case "APPLE" -> properties.getApple();
-            default -> throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE, "지원하지 않는 소셜 로그인 제공자입니다.");
-        };
-    }
-
-    private String normalizeProvider(String provider) {
-        if (provider == null) throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE, "provider가 필요합니다.");
-        String normalized = provider.trim().toUpperCase();
-        if (!normalized.equals("GOOGLE") && !normalized.equals("KAKAO") && !normalized.equals("NAVER") && !normalized.equals("APPLE")) {
-            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE, "provider는 GOOGLE, KAKAO, NAVER, APPLE 중 하나여야 합니다.");
-        }
-        return normalized;
-    }
-
-    @SuppressWarnings("unchecked")
-    private Map<String, Object> decodeJwtPayload(String jwt) {
+    private void safeAudit(String userId, SocialProvider provider, boolean newUser, String state) {
         try {
-            String[] parts = jwt.split("\\.");
-            String payload = new String(Base64.getUrlDecoder().decode(parts[1]), StandardCharsets.UTF_8);
-            return new com.fasterxml.jackson.databind.ObjectMapper().readValue(payload, Map.class);
+            auditLogPort.save(new AuditEvent(
+                    UUID.randomUUID().toString(), userId, "SOCIAL_LOGIN", provider.name(), "SUCCESS",
+                    "provider=" + provider + ", newUser=" + newUser + ", state=" + truncateForAudit(state),
+                    LocalDateTime.now()
+            ));
         } catch (Exception e) {
-            throw new BusinessException(ErrorCode.EXTERNAL_API_ERROR, "Apple id_token 파싱에 실패했습니다.");
+            log.warn("social login audit save failed userId={} provider={} reason={}",
+                    userId, provider, e.getClass().getSimpleName());
         }
     }
 
-    private String sha256(String value) {
+    private static String sha256(String value) {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
             byte[] hashed = digest.digest(value.getBytes(StandardCharsets.UTF_8));
@@ -416,18 +215,12 @@ public class SocialLoginService implements SocialLoginUseCase {
         }
     }
 
-    private String stringValue(Object value) {
-        return value == null ? null : String.valueOf(value);
-    }
-
-    private boolean blank(String value) {
+    private static boolean blank(String value) {
         return value == null || value.isBlank();
     }
 
-    private String safeState(String state) {
+    private static String truncateForAudit(String state) {
         if (state == null) return "";
         return state.length() <= 80 ? state : state.substring(0, 80);
     }
-
-    private record SocialProfile(String providerUserId, String email, String displayName) {}
 }
