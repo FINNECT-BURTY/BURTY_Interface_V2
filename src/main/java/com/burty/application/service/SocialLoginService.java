@@ -16,13 +16,19 @@ import com.burty.domain.repository.UserRepository;
 import com.burty.security.RefreshTokenService;
 import com.burty.security.oauth.OAuthStateStore;
 import com.burty.util.EncryptionUtil;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.reactive.function.BodyInserters;
 import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.web.reactive.function.client.WebClientResponseException;
 import org.springframework.web.util.UriComponentsBuilder;
+import reactor.core.publisher.Mono;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -34,6 +40,8 @@ import java.util.UUID;
 
 @Service
 public class SocialLoginService implements SocialLoginUseCase {
+    private static final Logger log = LoggerFactory.getLogger(SocialLoginService.class);
+
     private final SocialLoginProperties properties;
     private final SocialAccountRepository socialAccountRepository;
     private final UserRepository userRepository;
@@ -89,6 +97,7 @@ public class SocialLoginService implements SocialLoginUseCase {
     }
 
     @Override
+    @Transactional
     public SocialLoginResult login(String providerRaw, String code, String redirectUri, String state, String codeVerifier) {
         String provider = normalizeProvider(providerRaw);
         if (blank(code)) {
@@ -106,19 +115,23 @@ public class SocialLoginService implements SocialLoginUseCase {
                 ? stubProfile(provider, code)
                 : fetchProfile(provider, code, redirectUri, codeVerifier);
 
+        if (blank(profile.providerUserId())) {
+            throw new BusinessException(ErrorCode.EXTERNAL_API_ERROR, provider + " 사용자 식별자를 확인할 수 없습니다.");
+        }
+
         String providerUserIdHash = sha256(provider + "|" + profile.providerUserId());
         SocialAccountEntity account = socialAccountRepository
                 .findByProviderAndProviderUserIdHash(provider, providerUserIdHash)
                 .orElse(null);
 
         boolean newUser = false;
-        String userId;
+        Long userId;
         if (account == null) {
             UserEntity user = userRepository.save(createSocialUser(provider, profile));
-            userId = user.getUserId().toString();
+            userId = user.getUserId();
 
             account = new SocialAccountEntity();
-            account.setUserId(user.getUserId());
+            account.setUserId(userId);
             account.setProvider(provider);
             account.setProviderUserIdHash(providerUserIdHash);
             account.setEmailHash(blank(profile.email()) ? null : sha256(profile.email()));
@@ -127,24 +140,22 @@ public class SocialLoginService implements SocialLoginUseCase {
             socialAccountRepository.save(account);
             newUser = true;
         } else {
-            userId = account.getUserId().toString();
+            userId = account.getUserId();
             account.setLastLoginAt(LocalDateTime.now());
             socialAccountRepository.save(account);
             touchUserLogin(userId);
         }
 
-        auditLogPort.save(new AuditEvent(
-                UUID.randomUUID().toString(), userId, "SOCIAL_LOGIN", provider, "SUCCESS",
-                "provider=" + provider + ", newUser=" + newUser + ", state=" + safeState(state),
-                LocalDateTime.now()
-        ));
-        boolean profileComplete = userProfileRepository.existsById(Long.parseLong(userId));
+        boolean profileComplete = userProfileRepository.existsById(userId);
 
-        // refresh token 까지 발급. deviceId 는 추후 클라이언트 헤더에서 전달받도록 확장 가능.
-        RefreshTokenService.TokenPair tokens = refreshTokenService.issueNewSession(userId, null);
+        // refresh token 발급은 트랜잭션 내에서 수행. deviceId 는 추후 헤더에서 받도록 확장 가능.
+        RefreshTokenService.TokenPair tokens = refreshTokenService.issueNewSession(userId.toString(), null);
+
+        // audit 은 토큰 발급 후. 실패해도 로그인 흐름을 막지 않도록 격리.
+        safeAudit(userId.toString(), provider, newUser, state);
 
         return new SocialLoginResult(
-                userId,
+                userId.toString(),
                 provider,
                 tokens.accessToken(),
                 tokens.refreshToken(),
@@ -153,6 +164,19 @@ public class SocialLoginService implements SocialLoginUseCase {
                 newUser,
                 profileComplete
         );
+    }
+
+    private void safeAudit(String userId, String provider, boolean newUser, String state) {
+        try {
+            auditLogPort.save(new AuditEvent(
+                    UUID.randomUUID().toString(), userId, "SOCIAL_LOGIN", provider, "SUCCESS",
+                    "provider=" + provider + ", newUser=" + newUser + ", state=" + safeState(state),
+                    LocalDateTime.now()
+            ));
+        } catch (Exception e) {
+            log.warn("social login audit save failed userId={} provider={} reason={}",
+                    userId, provider, e.getClass().getSimpleName());
+        }
     }
 
     private SocialProfile fetchProfile(String provider, String code, String redirectUri, String codeVerifier) {
@@ -182,13 +206,34 @@ public class SocialLoginService implements SocialLoginUseCase {
             form.add("code_verifier", codeVerifier);
         }
 
-        Map<String, Object> response = webClient.post()
-                .uri(config.getTokenUrl())
-                .contentType(MediaType.APPLICATION_FORM_URLENCODED)
-                .body(BodyInserters.fromFormData(form))
-                .retrieve()
-                .bodyToMono(Map.class)
-                .block(Duration.ofMillis(properties.getTimeoutMs()));
+        Map<String, Object> response;
+        try {
+            response = webClient.post()
+                    .uri(config.getTokenUrl())
+                    .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                    .body(BodyInserters.fromFormData(form))
+                    .retrieve()
+                    .onStatus(HttpStatusCode::isError, resp -> resp.bodyToMono(String.class)
+                            .defaultIfEmpty("")
+                            .flatMap(body -> {
+                                log.warn("OAuth token endpoint error provider={} status={} body={}",
+                                        provider, resp.statusCode().value(), truncate(body, 500));
+                                return Mono.error(new BusinessException(
+                                        ErrorCode.EXTERNAL_API_ERROR,
+                                        provider + " 토큰 발급 실패 (status=" + resp.statusCode().value() + ")"));
+                            }))
+                    .bodyToMono(Map.class)
+                    .block(Duration.ofMillis(properties.getTimeoutMs()));
+        } catch (BusinessException be) {
+            throw be;
+        } catch (WebClientResponseException wcre) {
+            log.warn("OAuth token webclient error provider={} status={} body={}",
+                    provider, wcre.getStatusCode().value(), truncate(wcre.getResponseBodyAsString(), 500));
+            throw new BusinessException(ErrorCode.EXTERNAL_API_ERROR, provider + " 토큰 응답 오류");
+        } catch (Exception e) {
+            log.warn("OAuth token request failed provider={} reason={}", provider, e.getClass().getSimpleName(), e);
+            throw new BusinessException(ErrorCode.EXTERNAL_API_ERROR, provider + " 토큰 요청에 실패했습니다.");
+        }
 
         if (response == null) {
             throw new BusinessException(ErrorCode.EXTERNAL_API_ERROR, provider + " 토큰 응답이 비어 있습니다.");
@@ -198,18 +243,50 @@ public class SocialLoginService implements SocialLoginUseCase {
             token = response.get("id_token");
         }
         if (token == null) {
+            log.warn("OAuth token endpoint returned no access_token provider={} body_keys={}",
+                    provider, response.keySet());
             throw new BusinessException(ErrorCode.EXTERNAL_API_ERROR, provider + " 토큰 발급에 실패했습니다.");
         }
         return String.valueOf(token);
     }
 
+    private static String truncate(String s, int max) {
+        if (s == null) return "";
+        return s.length() <= max ? s : s.substring(0, max) + "...(truncated)";
+    }
+
     @SuppressWarnings("unchecked")
     private SocialProfile fetchKakaoProfile(String accessToken) {
         Map<String, Object> response = getUserInfo("KAKAO", accessToken);
-        String id = String.valueOf(response.get("id"));
+        Object idObj = response.get("id");
+        String id = idObj == null ? null : String.valueOf(idObj);
         Map<String, Object> account = response.get("kakao_account") instanceof Map<?, ?> map ? (Map<String, Object>) map : Map.of();
         Map<String, Object> profile = account.get("profile") instanceof Map<?, ?> map ? (Map<String, Object>) map : Map.of();
-        return new SocialProfile(id, stringValue(account.get("email")), stringValue(profile.get("nickname")));
+
+        // 이메일은 동의 + 검증 통과한 경우에만 사용. 안 받으면 null 로 두고 후속 가입 흐름이 이어지게 함.
+        String email = null;
+        Object hasEmail = account.get("has_email");
+        Object emailValid = account.get("is_email_valid");
+        Object emailVerified = account.get("is_email_verified");
+        Object emailNeedsAgreement = account.get("email_needs_agreement");
+        boolean emailUsable = Boolean.TRUE.equals(hasEmail)
+                && Boolean.TRUE.equals(emailValid)
+                && Boolean.TRUE.equals(emailVerified)
+                && !Boolean.TRUE.equals(emailNeedsAgreement);
+        if (emailUsable) {
+            email = stringValue(account.get("email"));
+        } else if (account.containsKey("email")) {
+            // 일부 케이스: 플래그 없이 email 만 옴 (검수 안 된 앱) — 안전하게 사용
+            email = stringValue(account.get("email"));
+        }
+
+        String nickname = null;
+        Object nicknameNeedsAgreement = account.get("profile_nickname_needs_agreement");
+        if (!Boolean.TRUE.equals(nicknameNeedsAgreement)) {
+            nickname = stringValue(profile.get("nickname"));
+        }
+
+        return new SocialProfile(id, email, nickname);
     }
 
     @SuppressWarnings("unchecked")
@@ -235,12 +312,33 @@ public class SocialLoginService implements SocialLoginUseCase {
 
     @SuppressWarnings("unchecked")
     private Map<String, Object> getUserInfo(String provider, String accessToken) {
-        Map<String, Object> response = webClient.get()
-                .uri(providerConfig(provider).getUserInfoUrl())
-                .headers(headers -> headers.setBearerAuth(accessToken))
-                .retrieve()
-                .bodyToMono(Map.class)
-                .block(Duration.ofMillis(properties.getTimeoutMs()));
+        Map<String, Object> response;
+        try {
+            response = webClient.get()
+                    .uri(providerConfig(provider).getUserInfoUrl())
+                    .headers(headers -> headers.setBearerAuth(accessToken))
+                    .retrieve()
+                    .onStatus(HttpStatusCode::isError, resp -> resp.bodyToMono(String.class)
+                            .defaultIfEmpty("")
+                            .flatMap(body -> {
+                                log.warn("OAuth userinfo endpoint error provider={} status={} body={}",
+                                        provider, resp.statusCode().value(), truncate(body, 500));
+                                return Mono.error(new BusinessException(
+                                        ErrorCode.EXTERNAL_API_ERROR,
+                                        provider + " 사용자 정보 조회 실패 (status=" + resp.statusCode().value() + ")"));
+                            }))
+                    .bodyToMono(Map.class)
+                    .block(Duration.ofMillis(properties.getTimeoutMs()));
+        } catch (BusinessException be) {
+            throw be;
+        } catch (WebClientResponseException wcre) {
+            log.warn("OAuth userinfo webclient error provider={} status={} body={}",
+                    provider, wcre.getStatusCode().value(), truncate(wcre.getResponseBodyAsString(), 500));
+            throw new BusinessException(ErrorCode.EXTERNAL_API_ERROR, provider + " 사용자 정보 응답 오류");
+        } catch (Exception e) {
+            log.warn("OAuth userinfo request failed provider={} reason={}", provider, e.getClass().getSimpleName(), e);
+            throw new BusinessException(ErrorCode.EXTERNAL_API_ERROR, provider + " 사용자 정보 요청에 실패했습니다.");
+        }
         if (response == null) {
             throw new BusinessException(ErrorCode.EXTERNAL_API_ERROR, provider + " 사용자 정보 응답이 비어 있습니다.");
         }
@@ -262,15 +360,13 @@ public class SocialLoginService implements SocialLoginUseCase {
         return user;
     }
 
-    private void touchUserLogin(String userId) {
-        try {
-            userRepository.findById(Long.parseLong(userId)).ifPresent(user -> {
-                user.setLastLoginAt(LocalDateTime.now());
-                user.setUpdatedAt(LocalDateTime.now());
-                userRepository.save(user);
-            });
-        } catch (IllegalArgumentException ignored) {
-        }
+    private void touchUserLogin(Long userId) {
+        userRepository.findById(userId).ifPresent(user -> {
+            LocalDateTime now = LocalDateTime.now();
+            user.setLastLoginAt(now);
+            user.setUpdatedAt(now);
+            userRepository.save(user);
+        });
     }
 
     private SocialProfile stubProfile(String provider, String code) {

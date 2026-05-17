@@ -164,17 +164,18 @@ public class AuthController extends BaseController {
                                                @RequestParam(required = false) String state,
                                                @RequestParam(required = false) String error,
                                                @RequestParam(required = false, name = "error_description") String errorDescription) {
-        // 1. provider 가 error 응답을 redirect 로 알린 경우
-        if (error != null && !error.isBlank()) {
-            log.warn("OAuth callback error provider={} error={} description={}", provider, error, errorDescription);
-            return redirectToFrontend(error, null, null);
-        }
-        if (code == null || code.isBlank()) {
-            log.warn("OAuth callback missing code provider={}", provider);
-            return redirectToFrontend("missing_code", null, null);
-        }
-
         try {
+            // 1. provider 가 error 응답을 redirect 로 알린 경우 (사용자가 동의 거부 등)
+            if (error != null && !error.isBlank()) {
+                log.warn("OAuth callback provider error provider={} error={} description={}",
+                        provider, error, errorDescription);
+                return redirectToFrontend(mapProviderError(error), null, null);
+            }
+            if (code == null || code.isBlank()) {
+                log.warn("OAuth callback missing code provider={}", provider);
+                return redirectToFrontend("missing_code", null, null);
+            }
+
             SocialLoginResult result = socialLoginUseCase.login(provider, code, null, state, null);
 
             ResponseCookie accessCookie = buildCookie(AuthCookies.ACCESS, result.getAccessToken(), result.getAccessExpiresInSeconds());
@@ -186,11 +187,64 @@ public class AuthController extends BaseController {
                     .location(java.net.URI.create(buildFrontendUrl(null, result.isNewUser(), result.isProfileComplete())))
                     .build();
         } catch (BusinessException be) {
-            log.warn("OAuth callback business error provider={} reason={}", provider, be.getMessage());
-            return redirectToFrontend(be.getErrorCode().name().toLowerCase(), null, null);
+            String code2 = mapBusinessError(be);
+            log.warn("OAuth callback business error provider={} code={} reason={}", provider, code2, be.getMessage());
+            return safeRedirect(code2);
         } catch (Exception ex) {
             log.error("OAuth callback unexpected error provider={}", provider, ex);
-            return redirectToFrontend("internal_error", null, null);
+            return safeRedirect("internal_error");
+        }
+    }
+
+    private String mapProviderError(String providerError) {
+        if (providerError == null) return "internal_error";
+        String e = providerError.toLowerCase();
+        if (e.contains("access_denied") || e.contains("user_cancelled")) return "user_cancelled";
+        if (e.contains("invalid_request") || e.contains("invalid_redirect")) return "invalid_request";
+        if (e.contains("server_error") || e.contains("temporarily_unavailable")) return "provider_unavailable";
+        return "provider_error";
+    }
+
+    private String mapBusinessError(BusinessException be) {
+        String message = be.getMessage() == null ? "" : be.getMessage();
+        ErrorCode ec = be.getErrorCode();
+        if (ec == ErrorCode.INVALID_INPUT_VALUE) {
+            if (message.contains("state")) return "state_expired";
+            if (message.contains("code")) return "invalid_code";
+            if (message.contains("provider") || message.contains("지원")) return "unsupported_provider";
+            return "invalid_request";
+        }
+        if (ec == ErrorCode.EXTERNAL_API_ERROR) {
+            return "provider_error";
+        }
+        if (ec == ErrorCode.INVALID_TOKEN || ec == ErrorCode.EXPIRED_TOKEN) {
+            return "invalid_token";
+        }
+        if (ec == ErrorCode.FORBIDDEN) {
+            return "forbidden";
+        }
+        return "internal_error";
+    }
+
+    /**
+     * redirectToFrontend 가 어떤 이유로도 throw 하지 않도록 감싼다 (URI 생성 실패 등).
+     * 최후 fallback 으로 frontendUrl 의 루트로 보낸다.
+     */
+    private ResponseEntity<Void> safeRedirect(String errorCode) {
+        try {
+            return redirectToFrontend(errorCode, null, null);
+        } catch (Exception e) {
+            log.error("safeRedirect fallback triggered errorCode={}", errorCode, e);
+            String base = frontendUrl == null || frontendUrl.isBlank() ? "/" : frontendUrl;
+            try {
+                return ResponseEntity.status(HttpStatus.FOUND)
+                        .location(java.net.URI.create(base + "/?error=" + URLEncoder.encode(errorCode == null ? "internal_error" : errorCode, StandardCharsets.UTF_8)))
+                        .build();
+            } catch (Exception inner) {
+                return ResponseEntity.status(HttpStatus.FOUND)
+                        .location(java.net.URI.create("/"))
+                        .build();
+            }
         }
     }
 
@@ -203,14 +257,15 @@ public class AuthController extends BaseController {
     private String buildFrontendUrl(String error, Boolean newUser, Boolean profileComplete) {
         String base = frontendUrl == null || frontendUrl.isBlank() ? "" : frontendUrl;
         String path = burtyAuthProperties.getOauthSuccessRedirect();
+        // UriComponentsBuilder.queryParam 이 자체적으로 인코딩하므로 raw 값을 그대로 넘긴다 (double-encode 방지)
         UriComponentsBuilder b = UriComponentsBuilder.fromUriString(base + path);
         if (error != null) {
-            b.queryParam("error", URLEncoder.encode(error, StandardCharsets.UTF_8));
+            b.queryParam("error", error);
         } else {
             if (newUser != null) b.queryParam("newUser", newUser);
             if (profileComplete != null) b.queryParam("profileComplete", profileComplete);
         }
-        return b.build().toUriString();
+        return b.encode(StandardCharsets.UTF_8).build().toUriString();
     }
 
     private ResponseCookie buildCookie(String name, String value, long maxAgeSeconds) {
