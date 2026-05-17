@@ -58,7 +58,7 @@ public class AuthController extends BaseController {
     }
 
     @PostMapping("/refresh")
-    @Operation(summary = "Access / Refresh token 재발급", description = "유효한 refresh token 으로 access + refresh 쌍을 재발급합니다. 매 호출 시 refresh token 도 회전(rotation)됩니다. 이미 revoke 된 refresh token 이 들어오면 도난 의심으로 해당 사용자의 모든 세션이 강제 종료됩니다.",)
+    @Operation(summary = "Access / Refresh token 재발급", description = "유효한 refresh token 으로 access + refresh 쌍을 재발급합니다. 매 호출 시 refresh token 도 회전(rotation)됩니다. 이미 revoke 된 refresh token 이 들어오면 도난 의심으로 해당 사용자의 모든 세션이 강제 종료됩니다.")
     public ApiResponse<TokenPairResponse> refresh(@RequestBody RefreshTokenRequest request) {
         RefreshTokenService.TokenPair pair = refreshTokenService.rotate(request.getRefreshToken());
         return ApiResponse.ok(new TokenPairResponse(
