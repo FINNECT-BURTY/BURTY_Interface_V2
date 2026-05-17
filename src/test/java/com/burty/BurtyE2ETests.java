@@ -38,18 +38,17 @@ class BurtyE2ETests {
 
     @BeforeEach
     void setUp() {
-        userId = UUID.randomUUID().toString();
+        String nonce = UUID.randomUUID().toString().replace("-", "");
         UserEntity user = new UserEntity();
-        user.setUserId(UUID.fromString(userId));
-        user.setCiHash(userId.replace("-", "") + userId.replace("-", ""));
+        user.setCiHash(nonce + nonce);
         user.setCiEncrypted("ci".getBytes());
-        user.setPhoneHash(userId.replace("-", "") + "0".repeat(32));
+        user.setPhoneHash(nonce + "0".repeat(32));
         user.setPhoneEncrypted("phone".getBytes());
         user.setStatus(UserEntity.UserStatus.ACTIVE);
         user.setFailedLoginCount(0);
         user.setCreatedAt(LocalDateTime.now());
         user.setUpdatedAt(LocalDateTime.now());
-        userRepository.save(user);
+        userId = userRepository.save(user).getUserId().toString();
     }
 
     @Test
@@ -123,7 +122,7 @@ class BurtyE2ETests {
 
         String socialUserId = extractUserId(loginBody);
         Assertions.assertFalse(socialUserId.isEmpty());
-        Assertions.assertTrue(consentRecordRepository.findByUser_UserId(UUID.fromString(socialUserId)).size() >= 2);
+        Assertions.assertTrue(consentRecordRepository.findByUser_UserId(Long.parseLong(socialUserId)).size() >= 2);
 
         ResponseEntity<String> login2 = restTemplate.postForEntity(
                 base + "/api/v1/auth/social/kakao/login",
@@ -196,18 +195,17 @@ class BurtyE2ETests {
     @Test
     void resourceOwnershipRejectsMismatchedPathUserId() {
         String base = "http://localhost:" + port;
-        UUID other = UUID.randomUUID();
         UserEntity otherUser = new UserEntity();
-        otherUser.setUserId(other);
-        otherUser.setCiHash("c".repeat(64));
+        String nonce = UUID.randomUUID().toString().replace("-", "");
+        otherUser.setCiHash(nonce + nonce);
         otherUser.setCiEncrypted("x".getBytes());
-        otherUser.setPhoneHash("d".repeat(64));
+        otherUser.setPhoneHash("d" + nonce + "d".repeat(31));
         otherUser.setPhoneEncrypted("y".getBytes());
         otherUser.setStatus(UserEntity.UserStatus.ACTIVE);
         otherUser.setFailedLoginCount(0);
         otherUser.setCreatedAt(LocalDateTime.now());
         otherUser.setUpdatedAt(LocalDateTime.now());
-        userRepository.save(otherUser);
+        String other = userRepository.save(otherUser).getUserId().toString();
 
         ResponseEntity<String> tokenEntity = restTemplate.postForEntity(
                 base + "/api/v1/auth/token",

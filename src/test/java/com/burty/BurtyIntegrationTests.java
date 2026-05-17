@@ -41,24 +41,21 @@ class BurtyIntegrationTests {
     @Autowired
     private AuditLogRepository auditLogRepository;
 
-    private final String testUserId = "11111111-1111-1111-1111-111111111111";
+    private String testUserId;
 
     @BeforeEach
     void setupUser() {
-        UUID uuid = UUID.fromString(testUserId);
-        if (userRepository.findById(uuid).isEmpty()) {
-            UserEntity user = new UserEntity();
-            user.setUserId(uuid);
-            user.setCiHash("a".repeat(64));
-            user.setCiEncrypted("enc-ci".getBytes());
-            user.setPhoneHash("b".repeat(64));
-            user.setPhoneEncrypted("enc-phone".getBytes());
-            user.setStatus(UserEntity.UserStatus.ACTIVE);
-            user.setFailedLoginCount(0);
-            user.setCreatedAt(LocalDateTime.now());
-            user.setUpdatedAt(LocalDateTime.now());
-            userRepository.save(user);
-        }
+        String nonce = UUID.randomUUID().toString().replace("-", "");
+        UserEntity user = new UserEntity();
+        user.setCiHash(nonce + nonce);
+        user.setCiEncrypted("enc-ci".getBytes());
+        user.setPhoneHash("b" + nonce + "b".repeat(31));
+        user.setPhoneEncrypted("enc-phone".getBytes());
+        user.setStatus(UserEntity.UserStatus.ACTIVE);
+        user.setFailedLoginCount(0);
+        user.setCreatedAt(LocalDateTime.now());
+        user.setUpdatedAt(LocalDateTime.now());
+        testUserId = userRepository.save(user).getUserId().toString();
     }
 
     @Test
@@ -86,7 +83,7 @@ class BurtyIntegrationTests {
     void jpaMonthlyReportHistoryPortWorks() {
         monthlyReportHistoryPort.saveHistory(testUserId, "2026-04", "SUCCESS", "ok");
         MonthlyReportEntity entity = monthlyReportRepository
-                .findByUser_UserIdAndPeriodMonth(UUID.fromString(testUserId), java.time.YearMonth.parse("2026-04").atDay(1))
+                .findByUser_UserIdAndPeriodMonth(Long.parseLong(testUserId), java.time.YearMonth.parse("2026-04").atDay(1))
                 .orElse(null);
         Assertions.assertNotNull(entity);
         Assertions.assertEquals(MonthlyReportEntity.ReportStatus.DELIVERED, entity.getStatus());

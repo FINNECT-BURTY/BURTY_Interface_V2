@@ -19,7 +19,7 @@ services:
       # MariaDB (호스트 또는 컨테이너)
       DB_HOST: ${DB_HOST:-host.docker.internal}
       DB_PORT: ${DB_PORT:-3306}
-      DB_NAME: ${DB_NAME:-burty_dev}
+      DB_NAME: ${DB_NAME:-burty}
       DB_USER: ${DB_USER:-root}
       DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
 
