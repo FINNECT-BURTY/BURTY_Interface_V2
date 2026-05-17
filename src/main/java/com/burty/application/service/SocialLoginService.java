@@ -64,10 +64,12 @@ public class SocialLoginService implements SocialLoginUseCase {
     }
 
     @Override
-    public SocialAuthorizeUrlResult createAuthorizeUrl(String providerRaw, String state) {
+    public SocialAuthorizeUrlResult createAuthorizeUrl(String providerRaw, String state, String requestedRedirectUri) {
         String provider = normalizeProvider(providerRaw);
         SocialLoginProperties.Provider config = providerConfig(provider);
-        String redirectUri = config.getRedirectUri();
+        // 호출자가 redirect_uri 를 지정했으면 그 값을 사용. 단 provider 콘솔에 등록된 URI 와 정확히 일치해야 함
+        // (등록 안 된 값이면 카카오 KOE006 / 구글 redirect_uri_mismatch 등).
+        String redirectUri = blank(requestedRedirectUri) ? config.getRedirectUri() : requestedRedirectUri.trim();
         String effectiveState = blank(state) ? UUID.randomUUID().toString() : state.trim();
         if (!properties.isStubMode()) {
             oAuthStateStore.remember(provider, effectiveState);

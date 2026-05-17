@@ -87,12 +87,17 @@ public class AuthController extends BaseController {
     @GetMapping("/social/{provider}/authorize-url")
     @Operation(
             summary = "소셜 로그인 인가 URL 생성",
-            description = "GOOGLE/KAKAO/NAVER/APPLE OAuth 인가 URL과 state를 반환합니다. `burty.social.stub-mode=false`일 때 로그인 요청의 state와 일치해야 합니다.",
+            description = "GOOGLE/KAKAO/NAVER/APPLE OAuth 인가 URL과 state를 반환합니다. " +
+                    "`redirectUri` 를 query param 으로 넘기면 그 값을 OAuth provider 에 전달 — " +
+                    "단 해당 URI 가 provider 콘솔에 사전 등록되어 있어야 함 (등록 안 되면 카카오 KOE006 등). " +
+                    "넘기지 않으면 application properties 의 redirect-uri default 사용. " +
+                    "`burty.social.stub-mode=false`일 때 로그인 요청의 state 와 redirectUri 는 여기서 받은 값을 그대로 다시 보내야 함.",
             security = {}
     )
     public ApiResponse<AuthorizeUrlResponse> socialAuthorizeUrl(@PathVariable String provider,
-                                                                @RequestParam(required = false) String state) {
-        var auth = socialLoginUseCase.createAuthorizeUrl(provider, state);
+                                                                @RequestParam(required = false) String state,
+                                                                @RequestParam(required = false) String redirectUri) {
+        var auth = socialLoginUseCase.createAuthorizeUrl(provider, state, redirectUri);
         return ApiResponse.ok(new AuthorizeUrlResponse(auth.authorizeUrl(), auth.state()));
     }
 
