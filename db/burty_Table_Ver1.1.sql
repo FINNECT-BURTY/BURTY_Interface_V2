@@ -8,7 +8,7 @@ CREATE DATABASE IF NOT EXISTS burty
 USE burty;
 
 -- ----------------------------------------------------------------------------
--- 01. USER (암호화 포함)
+-- 01. USER
 -- ----------------------------------------------------------------------------
 CREATE TABLE tbl_user (
     user_id BINARY(16) NOT NULL COMMENT 'UUID',
@@ -16,8 +16,8 @@ CREATE TABLE tbl_user (
     ci_hash CHAR(64) NOT NULL COMMENT 'CI SHA-256 (검색용)',
     phone_hash CHAR(64) NOT NULL COMMENT '전화번호 SHA-256',
 
-    ci_encrypted VARBINARY(512) NOT NULL COMMENT 'CI 암호화 (AES-GCM)',
-    phone_encrypted VARBINARY(256) NOT NULL COMMENT '전화번호 암호화',
+    ci VARCHAR(255) NOT NULL COMMENT 'CI 원본',
+    phone VARCHAR(20) NOT NULL COMMENT '전화번호 원본',
 
     status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE',
 
@@ -72,6 +72,8 @@ CREATE TABLE tbl_user_profile (
     user_id BINARY(16) NOT NULL,
     policy_id TINYINT,
 
+    name VARCHAR(100) NOT NULL COMMENT '실명 원본',
+    birthdate DATE NOT NULL COMMENT '생년월일 원본',
     ux_mode VARCHAR(20) DEFAULT 'STANDARD',
 
     PRIMARY KEY (user_id),

@@ -11,7 +11,6 @@ import com.burty.domain.model.OnboardingProfileResult;
 import com.burty.domain.repository.ConsentRecordRepository;
 import com.burty.domain.repository.UserProfileRepository;
 import com.burty.domain.repository.UserRepository;
-import com.burty.util.EncryptionUtil;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -28,18 +27,15 @@ public class UserOnboardingService implements UserOnboardingUseCase {
     private final UserRepository userRepository;
     private final UserProfileRepository userProfileRepository;
     private final ConsentRecordRepository consentRecordRepository;
-    private final EncryptionUtil encryptionUtil;
     private final BurtyOnboardingProperties onboardingProperties;
 
     public UserOnboardingService(UserRepository userRepository,
                                  UserProfileRepository userProfileRepository,
                                  ConsentRecordRepository consentRecordRepository,
-                                 EncryptionUtil encryptionUtil,
                                  BurtyOnboardingProperties onboardingProperties) {
         this.userRepository = userRepository;
         this.userProfileRepository = userProfileRepository;
         this.consentRecordRepository = consentRecordRepository;
-        this.encryptionUtil = encryptionUtil;
         this.onboardingProperties = onboardingProperties;
     }
 
@@ -92,14 +88,14 @@ public class UserOnboardingService implements UserOnboardingUseCase {
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND, "사용자를 찾을 수 없습니다."));
 
         user.setPhoneHash(phoneHash);
-        user.setPhoneEncrypted(encryptionUtil.encrypt(normalizedPhone).getBytes(StandardCharsets.UTF_8));
+        user.setPhone(normalizedPhone);
         user.setUpdatedAt(LocalDateTime.now());
         userRepository.save(user);
 
         UserProfileEntity profile = new UserProfileEntity();
         profile.setUser(user);
-        profile.setNameEncrypted(encryptionUtil.encrypt(name.trim()).getBytes(StandardCharsets.UTF_8));
-        profile.setBirthdateEncrypted(encryptionUtil.encrypt(birthDate.toString()).getBytes(StandardCharsets.UTF_8));
+        profile.setName(name.trim());
+        profile.setBirthdate(birthDate);
         profile.setAgeRange(ageRange);
         profile.setUxMode(parseUxMode(uxModeRaw));
         profile.setFontScale(BigDecimal.ONE);

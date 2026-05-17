@@ -5,6 +5,7 @@ import lombok.Getter;
 import lombok.Setter;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Entity
@@ -21,11 +22,11 @@ public class UserProfileEntity {
     @JoinColumn(name = "user_id")
     private UserEntity user;
 
-    @Column(name = "name_encrypted", nullable = false)
-    private byte[] nameEncrypted;
+    @Column(name = "name", nullable = false, length = 100)
+    private String name;
 
-    @Column(name = "birthdate_encrypted", nullable = false)
-    private byte[] birthdateEncrypted;
+    @Column(name = "birthdate", nullable = false)
+    private LocalDate birthdate;
 
     @Column(name = "age_range")
     private Integer ageRange;

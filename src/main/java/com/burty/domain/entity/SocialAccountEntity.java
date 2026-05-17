@@ -39,11 +39,11 @@ public class SocialAccountEntity {
     @Column(name = "email_hash", length = 64)
     private String emailHash;
 
-    @Column(name = "email_encrypted", length = 500)
-    private String emailEncrypted;
+    @Column(name = "email", length = 255)
+    private String email;
 
-    @Column(name = "display_name_encrypted", length = 500)
-    private String displayNameEncrypted;
+    @Column(name = "display_name", length = 100)
+    private String displayName;
 
     @Column(name = "linked_at", nullable = false)
     private LocalDateTime linkedAt;

@@ -19,7 +19,6 @@ import com.burty.domain.repository.UserProfileRepository;
 import com.burty.domain.repository.UserRepository;
 import com.burty.security.RefreshTokenService;
 import com.burty.security.oauth.OAuthStateStore;
-import com.burty.util.EncryptionUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -41,7 +40,6 @@ public class SocialLoginService implements SocialLoginUseCase {
     private final UserRepository userRepository;
     private final UserProfileRepository userProfileRepository;
     private final RefreshTokenService refreshTokenService;
-    private final EncryptionUtil encryptionUtil;
     private final AuditLogPort auditLogPort;
     private final OAuthStateStore oAuthStateStore;
 
@@ -51,7 +49,6 @@ public class SocialLoginService implements SocialLoginUseCase {
                               UserRepository userRepository,
                               UserProfileRepository userProfileRepository,
                               RefreshTokenService refreshTokenService,
-                              EncryptionUtil encryptionUtil,
                               AuditLogPort auditLogPort,
                               OAuthStateStore oAuthStateStore) {
         this.properties = properties;
@@ -60,7 +57,6 @@ public class SocialLoginService implements SocialLoginUseCase {
         this.userRepository = userRepository;
         this.userProfileRepository = userProfileRepository;
         this.refreshTokenService = refreshTokenService;
-        this.encryptionUtil = encryptionUtil;
         this.auditLogPort = auditLogPort;
         this.oAuthStateStore = oAuthStateStore;
     }
@@ -159,8 +155,8 @@ public class SocialLoginService implements SocialLoginUseCase {
         account.setProvider(provider.name());
         account.setProviderUserIdHash(providerUserIdHash);
         account.setEmailHash(blank(profile.email()) ? null : sha256(profile.email()));
-        account.setEmailEncrypted(blank(profile.email()) ? null : encryptionUtil.encrypt(profile.email()));
-        account.setDisplayNameEncrypted(blank(profile.displayName()) ? null : encryptionUtil.encrypt(profile.displayName()));
+        account.setEmail(blank(profile.email()) ? null : profile.email());
+        account.setDisplayName(blank(profile.displayName()) ? null : profile.displayName());
         socialAccountRepository.save(account);
         return userId;
     }
@@ -183,9 +179,9 @@ public class SocialLoginService implements SocialLoginUseCase {
         String seed = provider.name() + "|" + profile.providerUserId();
         UserEntity user = new UserEntity();
         user.setCiHash(sha256("SOCIAL_CI|" + seed));
-        user.setCiEncrypted(encryptionUtil.encrypt("SOCIAL_CI|" + seed).getBytes(StandardCharsets.UTF_8));
+        user.setCi("SOCIAL_CI|" + seed);
         user.setPhoneHash(sha256("SOCIAL_PHONE|" + seed));
-        user.setPhoneEncrypted(encryptionUtil.encrypt("SOCIAL_PHONE_UNVERIFIED").getBytes(StandardCharsets.UTF_8));
+        user.setPhone("SOCIAL_PHONE_UNVERIFIED");
         user.setStatus(UserEntity.UserStatus.ACTIVE);
         user.setFailedLoginCount(0);
         user.setLastLoginAt(now);

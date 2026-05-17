@@ -20,14 +20,14 @@ public class UserEntity {
     @Column(name = "ci_hash", nullable = false, length = 64, unique = true)
     private String ciHash;
 
-    @Column(name = "ci_encrypted", nullable = false)
-    private byte[] ciEncrypted;
+    @Column(name = "ci", nullable = false, length = 255)
+    private String ci;
 
     @Column(name = "phone_hash", nullable = false, length = 64, unique = true)
     private String phoneHash;
 
-    @Column(name = "phone_encrypted", nullable = false)
-    private byte[] phoneEncrypted;
+    @Column(name = "phone", nullable = false, length = 20)
+    private String phone;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false)
