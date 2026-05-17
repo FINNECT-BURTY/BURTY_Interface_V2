@@ -55,7 +55,7 @@ class BurtyE2ETests {
     void socialLoginIssuesBurtyTokenAndPersistsAccount() {
         String base = "http://localhost:" + port;
         ResponseEntity<String> login = restTemplate.postForEntity(
-                base + "/api/v1/auth/social/kakao/login",
+                base + "/api/v1/auth/kakao/login",
                 new HttpEntity<>("{\"code\":\"test-social-code\",\"state\":\"state-1\"}", jsonHeaders()),
                 String.class
         );
@@ -73,7 +73,7 @@ class BurtyE2ETests {
     void googleSocialLoginIssuesBurtyToken() {
         String base = "http://localhost:" + port;
         ResponseEntity<String> login = restTemplate.postForEntity(
-                base + "/api/v1/auth/social/google/login",
+                base + "/api/v1/auth/google/login",
                 new HttpEntity<>("{\"code\":\"test-google-code\",\"state\":\"state-g\"}", jsonHeaders()),
                 String.class
         );
@@ -90,7 +90,7 @@ class BurtyE2ETests {
         String base = "http://localhost:" + port;
         String code = "onboard-" + UUID.randomUUID();
         ResponseEntity<String> login = restTemplate.postForEntity(
-                base + "/api/v1/auth/social/kakao/login",
+                base + "/api/v1/auth/kakao/login",
                 new HttpEntity<>("{\"code\":\"" + code + "\"}", jsonHeaders()),
                 String.class
         );
@@ -125,7 +125,7 @@ class BurtyE2ETests {
         Assertions.assertTrue(consentRecordRepository.findByUser_UserId(Long.parseLong(socialUserId)).size() >= 2);
 
         ResponseEntity<String> login2 = restTemplate.postForEntity(
-                base + "/api/v1/auth/social/kakao/login",
+                base + "/api/v1/auth/kakao/login",
                 new HttpEntity<>("{\"code\":\"" + code + "\"}", jsonHeaders()),
                 String.class
         );
