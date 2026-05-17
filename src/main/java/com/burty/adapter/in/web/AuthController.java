@@ -15,15 +15,27 @@ import com.burty.core.dto.response.ApiResponse;
 import com.burty.core.error.enums.ErrorCode;
 import com.burty.core.exception.BusinessException;
 import com.burty.domain.model.SocialLoginResult;
+import com.burty.security.AuthCookies;
 import com.burty.security.JwtBlacklistService;
 import com.burty.security.JwtTokenProvider;
 import com.burty.security.RefreshTokenService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.env.Environment;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseCookie;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.util.UriComponentsBuilder;
 
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.Arrays;
 import java.util.UUID;
 
@@ -31,25 +43,30 @@ import java.util.UUID;
 @RequestMapping("/auth")
 @Tag(name = "BURTY Auth", description = "BURTY 인증(JWT 발급/Refresh/로그아웃) API")
 public class AuthController extends BaseController {
+    private static final Logger log = LoggerFactory.getLogger(AuthController.class);
+
     private final JwtTokenProvider jwtTokenProvider;
     private final JwtBlacklistService jwtBlacklistService;
     private final RefreshTokenService refreshTokenService;
     private final SocialLoginUseCase socialLoginUseCase;
     private final BurtyAuthProperties burtyAuthProperties;
     private final Environment environment;
+    private final String frontendUrl;
 
     public AuthController(JwtTokenProvider jwtTokenProvider,
                           JwtBlacklistService jwtBlacklistService,
                           RefreshTokenService refreshTokenService,
                           SocialLoginUseCase socialLoginUseCase,
                           BurtyAuthProperties burtyAuthProperties,
-                          Environment environment) {
+                          Environment environment,
+                          @Value("${FRONTEND_URL:${app.base-url:https://burty.co.kr}}") String frontendUrl) {
         this.jwtTokenProvider = jwtTokenProvider;
         this.jwtBlacklistService = jwtBlacklistService;
         this.refreshTokenService = refreshTokenService;
         this.socialLoginUseCase = socialLoginUseCase;
         this.burtyAuthProperties = burtyAuthProperties;
         this.environment = environment;
+        this.frontendUrl = frontendUrl;
     }
 
     @PostMapping("/token")
@@ -103,8 +120,8 @@ public class AuthController extends BaseController {
 
     @PostMapping("/social/{provider}/login")
     @Operation(
-            summary = "소셜 로그인",
-            description = "GOOGLE/KAKAO/NAVER/APPLE authorization code를 검증하고 BURTY access + refresh token 쌍을 발급합니다.",
+            summary = "소셜 로그인 (SPA / API client 용)",
+            description = "GOOGLE/KAKAO/NAVER/APPLE authorization code를 검증하고 BURTY access + refresh token 쌍을 응답 body 로 반환합니다. SPA 가 FE 콜백 페이지에서 code 를 수신해 호출하는 패턴.",
             security = {}
     )
     public ApiResponse<SocialLoginResponse> socialLogin(@PathVariable String provider,
@@ -128,19 +145,107 @@ public class AuthController extends BaseController {
         ));
     }
 
+    /**
+     * OAuth provider 가 redirect 하는 GET callback. BFF 패턴.
+     * - 토큰 교환 후 access + refresh 를 HttpOnly Secure SameSite=Lax 쿠키로 set
+     * - FE 의 onboarding/landing 페이지로 302 redirect
+     *
+     * redirect_uri 는 application properties 의 burty.social.{provider}.redirect-uri default 값을 사용
+     * (FE 가 authorize-url 호출 시 redirectUri 를 안 넘긴 경우와 동일). 이 endpoint 자체가 그 default 의 종착지.
+     */
+    @GetMapping("/social/{provider}/callback")
+    @Operation(
+            summary = "소셜 로그인 BFF 콜백",
+            description = "OAuth provider 가 redirect 하는 GET 엔드포인트. 토큰 교환 후 HttpOnly 쿠키 설정 + FE 페이지로 302.",
+            security = {}
+    )
+    public ResponseEntity<Void> socialCallback(@PathVariable String provider,
+                                               @RequestParam(required = false) String code,
+                                               @RequestParam(required = false) String state,
+                                               @RequestParam(required = false) String error,
+                                               @RequestParam(required = false, name = "error_description") String errorDescription) {
+        // 1. provider 가 error 응답을 redirect 로 알린 경우
+        if (error != null && !error.isBlank()) {
+            log.warn("OAuth callback error provider={} error={} description={}", provider, error, errorDescription);
+            return redirectToFrontend(error, null, null);
+        }
+        if (code == null || code.isBlank()) {
+            log.warn("OAuth callback missing code provider={}", provider);
+            return redirectToFrontend("missing_code", null, null);
+        }
+
+        try {
+            SocialLoginResult result = socialLoginUseCase.login(provider, code, null, state, null);
+
+            ResponseCookie accessCookie = buildCookie(AuthCookies.ACCESS, result.getAccessToken(), result.getAccessExpiresInSeconds());
+            ResponseCookie refreshCookie = buildCookie(AuthCookies.REFRESH, result.getRefreshToken(), result.getRefreshExpiresInSeconds());
+
+            return ResponseEntity.status(HttpStatus.FOUND)
+                    .header(HttpHeaders.SET_COOKIE, accessCookie.toString())
+                    .header(HttpHeaders.SET_COOKIE, refreshCookie.toString())
+                    .location(java.net.URI.create(buildFrontendUrl(null, result.isNewUser(), result.isProfileComplete())))
+                    .build();
+        } catch (BusinessException be) {
+            log.warn("OAuth callback business error provider={} reason={}", provider, be.getMessage());
+            return redirectToFrontend(be.getErrorCode().name().toLowerCase(), null, null);
+        } catch (Exception ex) {
+            log.error("OAuth callback unexpected error provider={}", provider, ex);
+            return redirectToFrontend("internal_error", null, null);
+        }
+    }
+
+    private ResponseEntity<Void> redirectToFrontend(String error, Boolean newUser, Boolean profileComplete) {
+        return ResponseEntity.status(HttpStatus.FOUND)
+                .location(java.net.URI.create(buildFrontendUrl(error, newUser, profileComplete)))
+                .build();
+    }
+
+    private String buildFrontendUrl(String error, Boolean newUser, Boolean profileComplete) {
+        String base = frontendUrl == null || frontendUrl.isBlank() ? "" : frontendUrl;
+        String path = burtyAuthProperties.getOauthSuccessRedirect();
+        UriComponentsBuilder b = UriComponentsBuilder.fromUriString(base + path);
+        if (error != null) {
+            b.queryParam("error", URLEncoder.encode(error, StandardCharsets.UTF_8));
+        } else {
+            if (newUser != null) b.queryParam("newUser", newUser);
+            if (profileComplete != null) b.queryParam("profileComplete", profileComplete);
+        }
+        return b.build().toUriString();
+    }
+
+    private ResponseCookie buildCookie(String name, String value, long maxAgeSeconds) {
+        ResponseCookie.ResponseCookieBuilder b = ResponseCookie.from(name, value)
+                .httpOnly(true)
+                .secure(burtyAuthProperties.isCookieSecure())
+                .sameSite(burtyAuthProperties.getCookieSameSite())
+                .path("/")
+                .maxAge(Duration.ofSeconds(maxAgeSeconds));
+        String domain = burtyAuthProperties.getCookieDomain();
+        if (domain != null && !domain.isBlank()) {
+            b.domain(domain);
+        }
+        return b.build();
+    }
+
     @PostMapping("/logout")
     @Operation(
             summary = "로그아웃",
-            description = "현재 access token 을 블랙리스트에 등록하고, body 로 받은 refresh token 을 revoke 합니다.",
+            description = "현재 access token 을 블랙리스트에 등록하고, body 로 받은 refresh token 을 revoke. 쿠키도 즉시 만료.",
             security = { @SecurityRequirement(name = "bearerAuth") }
     )
-    public ApiResponse<LogoutResponse> logout(@RequestHeader("Authorization") String authHeader,
-                                              @RequestBody(required = false) RefreshTokenRequest request) {
-        String token = authHeader.replace("Bearer ", "");
-        jwtBlacklistService.blacklist(token);
+    public ResponseEntity<ApiResponse<LogoutResponse>> logout(@RequestHeader(value = "Authorization", required = false) String authHeader,
+                                                              @RequestBody(required = false) RefreshTokenRequest request) {
+        if (authHeader != null && authHeader.startsWith("Bearer ")) {
+            jwtBlacklistService.blacklist(authHeader.substring(7));
+        }
         if (request != null) {
             refreshTokenService.revoke(request.getRefreshToken());
         }
-        return ApiResponse.ok(new LogoutResponse(true));
+        ResponseCookie expireAccess = buildCookie(AuthCookies.ACCESS, "", 0);
+        ResponseCookie expireRefresh = buildCookie(AuthCookies.REFRESH, "", 0);
+        return ResponseEntity.ok()
+                .header(HttpHeaders.SET_COOKIE, expireAccess.toString())
+                .header(HttpHeaders.SET_COOKIE, expireRefresh.toString())
+                .body(ApiResponse.ok(new LogoutResponse(true)));
     }
 }

@@ -15,11 +15,30 @@ public class BurtyAuthProperties {
      */
     private boolean testTokenEnabled = false;
 
-    public boolean isTestTokenEnabled() {
-        return testTokenEnabled;
-    }
+    /**
+     * BFF 콜백 핸들러가 OAuth 성공/실패 후 브라우저를 redirect 시킬 FE URL.
+     * 예: https://burty.co.kr/auth/callback — query 로 newUser, profileComplete, error 가 첨부됨.
+     * 빈 값이면 FRONTEND_URL (또는 application properties 의 default) 를 그대로 사용.
+     */
+    private String oauthSuccessRedirect = "/auth/callback";
 
-    public void setTestTokenEnabled(boolean testTokenEnabled) {
-        this.testTokenEnabled = testTokenEnabled;
-    }
+    /** Cookie 도메인 — COOKIE_DOMAIN env 우선, 없으면 빈 문자열(현재 호스트). */
+    private String cookieDomain = "";
+
+    /** Cookie Secure flag. HTTPS 환경에선 true. */
+    private boolean cookieSecure = true;
+
+    /** Cookie SameSite — Lax (OAuth top-level redirect 시 쿠키 첨부 필요) 또는 None. */
+    private String cookieSameSite = "Lax";
+
+    public boolean isTestTokenEnabled() { return testTokenEnabled; }
+    public void setTestTokenEnabled(boolean testTokenEnabled) { this.testTokenEnabled = testTokenEnabled; }
+    public String getOauthSuccessRedirect() { return oauthSuccessRedirect; }
+    public void setOauthSuccessRedirect(String oauthSuccessRedirect) { this.oauthSuccessRedirect = oauthSuccessRedirect; }
+    public String getCookieDomain() { return cookieDomain; }
+    public void setCookieDomain(String cookieDomain) { this.cookieDomain = cookieDomain; }
+    public boolean isCookieSecure() { return cookieSecure; }
+    public void setCookieSecure(boolean cookieSecure) { this.cookieSecure = cookieSecure; }
+    public String getCookieSameSite() { return cookieSameSite; }
+    public void setCookieSameSite(String cookieSameSite) { this.cookieSameSite = cookieSameSite; }
 }
