@@ -44,9 +44,9 @@ public class MultiChannelMonthlyReportDeliveryAdapter implements MonthlyReportDe
     public void deliver(String userId, byte[] pdfBytes, String fileName) {
         log.info("Monthly report delivery user={} file={} size={}", userId, fileName, pdfBytes.length);
 
-        UUID uuid = parseUuid(userId);
-        if (uuid != null) {
-            UserEntity user = userRepository.findById(uuid).orElse(null);
+        Long userKey = parseUserKey(userId);
+        if (userKey != null) {
+            UserEntity user = userRepository.findById(userKey).orElse(null);
             if (user != null) {
                 NotificationEntity n = new NotificationEntity();
                 n.setRecipientUser(user);
@@ -86,9 +86,9 @@ public class MultiChannelMonthlyReportDeliveryAdapter implements MonthlyReportDe
         }
     }
 
-    private static UUID parseUuid(String userId) {
+    private static Long parseUserKey(String userId) {
         try {
-            return UUID.fromString(userId);
+            return Long.parseLong(userId);
         } catch (Exception e) {
             return null;
         }

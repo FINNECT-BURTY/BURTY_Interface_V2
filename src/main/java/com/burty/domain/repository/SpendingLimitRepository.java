@@ -7,7 +7,7 @@ import java.util.List;
 import java.util.UUID;
 
 public interface SpendingLimitRepository extends JpaRepository<SpendingLimitEntity, UUID> {
-    List<SpendingLimitEntity> findByUser_UserId(UUID userId);
+    List<SpendingLimitEntity> findByUser_UserId(Long userId);
 
-    List<SpendingLimitEntity> findByUser_UserIdAndPeriodType(UUID userId, SpendingLimitEntity.PeriodType periodType);
+    List<SpendingLimitEntity> findByUser_UserIdAndPeriodType(Long userId, SpendingLimitEntity.PeriodType periodType);
 }

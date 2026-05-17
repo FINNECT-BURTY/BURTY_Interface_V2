@@ -20,7 +20,6 @@ import java.security.MessageDigest;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.UUID;
 
 @RestController
 @RequestMapping("/security/login-risk")
@@ -40,10 +39,10 @@ public class LoginRiskController extends BaseController {
     @PostMapping("/evaluate")
     @AuthLevel(RiskLevel.LEVEL_2)
     public ApiResponse<LoginRiskEvaluateResponse> evaluate(@RequestBody LoginRiskEvaluateRequest request) {
-        UUID userUuid = UUID.fromString(request.getUserId());
+        Long userKey = Long.parseLong(request.getUserId());
         List<String> reasons = new ArrayList<>();
         if (request.getDeviceFingerprint() != null && deviceRepository
-                .findByUser_UserIdAndDeviceFingerprintAndRevokedAtIsNull(userUuid, sha256(request.getDeviceFingerprint()))
+                .findByUser_UserIdAndDeviceFingerprintAndRevokedAtIsNull(userKey, sha256(request.getDeviceFingerprint()))
                 .isEmpty()) {
             reasons.add("NEW_DEVICE");
         }
@@ -51,12 +50,12 @@ public class LoginRiskController extends BaseController {
         if (hour >= 23 || hour < 6) reasons.add("UNUSUAL_TIME");
         if (request.getRegion() != null && !request.getRegion().contains("서울")) reasons.add("REGION_OUT_OF_SEOUL");
         String risk = reasons.isEmpty() ? "LOW" : reasons.size() == 1 ? "MEDIUM" : "HIGH";
-        if (!reasons.isEmpty()) notify(userUuid, risk, reasons);
+        if (!reasons.isEmpty()) notify(userKey, risk, reasons);
         return ApiResponse.ok(new LoginRiskEvaluateResponse(risk, reasons));
     }
 
-    private void notify(UUID userUuid, String risk, List<String> reasons) {
-        UserEntity user = userRepository.findById(userUuid).orElse(null);
+    private void notify(Long userKey, String risk, List<String> reasons) {
+        UserEntity user = userRepository.findById(userKey).orElse(null);
         if (user == null) return;
         NotificationEntity entity = new NotificationEntity();
         entity.setRecipientUser(user);

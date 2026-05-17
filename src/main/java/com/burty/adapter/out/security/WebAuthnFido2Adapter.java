@@ -64,20 +64,20 @@ public class WebAuthnFido2Adapter implements BiometricAuthPort, WebAuthnCeremony
         String[] split = session.split("\\|");
         if (split.length != 2) return false;
         if (!split[0].equals(userId) || !split[1].equals(flowType)) return false;
-        UUID userUuid = parseUuid(userId);
-        long currentSignCount = findSignCount(userUuid);
+        Long userKey = parseUserKey(userId);
+        long currentSignCount = findSignCount(userKey);
         WebAuthnStoredCredential stored = toStoredCredential(
-                "REGISTRATION".equals(flowType) ? null : biometricCredentialRepository.findFirstByUser_UserIdAndRevokedAtIsNull(userUuid).orElse(null)
+                "REGISTRATION".equals(flowType) ? null : biometricCredentialRepository.findFirstByUser_UserIdAndRevokedAtIsNull(userKey).orElse(null)
         );
         WebAuthnAssertionVerifier.VerificationResult result = "REGISTRATION".equals(flowType)
                 ? assertionVerifier.verifyRegistration(signedPayload, challengeId, properties.getOrigin(), properties.getRpId(), currentSignCount)
                 : assertionVerifier.verifyAuthentication(signedPayload, challengeId, properties.getOrigin(), properties.getRpId(), currentSignCount, stored);
         if (!result.isVerified()) return false;
-        if (userUuid != null) {
+        if (userKey != null) {
             if ("REGISTRATION".equals(flowType)) {
-                upsertCredential(userUuid, result);
+                upsertCredential(userKey, result);
             } else {
-                updateCredentialAfterAuthentication(userUuid, result);
+                updateCredentialAfterAuthentication(userKey, result);
             }
         }
         challengeStore.remove(challengeId);
@@ -91,13 +91,13 @@ public class WebAuthnFido2Adapter implements BiometricAuthPort, WebAuthnCeremony
         if (!verified) {
             return new BiometricAuthResult(userId, null, null, null, false, false);
         }
-        UUID userUuid = parseUuid(userId);
-        if (userUuid == null) {
+        Long userKey = parseUserKey(userId);
+        if (userKey == null) {
             return new BiometricAuthResult(userId, null, null, null, false, false);
         }
-        DeviceTokenPair tokenPair = ensureTrustedDevice(userUuid, deviceFingerprint, platform, null);
+        DeviceTokenPair tokenPair = ensureTrustedDevice(userKey, deviceFingerprint, platform, null);
         BiometricCredentialEntity credential = biometricCredentialRepository
-                .findFirstByUser_UserIdAndRevokedAtIsNull(userUuid)
+                .findFirstByUser_UserIdAndRevokedAtIsNull(userKey)
                 .orElse(null);
         if (credential != null) {
             credential.setDevice(tokenPair.device());
@@ -117,9 +117,9 @@ public class WebAuthnFido2Adapter implements BiometricAuthPort, WebAuthnCeremony
 
     @Override
     public BiometricAuthResult authenticateTrustedDevice(String userId, String challengeId, String signedPayload, String deviceToken) {
-        UUID userUuid = parseUuid(userId);
-        DeviceEntity device = findDeviceByToken(userUuid, deviceToken);
-        if (userUuid == null || device == null || !Boolean.TRUE.equals(device.getIsTrusted())) {
+        Long userKey = parseUserKey(userId);
+        DeviceEntity device = findDeviceByToken(userKey, deviceToken);
+        if (userKey == null || device == null || !Boolean.TRUE.equals(device.getIsTrusted())) {
             return new BiometricAuthResult(userId, null, null, null, false, false);
         }
         boolean verified = verifyAndConsumeChallenge(userId, challengeId, signedPayload, "AUTHENTICATION");
@@ -141,12 +141,12 @@ public class WebAuthnFido2Adapter implements BiometricAuthPort, WebAuthnCeremony
 
     @Override
     public void saveCredential(String userId, String credentialId) {
-        UUID userUuid = parseUuid(userId);
-        if (userUuid == null) return;
-        UserEntity user = userRepository.findById(userUuid).orElse(null);
+        Long userKey = parseUserKey(userId);
+        if (userKey == null) return;
+        UserEntity user = userRepository.findById(userKey).orElse(null);
         if (user == null) return;
         BiometricCredentialEntity entity = biometricCredentialRepository
-                .findFirstByUser_UserIdAndRevokedAtIsNull(userUuid)
+                .findFirstByUser_UserIdAndRevokedAtIsNull(userKey)
                 .orElseGet(BiometricCredentialEntity::new);
         if (entity.getCredentialId() == null) entity.setCredentialId(UUID.randomUUID());
         entity.setUser(user);
@@ -155,16 +155,16 @@ public class WebAuthnFido2Adapter implements BiometricAuthPort, WebAuthnCeremony
         entity.setCredentialIdRaw(credentialId.getBytes(StandardCharsets.UTF_8));
         entity.setRegisteredAt(java.time.LocalDateTime.now());
         entity.setSignCount(entity.getSignCount() == null ? 0L : entity.getSignCount());
-        entity.setDevice(defaultDevice(userUuid));
+        entity.setDevice(defaultDevice(userKey));
         biometricCredentialRepository.save(entity);
     }
 
     @Override
     public boolean verifyAssertion(String userId, String assertionToken) {
-        UUID userUuid = parseUuid(userId);
-        if (userUuid == null) return false;
+        Long userKey = parseUserKey(userId);
+        if (userKey == null) return false;
         BiometricCredentialEntity credential = biometricCredentialRepository
-                .findFirstByUser_UserIdAndRevokedAtIsNull(userUuid).orElse(null);
+                .findFirstByUser_UserIdAndRevokedAtIsNull(userKey).orElse(null);
         if (credential == null) return false;
         if (assertionToken == null || !assertionToken.startsWith("webauthn:")) return false;
         String signature = assertionToken.substring("webauthn:".length());
@@ -172,16 +172,16 @@ public class WebAuthnFido2Adapter implements BiometricAuthPort, WebAuthnCeremony
         return expected.equals(signature);
     }
 
-    private long findSignCount(UUID userUuid) {
-        if (userUuid == null) return 0L;
-        return biometricCredentialRepository.findFirstByUser_UserIdAndRevokedAtIsNull(userUuid)
+    private long findSignCount(Long userKey) {
+        if (userKey == null) return 0L;
+        return biometricCredentialRepository.findFirstByUser_UserIdAndRevokedAtIsNull(userKey)
                 .map(BiometricCredentialEntity::getSignCount)
                 .orElse(0L);
     }
 
-    private void updateCredentialAfterAuthentication(UUID userUuid, WebAuthnAssertionVerifier.VerificationResult result) {
+    private void updateCredentialAfterAuthentication(Long userKey, WebAuthnAssertionVerifier.VerificationResult result) {
         BiometricCredentialEntity entity = biometricCredentialRepository
-                .findFirstByUser_UserIdAndRevokedAtIsNull(userUuid).orElse(null);
+                .findFirstByUser_UserIdAndRevokedAtIsNull(userKey).orElse(null);
         if (entity == null) return;
         entity.setSignCount(result.getNextSignCount());
         entity.setLastUsedAt(LocalDateTime.now());
@@ -212,15 +212,15 @@ public class WebAuthnFido2Adapter implements BiometricAuthPort, WebAuthnCeremony
         }
     }
 
-    private void upsertCredential(UUID userUuid, WebAuthnAssertionVerifier.VerificationResult result) {
-        UserEntity user = userRepository.findById(userUuid).orElse(null);
+    private void upsertCredential(Long userKey, WebAuthnAssertionVerifier.VerificationResult result) {
+        UserEntity user = userRepository.findById(userKey).orElse(null);
         if (user == null) return;
         BiometricCredentialEntity entity = biometricCredentialRepository
-                .findFirstByUser_UserIdAndRevokedAtIsNull(userUuid)
+                .findFirstByUser_UserIdAndRevokedAtIsNull(userKey)
                 .orElseGet(BiometricCredentialEntity::new);
         if (entity.getCredentialId() == null) entity.setCredentialId(UUID.randomUUID());
         entity.setUser(user);
-        entity.setDevice(defaultDevice(userUuid));
+        entity.setDevice(defaultDevice(userKey));
         entity.setCredentialType(BiometricCredentialEntity.CredentialType.FINGERPRINT);
         entity.setPublicKey(result.getPublicKey().getBytes(StandardCharsets.UTF_8));
         entity.setCredentialIdRaw(result.getCredentialIdRaw().getBytes(StandardCharsets.UTF_8));
@@ -230,23 +230,23 @@ public class WebAuthnFido2Adapter implements BiometricAuthPort, WebAuthnCeremony
         biometricCredentialRepository.save(entity);
     }
 
-    private DeviceEntity defaultDevice(UUID userUuid) {
-        return ensureTrustedDevice(userUuid, "default-fingerprint-" + userUuid, "WEB", null).device();
+    private DeviceEntity defaultDevice(Long userKey) {
+        return ensureTrustedDevice(userKey, "default-fingerprint-" + userKey, "WEB", null).device();
     }
 
-    private DeviceTokenPair ensureTrustedDevice(UUID userUuid, String deviceFingerprint, String platform, String existingToken) {
-        UserEntity user = userRepository.findById(userUuid).orElse(null);
+    private DeviceTokenPair ensureTrustedDevice(Long userKey, String deviceFingerprint, String platform, String existingToken) {
+        UserEntity user = userRepository.findById(userKey).orElse(null);
         if (user == null) {
             throw new IllegalArgumentException("user not found");
         }
-        String fingerprint = normalizeFingerprint(deviceFingerprint, userUuid);
+        String fingerprint = normalizeFingerprint(deviceFingerprint, userKey);
         DeviceEntity device = deviceRepository
-                .findByUser_UserIdAndDeviceFingerprintAndRevokedAtIsNull(userUuid, fingerprint)
+                .findByUser_UserIdAndDeviceFingerprintAndRevokedAtIsNull(userKey, fingerprint)
                 .orElseGet(DeviceEntity::new);
         String plainToken = existingToken;
         if (device.getDeviceId() == null) {
             device.setDeviceId(UUID.randomUUID());
-            plainToken = blank(plainToken) ? issueDeviceToken(userUuid, fingerprint) : plainToken;
+            plainToken = blank(plainToken) ? issueDeviceToken(userKey, fingerprint) : plainToken;
             device.setDeviceTokenHash(sha256(plainToken));
             device.setDeviceTokenEncrypted(encryptionUtil.encrypt(plainToken));
             device.setCreatedAt(LocalDateTime.now());
@@ -262,21 +262,21 @@ public class WebAuthnFido2Adapter implements BiometricAuthPort, WebAuthnCeremony
         return new DeviceTokenPair(deviceRepository.save(device), plainToken);
     }
 
-    private DeviceEntity findDeviceByToken(UUID userUuid, String deviceToken) {
-        if (userUuid == null || blank(deviceToken)) return null;
+    private DeviceEntity findDeviceByToken(Long userKey, String deviceToken) {
+        if (userKey == null || blank(deviceToken)) return null;
         return deviceRepository.findByDeviceTokenHashAndRevokedAtIsNull(sha256(deviceToken))
-                .filter(device -> device.getUser() != null && userUuid.equals(device.getUser().getUserId()))
+                .filter(device -> device.getUser() != null && userKey.equals(device.getUser().getUserId()))
                 .orElse(null);
     }
 
-    private String issueDeviceToken(UUID userUuid, String fingerprint) {
+    private String issueDeviceToken(Long userKey, String fingerprint) {
         return "bdt_" + Base64.getUrlEncoder().withoutPadding()
-                .encodeToString((userUuid + ":" + fingerprint + ":" + UUID.randomUUID()).getBytes(StandardCharsets.UTF_8));
+                .encodeToString((userKey + ":" + fingerprint + ":" + UUID.randomUUID()).getBytes(StandardCharsets.UTF_8));
     }
 
-    private String normalizeFingerprint(String deviceFingerprint, UUID userUuid) {
+    private String normalizeFingerprint(String deviceFingerprint, Long userKey) {
         if (!blank(deviceFingerprint)) return sha256(deviceFingerprint);
-        return sha256("default-fingerprint-" + userUuid);
+        return sha256("default-fingerprint-" + userKey);
     }
 
     private DeviceEntity.Platform parsePlatform(String platform) {
@@ -299,8 +299,8 @@ public class WebAuthnFido2Adapter implements BiometricAuthPort, WebAuthnCeremony
         }
     }
 
-    private UUID parseUuid(String value) {
-        try { return UUID.fromString(value); } catch (Exception e) { return null; }
+    private Long parseUserKey(String value) {
+        try { return Long.parseLong(value); } catch (Exception e) { return null; }
     }
 
     private String sign(String raw) {

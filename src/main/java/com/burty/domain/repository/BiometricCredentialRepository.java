@@ -8,7 +8,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 public interface BiometricCredentialRepository extends JpaRepository<BiometricCredentialEntity, UUID> {
-    Optional<BiometricCredentialEntity> findFirstByUser_UserIdAndRevokedAtIsNull(UUID userId);
-    List<BiometricCredentialEntity> findByUser_UserIdAndRevokedAtIsNull(UUID userId);
+    Optional<BiometricCredentialEntity> findFirstByUser_UserIdAndRevokedAtIsNull(Long userId);
+    List<BiometricCredentialEntity> findByUser_UserIdAndRevokedAtIsNull(Long userId);
     List<BiometricCredentialEntity> findByDevice_DeviceIdAndRevokedAtIsNull(UUID deviceId);
 }

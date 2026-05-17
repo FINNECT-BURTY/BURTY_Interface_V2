@@ -37,8 +37,8 @@ public class DeviceManagementController extends BaseController {
     @AuthLevel(RiskLevel.LEVEL_2)
     @Operation(summary = "등록 기기 목록", description = "사용자에게 등록된 신뢰 기기 목록을 조회합니다.")
     public ApiResponse<List<DeviceResponse>> devices(@RequestParam String userId) {
-        UUID userUuid = UUID.fromString(userId);
-        List<DeviceResponse> responses = deviceRepository.findByUser_UserIdAndRevokedAtIsNullOrderByLastSeenAtDesc(userUuid)
+        Long userKey = Long.parseLong(userId);
+        List<DeviceResponse> responses = deviceRepository.findByUser_UserIdAndRevokedAtIsNullOrderByLastSeenAtDesc(userKey)
                 .stream()
                 .map(this::toResponse)
                 .toList();

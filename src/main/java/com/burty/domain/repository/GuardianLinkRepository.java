@@ -7,5 +7,5 @@ import java.util.List;
 import java.util.UUID;
 
 public interface GuardianLinkRepository extends JpaRepository<GuardianLinkEntity, UUID> {
-    List<GuardianLinkEntity> findBySeniorUser_UserId(UUID seniorUserId);
+    List<GuardianLinkEntity> findBySeniorUser_UserId(Long seniorUserId);
 }

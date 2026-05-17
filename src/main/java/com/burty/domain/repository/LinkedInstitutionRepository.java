@@ -8,7 +8,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 public interface LinkedInstitutionRepository extends JpaRepository<LinkedInstitutionEntity, UUID> {
-    List<LinkedInstitutionEntity> findByUser_UserId(UUID userId);
+    List<LinkedInstitutionEntity> findByUser_UserId(Long userId);
 
-    Optional<LinkedInstitutionEntity> findByUser_UserIdAndInstitutionCode(UUID userId, String institutionCode);
+    Optional<LinkedInstitutionEntity> findByUser_UserIdAndInstitutionCode(Long userId, String institutionCode);
 }

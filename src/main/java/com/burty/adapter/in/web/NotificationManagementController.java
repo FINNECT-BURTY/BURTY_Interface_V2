@@ -52,7 +52,7 @@ public class NotificationManagementController extends BaseController {
     @GetMapping
     @AuthLevel(RiskLevel.LEVEL_1)
     public ApiResponse<List<NotificationResponse>> notifications(@RequestParam String userId) {
-        return ApiResponse.ok(notificationRepository.findByRecipientUser_UserIdOrderByNotificationIdDesc(UUID.fromString(userId))
+        return ApiResponse.ok(notificationRepository.findByRecipientUser_UserIdOrderByNotificationIdDesc(Long.parseLong(userId))
                 .stream()
                 .map(this::toResponse)
                 .toList());
@@ -62,7 +62,7 @@ public class NotificationManagementController extends BaseController {
     @AuthLevel(RiskLevel.LEVEL_2)
     @Operation(summary = "알림 생성", description = "위험일 D-7/D-3/D-1, 카드/월세 납부 전, 정책 마감 전 알림을 생성합니다.")
     public ApiResponse<ReminderGenerateResponse> generateReminders(@RequestParam String userId) {
-        UserEntity user = userRepository.findById(UUID.fromString(userId)).orElseThrow();
+        UserEntity user = userRepository.findById(Long.parseLong(userId)).orElseThrow();
         int created = 0;
         CashflowForecast forecast = cashflowForecastUseCase.forecast(userId);
         if (forecast.getRiskDate() != null) {

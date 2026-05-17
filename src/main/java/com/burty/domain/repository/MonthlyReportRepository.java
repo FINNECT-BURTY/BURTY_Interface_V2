@@ -8,5 +8,5 @@ import java.util.Optional;
 import java.util.UUID;
 
 public interface MonthlyReportRepository extends JpaRepository<MonthlyReportEntity, UUID> {
-    Optional<MonthlyReportEntity> findByUser_UserIdAndPeriodMonth(UUID userId, LocalDate periodMonth);
+    Optional<MonthlyReportEntity> findByUser_UserIdAndPeriodMonth(Long userId, LocalDate periodMonth);
 }

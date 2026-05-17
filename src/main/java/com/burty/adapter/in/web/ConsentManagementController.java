@@ -46,8 +46,8 @@ public class ConsentManagementController extends BaseController {
     @AuthLevel(RiskLevel.LEVEL_2)
     @Operation(summary = "동의 이력 조회", description = "사용자의 개인정보/마이데이터/위치/보안 로그 동의 이력을 조회합니다.")
     public ApiResponse<List<ConsentResponse>> consents(@RequestParam String userId) {
-        UUID uuid = UUID.fromString(userId);
-        return ApiResponse.ok(consentRecordRepository.findByUser_UserIdOrderByAgreedAtDesc(uuid).stream()
+        Long userKey = Long.parseLong(userId);
+        return ApiResponse.ok(consentRecordRepository.findByUser_UserIdOrderByAgreedAtDesc(userKey).stream()
                 .map(c -> new ConsentResponse(
                         c.getConsentId().toString(),
                         c.getConsentType().name(),
@@ -86,7 +86,7 @@ public class ConsentManagementController extends BaseController {
     @AuthLevel(RiskLevel.LEVEL_3)
     @Operation(summary = "소셜 로그인 연결 해제", description = "카카오/네이버/애플 소셜 계정 연결을 해제합니다.")
     public ApiResponse<SimpleResultResponse> unlinkSocial(@RequestParam String userId, @PathVariable String provider) {
-        socialAccountRepository.findByUserIdAndProvider(userId, provider.toUpperCase())
+        socialAccountRepository.findByUserIdAndProvider(Long.parseLong(userId), provider.toUpperCase())
                 .ifPresent(socialAccountRepository::delete);
         return ApiResponse.ok(new SimpleResultResponse(true, "소셜 로그인 연결이 해제되었습니다."));
     }
@@ -96,7 +96,7 @@ public class ConsentManagementController extends BaseController {
     @Operation(summary = "생체 인증 해제", description = "사용자의 모든 활성 생체 credential을 폐기합니다.")
     public ApiResponse<SimpleResultResponse> revokeBiometric(@RequestParam String userId) {
         LocalDateTime now = LocalDateTime.now();
-        for (BiometricCredentialEntity credential : biometricCredentialRepository.findByUser_UserIdAndRevokedAtIsNull(UUID.fromString(userId))) {
+        for (BiometricCredentialEntity credential : biometricCredentialRepository.findByUser_UserIdAndRevokedAtIsNull(Long.parseLong(userId))) {
             credential.setRevokedAt(now);
             biometricCredentialRepository.save(credential);
         }

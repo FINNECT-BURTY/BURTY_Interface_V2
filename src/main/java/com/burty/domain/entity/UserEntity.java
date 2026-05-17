@@ -6,8 +6,6 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.time.LocalDateTime;
-import java.util.UUID;
-
 @Entity
 @Table(name = "tbl_user")
 @Getter
@@ -15,8 +13,9 @@ import java.util.UUID;
 @NoArgsConstructor
 public class UserEntity {
     @Id
-    @Column(name = "user_id", columnDefinition = "BINARY(16)")
-    private UUID userId;
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "user_id")
+    private Long userId;
 
     @Column(name = "ci_hash", nullable = false, length = 64, unique = true)
     private String ciHash;

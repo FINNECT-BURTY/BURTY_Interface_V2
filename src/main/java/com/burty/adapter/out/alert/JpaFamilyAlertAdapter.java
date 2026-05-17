@@ -11,7 +11,6 @@ import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.UUID;
 
 @Primary
 @Component
@@ -28,9 +27,9 @@ public class JpaFamilyAlertAdapter implements FamilyAlertPort {
 
     @Override
     public void send(String userId, String message) {
-        UUID uuid = parseUuid(userId);
-        if (uuid == null) return;
-        UserEntity user = userRepository.findById(uuid).orElse(null);
+        Long userKey = parseUserKey(userId);
+        if (userKey == null) return;
+        UserEntity user = userRepository.findById(userKey).orElse(null);
         if (user == null) return;
 
         NotificationEntity entity = new NotificationEntity();
@@ -47,16 +46,16 @@ public class JpaFamilyAlertAdapter implements FamilyAlertPort {
 
     @Override
     public List<FamilyAlert> findByUserId(String userId) {
-        UUID uuid = parseUuid(userId);
-        if (uuid == null) return List.of();
-        return notificationRepository.findByRecipientUser_UserIdOrderByNotificationIdDesc(uuid).stream()
+        Long userKey = parseUserKey(userId);
+        if (userKey == null) return List.of();
+        return notificationRepository.findByRecipientUser_UserIdOrderByNotificationIdDesc(userKey).stream()
                 .map(n -> new FamilyAlert(userId, n.getBody(), n.getSentAt() == null ? LocalDateTime.now() : n.getSentAt()))
                 .toList();
     }
 
-    private UUID parseUuid(String userId) {
+    private Long parseUserKey(String userId) {
         try {
-            return UUID.fromString(userId);
+            return Long.parseLong(userId);
         } catch (Exception ignored) {
             return null;
         }

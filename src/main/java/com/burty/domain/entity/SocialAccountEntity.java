@@ -27,8 +27,8 @@ public class SocialAccountEntity {
     @Column(name = "social_account_id")
     private Long socialAccountId;
 
-    @Column(name = "user_id", length = 64, nullable = false)
-    private String userId;
+    @Column(name = "user_id", nullable = false)
+    private Long userId;
 
     @Column(name = "provider", length = 20, nullable = false)
     private String provider;

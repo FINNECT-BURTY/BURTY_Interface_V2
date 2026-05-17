@@ -71,10 +71,9 @@ public class DemoController extends BaseController {
         return ApiResponse.ok(response);
     }
 
-    private void tryUpsertUser(UUID userId) {
+    private void tryUpsertUser(Long userId) {
         try {
             UserEntity user = userRepository.findById(userId).orElseGet(UserEntity::new);
-            user.setUserId(userId);
             user.setCiHash("c".repeat(64));
             user.setCiEncrypted("demo-ci".getBytes());
             user.setPhoneHash("d".repeat(64));

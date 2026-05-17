@@ -26,16 +26,16 @@ public class JpaMonthlyReportHistoryAdapter implements MonthlyReportHistoryPort 
 
     @Override
     public void saveHistory(String userId, String month, String status, String detail) {
-        UUID uuid = parseUuid(userId);
-        if (uuid == null) return;
+        Long userKey = parseUserKey(userId);
+        if (userKey == null) return;
 
-        Optional<UserEntity> userOpt = userRepository.findById(uuid);
+        Optional<UserEntity> userOpt = userRepository.findById(userKey);
         if (userOpt.isEmpty()) return;
 
         YearMonth ym = YearMonth.parse(month);
         LocalDate periodMonth = ym.atDay(1);
 
-        MonthlyReportEntity entity = monthlyReportRepository.findByUser_UserIdAndPeriodMonth(uuid, periodMonth)
+        MonthlyReportEntity entity = monthlyReportRepository.findByUser_UserIdAndPeriodMonth(userKey, periodMonth)
                 .orElseGet(MonthlyReportEntity::new);
         entity.setReportId(entity.getReportId() == null ? UUID.randomUUID() : entity.getReportId());
         entity.setUser(userOpt.get());
@@ -54,9 +54,9 @@ public class JpaMonthlyReportHistoryAdapter implements MonthlyReportHistoryPort 
         return MonthlyReportEntity.ReportStatus.READY;
     }
 
-    private UUID parseUuid(String userId) {
+    private Long parseUserKey(String userId) {
         try {
-            return UUID.fromString(userId);
+            return Long.parseLong(userId);
         } catch (Exception ignored) {
             return null;
         }

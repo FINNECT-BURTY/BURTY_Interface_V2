@@ -70,26 +70,26 @@ public class UserOnboardingService implements UserOnboardingUseCase {
             throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE, "생년월일이 올바르지 않습니다.");
         }
 
-        UUID uuid;
+        Long numericUserId;
         try {
-            uuid = UUID.fromString(userId);
-        } catch (IllegalArgumentException e) {
+            numericUserId = Long.parseLong(userId);
+        } catch (NumberFormatException e) {
             throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE, "userId 형식이 올바르지 않습니다.");
         }
 
-        if (userProfileRepository.existsById(uuid)) {
+        if (userProfileRepository.existsById(numericUserId)) {
             return new OnboardingProfileResult(true, true);
         }
 
         String normalizedPhone = normalizeKoreanMobile(phone);
         String phoneHash = sha256(normalizedPhone);
         userRepository.findByPhoneHash(phoneHash)
-                .filter(u -> !u.getUserId().equals(uuid))
+                .filter(u -> !u.getUserId().equals(numericUserId))
                 .ifPresent(u -> {
                     throw new BusinessException(ErrorCode.DUPLICATE_RESOURCE, "이미 사용 중인 휴대폰 번호입니다.");
                 });
 
-        UserEntity user = userRepository.findById(uuid)
+        UserEntity user = userRepository.findById(numericUserId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND, "사용자를 찾을 수 없습니다."));
 
         user.setPhoneHash(phoneHash);

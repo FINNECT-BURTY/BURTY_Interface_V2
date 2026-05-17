@@ -114,12 +114,11 @@ public class SocialLoginService implements SocialLoginUseCase {
         boolean newUser = false;
         String userId;
         if (account == null) {
-            UserEntity user = createSocialUser(provider, profile);
-            userRepository.save(user);
+            UserEntity user = userRepository.save(createSocialUser(provider, profile));
             userId = user.getUserId().toString();
 
             account = new SocialAccountEntity();
-            account.setUserId(userId);
+            account.setUserId(user.getUserId());
             account.setProvider(provider);
             account.setProviderUserIdHash(providerUserIdHash);
             account.setEmailHash(blank(profile.email()) ? null : sha256(profile.email()));
@@ -128,7 +127,7 @@ public class SocialLoginService implements SocialLoginUseCase {
             socialAccountRepository.save(account);
             newUser = true;
         } else {
-            userId = account.getUserId();
+            userId = account.getUserId().toString();
             account.setLastLoginAt(LocalDateTime.now());
             socialAccountRepository.save(account);
             touchUserLogin(userId);
@@ -139,7 +138,7 @@ public class SocialLoginService implements SocialLoginUseCase {
                 "provider=" + provider + ", newUser=" + newUser + ", state=" + safeState(state),
                 LocalDateTime.now()
         ));
-        boolean profileComplete = userProfileRepository.existsById(UUID.fromString(userId));
+        boolean profileComplete = userProfileRepository.existsById(Long.parseLong(userId));
 
         // refresh token 까지 발급. deviceId 는 추후 클라이언트 헤더에서 전달받도록 확장 가능.
         RefreshTokenService.TokenPair tokens = refreshTokenService.issueNewSession(userId, null);
@@ -250,9 +249,7 @@ public class SocialLoginService implements SocialLoginUseCase {
 
     private UserEntity createSocialUser(String provider, SocialProfile profile) {
         LocalDateTime now = LocalDateTime.now();
-        UUID userId = UUID.randomUUID();
         UserEntity user = new UserEntity();
-        user.setUserId(userId);
         user.setCiHash(sha256("SOCIAL_CI|" + provider + "|" + profile.providerUserId()));
         user.setCiEncrypted(encryptionUtil.encrypt("SOCIAL_CI|" + provider + "|" + profile.providerUserId()).getBytes(StandardCharsets.UTF_8));
         user.setPhoneHash(sha256("SOCIAL_PHONE|" + provider + "|" + profile.providerUserId()));
@@ -267,7 +264,7 @@ public class SocialLoginService implements SocialLoginUseCase {
 
     private void touchUserLogin(String userId) {
         try {
-            userRepository.findById(UUID.fromString(userId)).ifPresent(user -> {
+            userRepository.findById(Long.parseLong(userId)).ifPresent(user -> {
                 user.setLastLoginAt(LocalDateTime.now());
                 user.setUpdatedAt(LocalDateTime.now());
                 userRepository.save(user);
