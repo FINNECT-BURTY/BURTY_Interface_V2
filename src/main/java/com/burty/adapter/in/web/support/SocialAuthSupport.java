@@ -52,6 +52,8 @@ public class SocialAuthSupport {
                                                   String error,
                                                   String errorDescription,
                                                   SocialLoginUseCase useCase) {
+        log.info("OAuth callback received provider={} hasCode={} hasState={} hasError={}",
+                provider, notBlank(code), notBlank(state), notBlank(error));
         try {
             if (notBlank(error)) {
                 log.warn("OAuth callback provider error provider={} error={} description={}",
@@ -67,10 +69,14 @@ public class SocialAuthSupport {
             ResponseCookie access = buildCookie(AuthCookies.ACCESS, result.getAccessToken(), result.getAccessExpiresInSeconds());
             ResponseCookie refresh = buildCookie(AuthCookies.REFRESH, result.getRefreshToken(), result.getRefreshExpiresInSeconds());
 
+            String location = buildFrontendUrl(null, result.isNewUser(), result.isProfileComplete());
+            log.info("OAuth callback success provider={} userId={} newUser={} profileComplete={} redirect={}",
+                    provider, result.getUserId(), result.isNewUser(), result.isProfileComplete(), location);
+
             return ResponseEntity.status(HttpStatus.FOUND)
                     .header(HttpHeaders.SET_COOKIE, access.toString())
                     .header(HttpHeaders.SET_COOKIE, refresh.toString())
-                    .location(URI.create(buildFrontendUrl(null, result.isNewUser(), result.isProfileComplete())))
+                    .location(URI.create(location))
                     .build();
         } catch (BusinessException be) {
             String code2 = mapBusinessError(be);

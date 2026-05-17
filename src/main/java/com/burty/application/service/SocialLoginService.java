@@ -94,10 +94,14 @@ public class SocialLoginService implements SocialLoginUseCase {
     @Transactional
     public SocialLoginResult login(String providerRaw, String code, String redirectUri, String state, String codeVerifier) {
         SocialProvider provider = SocialProvider.parse(providerRaw);
+        log.info("Social login start provider={} stubMode={} hasState={} hasRedirectUri={} hasCodeVerifier={}",
+                provider, properties.isStubMode(), !blank(state), !blank(redirectUri), !blank(codeVerifier));
+
         if (blank(code)) {
             throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE, "소셜 로그인 authorization code가 필요합니다.");
         }
         verifyState(provider, state);
+        log.debug("Social login state verified provider={}", provider);
 
         SocialProfile profile = properties.isStubMode()
                 ? stubProfile(provider, code)
@@ -105,6 +109,8 @@ public class SocialLoginService implements SocialLoginUseCase {
         if (blank(profile.providerUserId())) {
             throw new BusinessException(ErrorCode.EXTERNAL_API_ERROR, provider + " 사용자 식별자를 확인할 수 없습니다.");
         }
+        log.info("Social login profile fetched provider={} hasEmail={} hasDisplayName={}",
+                provider, !blank(profile.email()), !blank(profile.displayName()));
 
         String providerUserIdHash = sha256(provider.name() + "|" + profile.providerUserId());
         SocialAccountEntity account = socialAccountRepository
@@ -115,10 +121,13 @@ public class SocialLoginService implements SocialLoginUseCase {
         Long userId = newUser
                 ? createNewSocialUser(provider, profile, providerUserIdHash)
                 : touchExistingAccount(account);
+        log.info("Social login user resolved provider={} userId={} newUser={}", provider, userId, newUser);
 
         boolean profileComplete = userProfileRepository.existsById(userId);
         RefreshTokenService.TokenPair tokens = refreshTokenService.issueNewSession(userId.toString(), null);
         safeAudit(userId.toString(), provider, newUser, state);
+        log.info("Social login complete provider={} userId={} newUser={} profileComplete={}",
+                provider, userId, newUser, profileComplete);
 
         return new SocialLoginResult(
                 userId.toString(),
