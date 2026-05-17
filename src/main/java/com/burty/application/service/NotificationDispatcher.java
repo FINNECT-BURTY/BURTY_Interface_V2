@@ -10,7 +10,6 @@ import org.springframework.stereotype.Service;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 
 /**
  * Routes a notification to channels based on AlertSubscription.channel.
@@ -53,14 +52,14 @@ public class NotificationDispatcher {
 
     private NotificationChannelPort.Channel resolvePreferredChannel(String userId) {
         try {
-            UUID userUuid = UUID.fromString(userId);
-            return alertSubscriptionRepository.findByGuardianLink_SeniorUser_UserId(userUuid).stream()
+            Long userKey = Long.parseLong(userId);
+            return alertSubscriptionRepository.findByGuardianLink_SeniorUser_UserId(userKey).stream()
                     .filter(s -> Boolean.TRUE.equals(s.getActive()))
                     .findFirst()
                     .map(AlertSubscriptionEntity::getChannel)
                     .map(this::mapEnum)
                     .orElse(NotificationChannelPort.Channel.PUSH);
-        } catch (IllegalArgumentException e) {
+        } catch (NumberFormatException e) {
             return NotificationChannelPort.Channel.PUSH;
         }
     }
