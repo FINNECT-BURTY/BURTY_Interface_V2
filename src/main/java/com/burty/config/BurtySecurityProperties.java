@@ -3,6 +3,9 @@ package com.burty.config;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Configuration;
 
+import java.util.ArrayList;
+import java.util.List;
+
 /**
  * Centralized security feature toggles.
  *
@@ -16,10 +19,12 @@ public class BurtySecurityProperties {
 
     private Mode mode = Mode.JWT_FILTER;
     private final ResourceServer resourceServer = new ResourceServer();
+    private final Cors cors = new Cors();
 
     public Mode getMode() { return mode; }
     public void setMode(Mode mode) { this.mode = mode; }
     public ResourceServer getResourceServer() { return resourceServer; }
+    public Cors getCors() { return cors; }
 
     public boolean isResourceServerEnabled() {
         return mode == Mode.RESOURCE_SERVER && resourceServer.isEnabled();
@@ -41,5 +46,36 @@ public class BurtySecurityProperties {
         public void setJwkSetUri(String jwkSetUri) { this.jwkSetUri = jwkSetUri; }
         public String getAudience() { return audience; }
         public void setAudience(String audience) { this.audience = audience; }
+    }
+
+    /**
+     * CORS allowedOrigins / methods / headers.
+     * 운영은 same-origin 이라 비워두면 CORS 자체가 비활성. dev FE 가 다른 origin 에서 호출하면 채워서 활성화.
+     */
+    public static class Cors {
+        /** allowedOriginPatterns 로 들어감 — 와일드카드(*) 사용 가능. 비어 있으면 CORS 비활성. */
+        private List<String> allowedOrigins = new ArrayList<>();
+        private List<String> allowedMethods = List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS");
+        private List<String> allowedHeaders = List.of("*");
+        private List<String> exposedHeaders = List.of();
+        private boolean allowCredentials = true;
+        private long maxAgeSeconds = 3600;
+
+        public List<String> getAllowedOrigins() { return allowedOrigins; }
+        public void setAllowedOrigins(List<String> allowedOrigins) { this.allowedOrigins = allowedOrigins; }
+        public List<String> getAllowedMethods() { return allowedMethods; }
+        public void setAllowedMethods(List<String> allowedMethods) { this.allowedMethods = allowedMethods; }
+        public List<String> getAllowedHeaders() { return allowedHeaders; }
+        public void setAllowedHeaders(List<String> allowedHeaders) { this.allowedHeaders = allowedHeaders; }
+        public List<String> getExposedHeaders() { return exposedHeaders; }
+        public void setExposedHeaders(List<String> exposedHeaders) { this.exposedHeaders = exposedHeaders; }
+        public boolean isAllowCredentials() { return allowCredentials; }
+        public void setAllowCredentials(boolean allowCredentials) { this.allowCredentials = allowCredentials; }
+        public long getMaxAgeSeconds() { return maxAgeSeconds; }
+        public void setMaxAgeSeconds(long maxAgeSeconds) { this.maxAgeSeconds = maxAgeSeconds; }
+
+        public boolean isEnabled() {
+            return allowedOrigins != null && !allowedOrigins.isEmpty();
+        }
     }
 }
