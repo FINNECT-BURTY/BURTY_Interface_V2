@@ -22,10 +22,8 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
-import java.util.UUID;
 
 @RestController
 @RequestMapping("/notifications")
@@ -74,8 +72,8 @@ public class NotificationManagementController extends BaseController {
                 created++;
             }
         }
-        UUID uuid = UUID.fromString(userId);
-        for (CashflowScheduleEntity schedule : scheduleRepository.findByUserIdAndActiveTrue(uuid)) {
+        Long numericUserId = Long.parseLong(userId);
+        for (CashflowScheduleEntity schedule : scheduleRepository.findByUserIdAndActiveTrue(numericUserId)) {
             int daysUntil = daysUntil(schedule.getDayOfMonth());
             if (daysUntil > 3) continue;
             String label = schedule.getLabel() == null ? "" : schedule.getLabel();

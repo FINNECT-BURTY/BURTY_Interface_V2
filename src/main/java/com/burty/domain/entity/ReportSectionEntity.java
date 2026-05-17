@@ -3,14 +3,14 @@ package com.burty.domain.entity;
 import jakarta.persistence.*;
 
 import java.time.LocalDateTime;
-import java.util.UUID;
 
 @Entity
 @Table(name = "tbl_report_section")
 public class ReportSectionEntity {
     @Id
-    @Column(name = "section_id", columnDefinition = "BINARY(16)")
-    private UUID sectionId;
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "section_id")
+    private Long sectionId;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "report_id", nullable = false)

@@ -3,14 +3,14 @@ package com.burty.domain.entity;
 import jakarta.persistence.*;
 
 import java.time.LocalDateTime;
-import java.util.UUID;
 
 @Entity
 @Table(name = "tbl_guardian_link")
 public class GuardianLinkEntity {
     @Id
-    @Column(name = "link_id", columnDefinition = "BINARY(16)")
-    private UUID linkId;
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "link_id")
+    private Long linkId;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "senior_user_id", nullable = false)
@@ -28,11 +28,11 @@ public class GuardianLinkEntity {
     @Column(name = "permission", nullable = false)
     private Permission permission = Permission.VIEW_ONLY;
 
-    @Column(name = "senior_consent_id", columnDefinition = "BINARY(16)", nullable = false)
-    private UUID seniorConsentId;
+    @Column(name = "senior_consent_id", nullable = false)
+    private Long seniorConsentId;
 
-    @Column(name = "guardian_consent_id", columnDefinition = "BINARY(16)", nullable = false)
-    private UUID guardianConsentId;
+    @Column(name = "guardian_consent_id", nullable = false)
+    private Long guardianConsentId;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false)

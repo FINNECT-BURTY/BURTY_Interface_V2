@@ -6,21 +6,20 @@ import jakarta.persistence.Embeddable;
 import java.io.Serializable;
 import java.time.LocalDate;
 import java.util.Objects;
-import java.util.UUID;
 
 @Embeddable
 public class DailyTransferUsageId implements Serializable {
-    @Column(name = "user_id", columnDefinition = "BINARY(16)")
-    private UUID userId;
+    @Column(name = "user_id")
+    private Long userId;
 
     @Column(name = "usage_date")
     private LocalDate usageDate;
 
-    public UUID getUserId() {
+    public Long getUserId() {
         return userId;
     }
 
-    public void setUserId(UUID userId) {
+    public void setUserId(Long userId) {
         this.userId = userId;
     }
 

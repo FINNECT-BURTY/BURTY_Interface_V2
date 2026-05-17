@@ -6,7 +6,6 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.time.LocalDateTime;
-import java.util.UUID;
 
 @Entity
 @Table(
@@ -21,11 +20,12 @@ import java.util.UUID;
 public class PersonaProfileEntity {
 
     @Id
-    @Column(name = "persona_id", columnDefinition = "BINARY(16)")
-    private UUID personaId;
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "persona_id")
+    private Long personaId;
 
-    @Column(name = "user_id", columnDefinition = "BINARY(16)", nullable = false)
-    private UUID userId;
+    @Column(name = "user_id", nullable = false)
+    private Long userId;
 
     @Column(name = "occupation_code", length = 40)
     private String occupationCode;
@@ -62,7 +62,6 @@ public class PersonaProfileEntity {
 
     @PrePersist
     void onCreate() {
-        if (personaId == null) personaId = UUID.randomUUID();
         LocalDateTime now = LocalDateTime.now();
         if (createdAt == null) createdAt = now;
         if (updatedAt == null) updatedAt = now;

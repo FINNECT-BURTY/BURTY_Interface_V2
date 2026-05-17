@@ -6,7 +6,6 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.time.LocalDateTime;
-import java.util.UUID;
 
 @Entity
 @Table(
@@ -22,11 +21,12 @@ import java.util.UUID;
 public class CashflowScheduleEntity {
 
     @Id
-    @Column(name = "schedule_id", columnDefinition = "BINARY(16)")
-    private UUID scheduleId;
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "schedule_id")
+    private Long scheduleId;
 
-    @Column(name = "user_id", columnDefinition = "BINARY(16)", nullable = false)
-    private UUID userId;
+    @Column(name = "user_id", nullable = false)
+    private Long userId;
 
     @Column(name = "schedule_type_code", length = 40, nullable = false)
     private String scheduleTypeCode;
@@ -43,8 +43,8 @@ public class CashflowScheduleEntity {
     @Column(name = "day_of_month", nullable = false)
     private Integer dayOfMonth;
 
-    @Column(name = "account_id", columnDefinition = "BINARY(16)")
-    private UUID accountId;
+    @Column(name = "account_id")
+    private Long accountId;
 
     @Column(name = "active", nullable = false)
     private Boolean active = true;
@@ -60,7 +60,6 @@ public class CashflowScheduleEntity {
 
     @PrePersist
     void onCreate() {
-        if (scheduleId == null) scheduleId = UUID.randomUUID();
         LocalDateTime now = LocalDateTime.now();
         if (createdAt == null) createdAt = now;
         if (updatedAt == null) updatedAt = now;

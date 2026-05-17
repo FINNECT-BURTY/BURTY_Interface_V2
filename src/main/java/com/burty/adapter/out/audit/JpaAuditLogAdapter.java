@@ -7,8 +7,6 @@ import com.burty.domain.repository.AuditLogRepository;
 import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Component;
 
-import java.util.UUID;
-
 @Primary
 @Component
 public class JpaAuditLogAdapter implements AuditLogPort {
@@ -23,7 +21,7 @@ public class JpaAuditLogAdapter implements AuditLogPort {
         AuditLogEntity entity = new AuditLogEntity();
         entity.setOccurredAt(event.getCreatedAt());
         entity.setActorType(AuditLogEntity.ActorType.USER);
-        entity.setActorId(parseUuidOrNull(event.getActorId()));
+        entity.setActorId(parseLongOrNull(event.getActorId()));
         entity.setTargetType(event.getTarget() == null ? "MONEYAGENT" : event.getTarget());
         entity.setAction(event.getAction());
         entity.setResult(toResult(event.getResult()));
@@ -38,9 +36,9 @@ public class JpaAuditLogAdapter implements AuditLogPort {
         return AuditLogEntity.Result.SUCCESS;
     }
 
-    private UUID parseUuidOrNull(String value) {
+    private Long parseLongOrNull(String value) {
         try {
-            return value == null ? null : UUID.fromString(value);
+            return value == null ? null : Long.parseLong(value);
         } catch (Exception ignored) {
             return null;
         }

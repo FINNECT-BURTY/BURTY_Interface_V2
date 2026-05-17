@@ -6,7 +6,6 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.time.LocalDateTime;
-import java.util.UUID;
 
 @Entity
 @Table(name = "tbl_audit_log")
@@ -26,14 +25,14 @@ public class AuditLogEntity {
     @Column(name = "actor_type", nullable = false)
     private ActorType actorType;
 
-    @Column(name = "actor_id", columnDefinition = "BINARY(16)")
-    private UUID actorId;
+    @Column(name = "actor_id")
+    private Long actorId;
 
     @Column(name = "target_type", nullable = false)
     private String targetType;
 
-    @Column(name = "target_id", columnDefinition = "BINARY(16)")
-    private UUID targetId;
+    @Column(name = "target_id")
+    private Long targetId;
 
     @Column(name = "action", nullable = false)
     private String action;

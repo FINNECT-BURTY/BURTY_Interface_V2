@@ -18,7 +18,6 @@ import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.UUID;
 
 @RestController
 @RequestMapping("/devices")
@@ -49,7 +48,7 @@ public class DeviceManagementController extends BaseController {
     @AuthLevel(RiskLevel.LEVEL_2)
     @Operation(summary = "기기명 변경", description = "등록된 기기의 표시 이름을 변경합니다.")
     public ApiResponse<DeviceResponse> updateName(@PathVariable String deviceId, @RequestBody DeviceNameUpdateRequest request) {
-        DeviceEntity device = deviceRepository.findById(UUID.fromString(deviceId)).orElseThrow();
+        DeviceEntity device = deviceRepository.findById(Long.parseLong(deviceId)).orElseThrow();
         assertOwner(device, request.getUserId());
         device.setDeviceName(request.getDeviceName());
         device.setUpdatedAt(LocalDateTime.now());
@@ -60,8 +59,8 @@ public class DeviceManagementController extends BaseController {
     @AuthLevel(RiskLevel.LEVEL_3)
     @Operation(summary = "기기 해제", description = "분실/교체된 신뢰 기기를 해제하고 연결된 생체 credential도 폐기합니다.")
     public ApiResponse<SimpleResultResponse> revoke(@PathVariable String deviceId, @RequestParam String userId) {
-        UUID deviceUuid = UUID.fromString(deviceId);
-        DeviceEntity device = deviceRepository.findById(deviceUuid).orElseThrow();
+        Long deviceKey = Long.parseLong(deviceId);
+        DeviceEntity device = deviceRepository.findById(deviceKey).orElseThrow();
         assertOwner(device, userId);
         LocalDateTime now = LocalDateTime.now();
         device.setIsTrusted(false);
@@ -69,7 +68,7 @@ public class DeviceManagementController extends BaseController {
         device.setUpdatedAt(now);
         deviceRepository.save(device);
 
-        for (BiometricCredentialEntity credential : biometricCredentialRepository.findByDevice_DeviceIdAndRevokedAtIsNull(deviceUuid)) {
+        for (BiometricCredentialEntity credential : biometricCredentialRepository.findByDevice_DeviceIdAndRevokedAtIsNull(deviceKey)) {
             credential.setRevokedAt(now);
             biometricCredentialRepository.save(credential);
         }

@@ -3,14 +3,14 @@ package com.burty.domain.entity;
 import jakarta.persistence.*;
 
 import java.time.LocalDateTime;
-import java.util.UUID;
 
 @Entity
 @Table(name = "tbl_linked_institution")
 public class LinkedInstitutionEntity {
     @Id
-    @Column(name = "link_id", columnDefinition = "BINARY(16)")
-    private UUID linkId;
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "link_id")
+    private Long linkId;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)

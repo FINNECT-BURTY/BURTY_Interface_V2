@@ -44,9 +44,10 @@ public class RefreshTokenService {
     /** 로그인 직후 호출. access + refresh 쌍 발급, 새 session row 생성. */
     @Transactional
     public TokenPair issueNewSession(String userId, String deviceId) {
+        Long numericUserId = parseUserId(userId);
         String rawRefresh = generateToken();
         UserSessionEntity session = new UserSessionEntity();
-        session.setUserId(userId);
+        session.setUserId(numericUserId);
         session.setDeviceId(deviceId);
         session.setRefreshTokenHash(sha256(rawRefresh));
         session.setExpiresAt(LocalDateTime.now().plusSeconds(jwtProperties.getRefreshExpirationSeconds()));
@@ -58,6 +59,14 @@ public class RefreshTokenService {
                 jwtProperties.getExpirationSeconds(),
                 jwtProperties.getRefreshExpirationSeconds()
         );
+    }
+
+    private Long parseUserId(String userId) {
+        try {
+            return Long.parseLong(userId);
+        } catch (NumberFormatException e) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE, "userId 형식이 올바르지 않습니다.");
+        }
     }
 
     /** Refresh token 으로 새 쌍 발급 (rotation). 재사용 시 모든 세션 강제 종료. */
@@ -75,7 +84,7 @@ public class RefreshTokenService {
 
         // 도난 의심: 이미 revoke 된 token 이 다시 들어옴 → 모든 세션 강제 종료
         if (session.getRevokedAt() != null) {
-            revokeAllForUser(session.getUserId());
+            revokeAllForUser(String.valueOf(session.getUserId()));
             throw new BusinessException(ErrorCode.FORBIDDEN,
                     "refresh token 재사용이 감지되었습니다. 보안을 위해 모든 세션을 종료했습니다.");
         }
@@ -87,7 +96,7 @@ public class RefreshTokenService {
         session.setRevokedAt(LocalDateTime.now());
         sessionRepository.save(session);
 
-        return issueNewSession(session.getUserId(), session.getDeviceId());
+        return issueNewSession(String.valueOf(session.getUserId()), session.getDeviceId());
     }
 
     /** 로그아웃 시 호출. 해당 refresh token 하나만 revoke (없으면 조용히 무시). */
@@ -104,8 +113,9 @@ public class RefreshTokenService {
     /** 특정 사용자의 모든 활성 세션 종료 (비밀번호 변경 / 도난 의심 등). */
     @Transactional
     public void revokeAllForUser(String userId) {
+        Long numericUserId = parseUserId(userId);
         LocalDateTime now = LocalDateTime.now();
-        sessionRepository.findByUserIdAndRevokedAtIsNull(userId).forEach(s -> {
+        sessionRepository.findByUserIdAndRevokedAtIsNull(numericUserId).forEach(s -> {
             s.setRevokedAt(now);
             sessionRepository.save(s);
         });

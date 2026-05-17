@@ -21,7 +21,6 @@ import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.UUID;
 
 @RestController
 @RequestMapping("/consents")
@@ -63,7 +62,7 @@ public class ConsentManagementController extends BaseController {
     @Operation(summary = "동의 철회", description = "동의 이력을 철회 처리합니다.")
     public ApiResponse<SimpleResultResponse> revokeConsent(@PathVariable String consentId,
                                                            @RequestParam(required = false) String reason) {
-        ConsentRecordEntity entity = consentRecordRepository.findById(UUID.fromString(consentId)).orElseThrow();
+        ConsentRecordEntity entity = consentRecordRepository.findById(Long.parseLong(consentId)).orElseThrow();
         entity.setRevokedAt(LocalDateTime.now());
         entity.setRevokeReason(reason == null ? "USER_REQUEST" : reason);
         consentRecordRepository.save(entity);

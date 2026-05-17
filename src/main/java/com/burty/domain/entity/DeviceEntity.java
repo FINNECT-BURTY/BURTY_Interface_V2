@@ -6,7 +6,6 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.time.LocalDateTime;
-import java.util.UUID;
 
 @Entity
 @Table(
@@ -23,8 +22,9 @@ import java.util.UUID;
 @NoArgsConstructor
 public class DeviceEntity {
     @Id
-    @Column(name = "device_id", columnDefinition = "BINARY(16)")
-    private UUID deviceId;
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "device_id")
+    private Long deviceId;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)

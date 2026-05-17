@@ -11,7 +11,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-import java.util.UUID;
 
 @Service
 public class PersonaInferenceService implements PersonaInferenceUseCase {
@@ -28,21 +27,21 @@ public class PersonaInferenceService implements PersonaInferenceUseCase {
     @Override
     @Transactional
     public PersonaProfileEntity getOrInfer(String userId) {
-        UUID uuid = parseUuid(userId);
-        if (uuid == null) {
+        Long numericUserId = parseUserId(userId);
+        if (numericUserId == null) {
             return inferTransient(userId);
         }
-        return repository.findByUserId(uuid).orElseGet(() -> persistInferred(uuid, userId));
+        return repository.findByUserId(numericUserId).orElseGet(() -> persistInferred(numericUserId, userId));
     }
 
     @Override
     @Transactional
     public PersonaProfileEntity overrideByUser(String userId, String occupationCode, String residenceCode, String householdType, Long monthlyIncomeAvg) {
-        UUID uuid = parseUuid(userId);
-        if (uuid == null) throw new IllegalArgumentException("userId must be a UUID");
-        PersonaProfileEntity entity = repository.findByUserId(uuid).orElseGet(() -> {
-            PersonaProfileEntity created = persistInferred(uuid, userId);
-            return repository.findByUserId(uuid).orElse(created);
+        Long numericUserId = parseUserId(userId);
+        if (numericUserId == null) throw new IllegalArgumentException("userId must be numeric");
+        PersonaProfileEntity entity = repository.findByUserId(numericUserId).orElseGet(() -> {
+            PersonaProfileEntity created = persistInferred(numericUserId, userId);
+            return repository.findByUserId(numericUserId).orElse(created);
         });
         if (occupationCode != null) entity.setOccupationCode(occupationCode);
         if (residenceCode != null) entity.setResidenceCode(residenceCode);
@@ -56,10 +55,10 @@ public class PersonaInferenceService implements PersonaInferenceUseCase {
     @Override
     @Transactional
     public PersonaProfileEntity reinfer(String userId) {
-        UUID uuid = parseUuid(userId);
-        if (uuid == null) return inferTransient(userId);
-        PersonaProfileEntity entity = repository.findByUserId(uuid).orElseGet(PersonaProfileEntity::new);
-        if (entity.getUserId() == null) entity.setUserId(uuid);
+        Long numericUserId = parseUserId(userId);
+        if (numericUserId == null) return inferTransient(userId);
+        PersonaProfileEntity entity = repository.findByUserId(numericUserId).orElseGet(PersonaProfileEntity::new);
+        if (entity.getUserId() == null) entity.setUserId(numericUserId);
         applyInferred(entity, userId);
         if (entity.getCreatedAt() == null) {
             entity.setCreatedAt(LocalDateTime.now());
@@ -67,9 +66,9 @@ public class PersonaInferenceService implements PersonaInferenceUseCase {
         return repository.save(entity);
     }
 
-    private PersonaProfileEntity persistInferred(UUID uuid, String userId) {
+    private PersonaProfileEntity persistInferred(Long numericUserId, String userId) {
         PersonaProfileEntity entity = new PersonaProfileEntity();
-        entity.setUserId(uuid);
+        entity.setUserId(numericUserId);
         applyInferred(entity, userId);
         log.info("Persona inferred userId={} occupation={} residence={} income={}",
                 userId, entity.getOccupationCode(), entity.getResidenceCode(), entity.getMonthlyIncomeAvg());
@@ -111,11 +110,11 @@ public class PersonaInferenceService implements PersonaInferenceUseCase {
         return 24 + base;
     }
 
-    private UUID parseUuid(String userId) {
-        if (userId == null || userId.length() < 32) return null;
+    private Long parseUserId(String userId) {
+        if (userId == null || userId.isBlank()) return null;
         try {
-            return UUID.fromString(userId);
-        } catch (IllegalArgumentException e) {
+            return Long.parseLong(userId);
+        } catch (NumberFormatException e) {
             return null;
         }
     }

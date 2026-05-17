@@ -21,7 +21,6 @@ import java.security.MessageDigest;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.Period;
-import java.util.UUID;
 
 @Service
 public class UserOnboardingService implements UserOnboardingUseCase {
@@ -122,7 +121,6 @@ public class UserOnboardingService implements UserOnboardingUseCase {
 
     private void persistConsent(UserEntity user, ConsentRecordEntity.ConsentType type, String version, LocalDateTime agreedAt) {
         ConsentRecordEntity c = new ConsentRecordEntity();
-        c.setConsentId(UUID.randomUUID());
         c.setUser(user);
         c.setConsentType(type);
         c.setConsentVersion(version);

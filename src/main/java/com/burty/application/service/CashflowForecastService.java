@@ -23,7 +23,6 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.UUID;
 
 @Service
 public class CashflowForecastService implements CashflowForecastUseCase {
@@ -131,11 +130,11 @@ public class CashflowForecastService implements CashflowForecastUseCase {
     }
 
     private List<CashflowEvent> buildEventsFromDb(String userId, LocalDate startDate) {
-        UUID userUuid = parseUuid(userId);
-        if (userUuid == null) return List.of();
+        Long numericUserId = parseUserId(userId);
+        if (numericUserId == null) return List.of();
 
-        List<CashflowScheduleEntity> schedules = scheduleRepository.findByUserIdAndActiveTrue(userUuid);
-        List<RecurringExpenseEntity> recurring = recurringExpenseRepository.findByUserIdAndActiveTrue(userUuid);
+        List<CashflowScheduleEntity> schedules = scheduleRepository.findByUserIdAndActiveTrue(numericUserId);
+        List<RecurringExpenseEntity> recurring = recurringExpenseRepository.findByUserIdAndActiveTrue(numericUserId);
         if (schedules.isEmpty() && recurring.isEmpty()) return List.of();
 
         List<CashflowEvent> events = new ArrayList<>();
@@ -233,11 +232,11 @@ public class CashflowForecastService implements CashflowForecastUseCase {
         }
     }
 
-    private UUID parseUuid(String userId) {
-        if (userId == null || userId.length() < 32) return null;
+    private Long parseUserId(String userId) {
+        if (userId == null || userId.isBlank()) return null;
         try {
-            return UUID.fromString(userId);
-        } catch (IllegalArgumentException ex) {
+            return Long.parseLong(userId);
+        } catch (NumberFormatException ex) {
             return null;
         }
     }

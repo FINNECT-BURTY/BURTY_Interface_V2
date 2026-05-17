@@ -19,6 +19,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+
 /**
  * 월 1회 거래내역을 분석해 같은 카테고리에서 3회 이상, 표준편차 작은 지출을 RecurringExpenseEntity로 학습.
  * 이미 등록된 항목은 occurrenceCount/avgAmount/dayOfMonth/lastSeenAt만 갱신.
@@ -46,10 +47,10 @@ public class RecurringExpenseLearnBatch {
     @Transactional
     public void learnMonthly() {
         LocalDate since = LocalDate.now().minusMonths(LOOKBACK_MONTHS);
-        List<UUID> userIds = transactionRepository.findDistinctUserIdsSince(since);
+        List<Long> userIds = transactionRepository.findDistinctUserIdsSince(since);
         int totalLearned = 0;
         int totalUsers = 0;
-        for (UUID userId : userIds) {
+        for (Long userId : userIds) {
             try {
                 int learned = learnForUser(userId, since);
                 totalLearned += learned;
@@ -68,7 +69,7 @@ public class RecurringExpenseLearnBatch {
         ));
     }
 
-    private int learnForUser(UUID userId, LocalDate since) {
+    private int learnForUser(Long userId, LocalDate since) {
         List<TransactionEntity> txs = transactionRepository
                 .findByUserIdAndTxnDateBetweenOrderByTxnDateDesc(userId, since, LocalDate.now());
 
@@ -112,7 +113,7 @@ public class RecurringExpenseLearnBatch {
         return learned;
     }
 
-    private RecurringExpenseEntity findExistingForCategory(UUID userId, String categoryCode) {
+    private RecurringExpenseEntity findExistingForCategory(Long userId, String categoryCode) {
         return recurringExpenseRepository
                 .findByUserIdAndExpenseCategoryCodeAndActiveTrue(userId, categoryCode)
                 .stream()

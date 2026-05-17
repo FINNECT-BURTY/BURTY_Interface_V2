@@ -8,7 +8,6 @@ import com.burty.core.dto.response.ApiResponse;
 import com.burty.domain.entity.CashflowScheduleEntity;
 import com.burty.domain.entity.RecurringExpenseEntity;
 import com.burty.domain.model.CashflowForecast;
-import com.burty.domain.model.DailyBalancePoint;
 import com.burty.domain.repository.CashflowScheduleRepository;
 import com.burty.domain.repository.RecurringExpenseRepository;
 import com.burty.security.AuthLevel;
@@ -41,8 +40,8 @@ public class CashflowManagementController extends BaseController {
     @Operation(summary = "현금흐름 캘린더", description = "30일 예상 잔액과 월세/카드/대출/급여 이벤트를 일자별로 반환합니다.")
     public ApiResponse<List<CashflowCalendarDayResponse>> calendar(@RequestParam String userId) {
         CashflowForecast forecast = cashflowForecastUseCase.forecast(userId);
-        UUID userUuid = parseUuid(userId);
-        Map<LocalDate, List<String>> eventMap = userUuid == null ? Map.of() : eventMap(userUuid, forecast.getGeneratedDate());
+        Long numericUserId = parseUserId(userId);
+        Map<LocalDate, List<String>> eventMap = numericUserId == null ? Map.of() : eventMap(numericUserId, forecast.getGeneratedDate());
         List<CashflowCalendarDayResponse> days = forecast.getDailyBalances().stream()
                 .map(point -> new CashflowCalendarDayResponse(
                         point.getDate(),
@@ -57,7 +56,7 @@ public class CashflowManagementController extends BaseController {
     @GetMapping("/schedules")
     @AuthLevel(RiskLevel.LEVEL_1)
     public ApiResponse<List<CashflowScheduleResponse>> schedules(@RequestParam String userId) {
-        return ApiResponse.ok(scheduleRepository.findByUserIdAndActiveTrue(UUID.fromString(userId)).stream()
+        return ApiResponse.ok(scheduleRepository.findByUserIdAndActiveTrue(Long.parseLong(userId)).stream()
                 .map(this::toResponse)
                 .toList());
     }
@@ -67,7 +66,7 @@ public class CashflowManagementController extends BaseController {
     @Operation(summary = "고정 수입/지출 등록", description = "월세, 관리비, 통신비, 구독료, 대출 상환일 등을 직접 등록합니다.")
     public ApiResponse<CashflowScheduleResponse> upsertSchedule(@RequestBody CashflowScheduleRequest request) {
         CashflowScheduleEntity entity = new CashflowScheduleEntity();
-        entity.setUserId(UUID.fromString(request.getUserId()));
+        entity.setUserId(Long.parseLong(request.getUserId()));
         entity.setScheduleTypeCode(defaultString(request.getScheduleTypeCode(), "CUSTOM"));
         entity.setLabel(defaultString(request.getLabel(), "직접 입력 일정"));
         entity.setAmount(Math.max(0L, request.getAmount() == null ? 0L : request.getAmount()));
@@ -81,8 +80,8 @@ public class CashflowManagementController extends BaseController {
     @DeleteMapping("/schedules/{scheduleId}")
     @AuthLevel(RiskLevel.LEVEL_2)
     public ApiResponse<SimpleResultResponse> deactivateSchedule(@PathVariable String scheduleId, @RequestParam String userId) {
-        CashflowScheduleEntity entity = scheduleRepository.findById(UUID.fromString(scheduleId)).orElseThrow();
-        if (!entity.getUserId().toString().equals(userId)) throw new IllegalArgumentException("owner mismatch");
+        CashflowScheduleEntity entity = scheduleRepository.findById(Long.parseLong(scheduleId)).orElseThrow();
+        if (!String.valueOf(entity.getUserId()).equals(userId)) throw new IllegalArgumentException("owner mismatch");
         entity.setActive(false);
         scheduleRepository.save(entity);
         return ApiResponse.ok(new SimpleResultResponse(true, "현금흐름 일정이 비활성화되었습니다."));
@@ -92,8 +91,8 @@ public class CashflowManagementController extends BaseController {
     @AuthLevel(RiskLevel.LEVEL_1)
     @Operation(summary = "위험 원인 분해", description = "월세/카드/대출/변동지출 중 어떤 요인이 잔액 위험을 키우는지 반환합니다.")
     public ApiResponse<List<RiskCauseResponse>> riskCauses(@RequestParam String userId) {
-        UUID userUuid = parseUuid(userId);
-        if (userUuid == null) {
+        Long numericUserId = parseUserId(userId);
+        if (numericUserId == null) {
             CashflowForecast forecast = cashflowForecastUseCase.forecast(userId);
             return ApiResponse.ok(List.of(
                     new RiskCauseResponse("CARD_BILL", "카드값", Math.max(0L, forecast.getSafetyBalance() - forecast.getMinimumBalance()),
@@ -105,12 +104,12 @@ public class CashflowManagementController extends BaseController {
             ));
         }
         List<RiskCauseResponse> causes = new ArrayList<>();
-        for (CashflowScheduleEntity s : scheduleRepository.findByUserIdAndActiveTrue(userUuid)) {
+        for (CashflowScheduleEntity s : scheduleRepository.findByUserIdAndActiveTrue(numericUserId)) {
             if (!"EXPENSE".equalsIgnoreCase(s.getDirection())) continue;
             String type = normalizeCauseType(s.getScheduleTypeCode(), s.getLabel());
             causes.add(new RiskCauseResponse(type, s.getLabel(), s.getAmount(), type + " 일정이 예상 잔액을 낮춥니다."));
         }
-        for (RecurringExpenseEntity r : recurringExpenseRepository.findByUserIdAndActiveTrue(userUuid)) {
+        for (RecurringExpenseEntity r : recurringExpenseRepository.findByUserIdAndActiveTrue(numericUserId)) {
             String type = normalizeCauseType(r.getExpenseCategoryCode(), r.getName());
             causes.add(new RiskCauseResponse(type, r.getName(), r.getAvgAmount(), "반복 지출 패턴이 감지되었습니다."));
         }
@@ -121,7 +120,7 @@ public class CashflowManagementController extends BaseController {
         return ApiResponse.ok(causes.stream().limit(8).toList());
     }
 
-    private Map<LocalDate, List<String>> eventMap(UUID userId, LocalDate startDate) {
+    private Map<LocalDate, List<String>> eventMap(Long userId, LocalDate startDate) {
         Map<LocalDate, List<String>> map = new HashMap<>();
         for (CashflowScheduleEntity s : scheduleRepository.findByUserIdAndActiveTrue(userId)) {
             addEvent(map, nextOccurrence(startDate, s.getDayOfMonth()), s.getLabel() + " " + signedAmount(s.getDirection(), s.getAmount()));
@@ -151,7 +150,7 @@ public class CashflowManagementController extends BaseController {
 
     private CashflowScheduleResponse toResponse(CashflowScheduleEntity entity) {
         return new CashflowScheduleResponse(
-                entity.getScheduleId().toString(),
+                String.valueOf(entity.getScheduleId()),
                 entity.getScheduleTypeCode(),
                 entity.getLabel(),
                 entity.getAmount(),
@@ -175,11 +174,11 @@ public class CashflowManagementController extends BaseController {
         return value == null || value.isBlank() ? fallback : value;
     }
 
-    private UUID parseUuid(String userId) {
-        if (userId == null || userId.length() < 32) return null;
+    private Long parseUserId(String userId) {
+        if (userId == null || userId.isBlank()) return null;
         try {
-            return UUID.fromString(userId);
-        } catch (IllegalArgumentException ex) {
+            return Long.parseLong(userId);
+        } catch (NumberFormatException ex) {
             return null;
         }
     }

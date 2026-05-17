@@ -5,10 +5,9 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;
 import java.util.Optional;
-import java.util.UUID;
 
-public interface UserSessionRepository extends JpaRepository<UserSessionEntity, UUID> {
-    List<UserSessionEntity> findByUserIdAndRevokedAtIsNull(String userId);
+public interface UserSessionRepository extends JpaRepository<UserSessionEntity, Long> {
+    List<UserSessionEntity> findByUserIdAndRevokedAtIsNull(Long userId);
     Optional<UserSessionEntity> findByRefreshTokenHashAndRevokedAtIsNull(String refreshTokenHash);
 
     // 재사용 탐지용: revoked 여부 무관하게 hash 로 조회.

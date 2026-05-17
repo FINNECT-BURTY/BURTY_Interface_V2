@@ -7,7 +7,6 @@ import lombok.Setter;
 
 import java.time.LocalDateTime;
 import java.time.LocalTime;
-import java.util.UUID;
 
 @Entity
 @Table(name = "tbl_alert_subscription")
@@ -16,8 +15,9 @@ import java.util.UUID;
 @NoArgsConstructor
 public class AlertSubscriptionEntity {
     @Id
-    @Column(name = "subscription_id", columnDefinition = "BINARY(16)")
-    private UUID subscriptionId;
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "subscription_id")
+    private Long subscriptionId;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "link_id", nullable = false)

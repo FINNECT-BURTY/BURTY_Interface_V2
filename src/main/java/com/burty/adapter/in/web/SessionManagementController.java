@@ -17,7 +17,6 @@ import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.UUID;
 
 /**
  * 사용자 세션(=refresh token row) 관리. 토큰 발급/회전/폐기는 RefreshTokenService 가 단일 책임.
@@ -70,8 +69,8 @@ public class SessionManagementController extends BaseController {
     @AuthLevel(RiskLevel.LEVEL_2)
     @Operation(summary = "활성 세션 목록", description = "사용자의 revoke 되지 않은 세션을 조회합니다.")
     public ApiResponse<List<SessionResponse>> sessions(@RequestParam String userId) {
-        return ApiResponse.ok(userSessionRepository.findByUserIdAndRevokedAtIsNull(userId).stream()
-                .map(s -> new SessionResponse(s.getSessionId().toString(), s.getUserId(), s.getDeviceId(), s.getCreatedAt(), s.getExpiresAt()))
+        return ApiResponse.ok(userSessionRepository.findByUserIdAndRevokedAtIsNull(Long.parseLong(userId)).stream()
+                .map(s -> new SessionResponse(String.valueOf(s.getSessionId()), String.valueOf(s.getUserId()), s.getDeviceId(), s.getCreatedAt(), s.getExpiresAt()))
                 .toList());
     }
 
@@ -79,7 +78,7 @@ public class SessionManagementController extends BaseController {
     @AuthLevel(RiskLevel.LEVEL_2)
     @Operation(summary = "특정 세션 종료", description = "sessionId 로 해당 기기의 세션 하나만 종료합니다.")
     public ApiResponse<SimpleResultResponse> revoke(@PathVariable String sessionId) {
-        UserSessionEntity session = userSessionRepository.findById(UUID.fromString(sessionId))
+        UserSessionEntity session = userSessionRepository.findById(Long.parseLong(sessionId))
                 .orElseThrow(() -> new BusinessException(ErrorCode.ENTITY_NOT_FOUND, "해당 세션을 찾을 수 없습니다."));
         if (session.getRevokedAt() == null) {
             session.setRevokedAt(LocalDateTime.now());

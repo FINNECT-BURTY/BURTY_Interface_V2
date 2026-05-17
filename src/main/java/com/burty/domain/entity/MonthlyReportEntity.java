@@ -17,8 +17,9 @@ import java.util.UUID;
 @NoArgsConstructor
 public class MonthlyReportEntity {
     @Id
-    @Column(name = "report_id", columnDefinition = "BINARY(16)")
-    private UUID reportId;
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "report_id")
+    private Long reportId;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)

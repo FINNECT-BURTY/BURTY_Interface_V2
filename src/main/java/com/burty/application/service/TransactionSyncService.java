@@ -13,7 +13,6 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 
 @Service
 public class TransactionSyncService implements TransactionSyncUseCase {
@@ -34,9 +33,9 @@ public class TransactionSyncService implements TransactionSyncUseCase {
     @Override
     @Transactional
     public int syncFromOpenBanking(String userId, String fintechUseNum) {
-        UUID userUuid = parseUuid(userId);
-        if (userUuid == null) {
-            log.warn("syncFromOpenBanking skipped: userId is not a UUID userId={}", userId);
+        Long numericUserId = parseUserId(userId);
+        if (numericUserId == null) {
+            log.warn("syncFromOpenBanking skipped: userId is not numeric userId={}", userId);
             return 0;
         }
         Map<String, Object> response = openBankingPort.getTransactions(userId, fintechUseNum);
@@ -50,7 +49,7 @@ public class TransactionSyncService implements TransactionSyncUseCase {
             if (externalId == null || externalId.isBlank()) {
                 externalId = fintechUseNum + "-" + stringValue(txMap.get("date")) + "-" + stringValue(txMap.get("amount"));
             }
-            if (transactionRepository.findByUserIdAndExternalTxId(userUuid, externalId).isPresent()) continue;
+            if (transactionRepository.findByUserIdAndExternalTxId(numericUserId, externalId).isPresent()) continue;
 
             String type = stringValue(txMap.get("type"));
             String direction = "WITHDRAWAL".equalsIgnoreCase(type) || "OUT".equalsIgnoreCase(type) ? "OUT" : "IN";
@@ -58,7 +57,7 @@ public class TransactionSyncService implements TransactionSyncUseCase {
             if (amount == 0) continue;
 
             TransactionEntity tx = new TransactionEntity();
-            tx.setUserId(userUuid);
+            tx.setUserId(numericUserId);
             tx.setExternalTxId(externalId);
             tx.setTxnDate(parseDate(stringValue(txMap.get("date"))));
             tx.setAmount(Math.abs(amount));
@@ -76,20 +75,20 @@ public class TransactionSyncService implements TransactionSyncUseCase {
 
     @Override
     public List<TransactionEntity> recent(String userId, LocalDate from, LocalDate to) {
-        UUID userUuid = parseUuid(userId);
-        if (userUuid == null) return List.of();
-        if (from == null && to == null) return transactionRepository.findByUserIdOrderByTxnDateDesc(userUuid);
+        Long numericUserId = parseUserId(userId);
+        if (numericUserId == null) return List.of();
+        if (from == null && to == null) return transactionRepository.findByUserIdOrderByTxnDateDesc(numericUserId);
         LocalDate effectiveFrom = from == null ? LocalDate.now().minusMonths(3) : from;
         LocalDate effectiveTo = to == null ? LocalDate.now() : to;
-        return transactionRepository.findByUserIdAndTxnDateBetweenOrderByTxnDateDesc(userUuid, effectiveFrom, effectiveTo);
+        return transactionRepository.findByUserIdAndTxnDateBetweenOrderByTxnDateDesc(numericUserId, effectiveFrom, effectiveTo);
     }
 
     @Override
     @Transactional
     public int recategorizeAll(String userId) {
-        UUID userUuid = parseUuid(userId);
-        if (userUuid == null) return 0;
-        List<TransactionEntity> all = transactionRepository.findByUserIdOrderByTxnDateDesc(userUuid);
+        Long numericUserId = parseUserId(userId);
+        if (numericUserId == null) return 0;
+        List<TransactionEntity> all = transactionRepository.findByUserIdOrderByTxnDateDesc(numericUserId);
         List<TransactionEntity> changed = new ArrayList<>();
         for (TransactionEntity tx : all) {
             String prevExpense = tx.getExpenseCategoryCode();
@@ -130,9 +129,9 @@ public class TransactionSyncService implements TransactionSyncUseCase {
         }
     }
 
-    private UUID parseUuid(String userId) {
-        if (userId == null || userId.length() < 32) return null;
-        try { return UUID.fromString(userId); }
-        catch (IllegalArgumentException e) { return null; }
+    private Long parseUserId(String userId) {
+        if (userId == null || userId.isBlank()) return null;
+        try { return Long.parseLong(userId); }
+        catch (NumberFormatException e) { return null; }
     }
 }

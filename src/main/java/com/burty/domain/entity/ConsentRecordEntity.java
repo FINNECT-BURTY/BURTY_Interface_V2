@@ -6,7 +6,6 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.time.LocalDateTime;
-import java.util.UUID;
 
 @Entity
 @Table(name = "tbl_consent_record")
@@ -15,8 +14,9 @@ import java.util.UUID;
 @NoArgsConstructor
 public class ConsentRecordEntity {
     @Id
-    @Column(name = "consent_id", columnDefinition = "BINARY(16)")
-    private UUID consentId;
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "consent_id")
+    private Long consentId;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)

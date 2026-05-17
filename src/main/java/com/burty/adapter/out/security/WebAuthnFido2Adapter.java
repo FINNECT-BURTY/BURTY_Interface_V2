@@ -148,7 +148,7 @@ public class WebAuthnFido2Adapter implements BiometricAuthPort, WebAuthnCeremony
         BiometricCredentialEntity entity = biometricCredentialRepository
                 .findFirstByUser_UserIdAndRevokedAtIsNull(userKey)
                 .orElseGet(BiometricCredentialEntity::new);
-        if (entity.getCredentialId() == null) entity.setCredentialId(UUID.randomUUID());
+        // credentialId 는 @GeneratedValue(IDENTITY) 로 자동 발급
         entity.setUser(user);
         entity.setCredentialType(BiometricCredentialEntity.CredentialType.FINGERPRINT);
         entity.setPublicKey(("public:" + credentialId).getBytes(StandardCharsets.UTF_8));
@@ -218,7 +218,7 @@ public class WebAuthnFido2Adapter implements BiometricAuthPort, WebAuthnCeremony
         BiometricCredentialEntity entity = biometricCredentialRepository
                 .findFirstByUser_UserIdAndRevokedAtIsNull(userKey)
                 .orElseGet(BiometricCredentialEntity::new);
-        if (entity.getCredentialId() == null) entity.setCredentialId(UUID.randomUUID());
+        // credentialId 는 @GeneratedValue(IDENTITY) 로 자동 발급
         entity.setUser(user);
         entity.setDevice(defaultDevice(userKey));
         entity.setCredentialType(BiometricCredentialEntity.CredentialType.FINGERPRINT);
@@ -245,7 +245,6 @@ public class WebAuthnFido2Adapter implements BiometricAuthPort, WebAuthnCeremony
                 .orElseGet(DeviceEntity::new);
         String plainToken = existingToken;
         if (device.getDeviceId() == null) {
-            device.setDeviceId(UUID.randomUUID());
             plainToken = blank(plainToken) ? issueDeviceToken(userKey, fingerprint) : plainToken;
             device.setDeviceTokenHash(sha256(plainToken));
             device.setDeviceTokenEncrypted(encryptionUtil.encrypt(plainToken));

@@ -15,8 +15,9 @@ import java.util.UUID;
 @NoArgsConstructor
 public class BiometricCredentialEntity {
     @Id
-    @Column(name = "credential_id", columnDefinition = "BINARY(16)")
-    private UUID credentialId;
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "credential_id")
+    private Long credentialId;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)

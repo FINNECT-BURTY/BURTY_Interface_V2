@@ -11,7 +11,6 @@ import org.springframework.stereotype.Component;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.util.Optional;
-import java.util.UUID;
 
 @Primary
 @Component
@@ -37,7 +36,6 @@ public class JpaMonthlyReportHistoryAdapter implements MonthlyReportHistoryPort 
 
         MonthlyReportEntity entity = monthlyReportRepository.findByUser_UserIdAndPeriodMonth(userKey, periodMonth)
                 .orElseGet(MonthlyReportEntity::new);
-        entity.setReportId(entity.getReportId() == null ? UUID.randomUUID() : entity.getReportId());
         entity.setUser(userOpt.get());
         entity.setPeriodMonth(periodMonth);
         entity.setStatus(toStatus(status));

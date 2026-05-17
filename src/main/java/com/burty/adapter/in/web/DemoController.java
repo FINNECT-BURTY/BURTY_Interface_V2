@@ -27,7 +27,6 @@ import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 
 @RestController
 @RequestMapping("/auth/demo")
@@ -90,7 +89,7 @@ public class DemoController extends BaseController {
         }
     }
 
-    private void resetCashflowInputs(UUID userId) {
+    private void resetCashflowInputs(Long userId) {
         for (CashflowScheduleEntity schedule : scheduleRepository.findByUserIdAndActiveTrue(userId)) {
             schedule.setActive(false);
             scheduleRepository.save(schedule);
@@ -101,7 +100,7 @@ public class DemoController extends BaseController {
         }
     }
 
-    private void upsertPersona(UUID userId) {
+    private void upsertPersona(Long userId) {
         PersonaProfileEntity persona = personaProfileRepository.findByUserId(userId).orElseGet(PersonaProfileEntity::new);
         persona.setUserId(userId);
         persona.setOccupationCode("NEW_WORKER");
@@ -116,7 +115,7 @@ public class DemoController extends BaseController {
         personaProfileRepository.save(persona);
     }
 
-    private void seedSchedules(UUID userId) {
+    private void seedSchedules(Long userId) {
         LocalDate today = LocalDate.now();
         List<CashflowScheduleEntity> schedules = List.of(
                 schedule(userId, "CARD_DAY", "카드값", 520_000L, "EXPENSE", today.plusDays(7).getDayOfMonth()),
@@ -128,7 +127,7 @@ public class DemoController extends BaseController {
         scheduleRepository.saveAll(schedules);
     }
 
-    private CashflowScheduleEntity schedule(UUID userId, String type, String label, long amount, String direction, int dayOfMonth) {
+    private CashflowScheduleEntity schedule(Long userId, String type, String label, long amount, String direction, int dayOfMonth) {
         CashflowScheduleEntity entity = new CashflowScheduleEntity();
         entity.setUserId(userId);
         entity.setScheduleTypeCode(type);
@@ -141,7 +140,7 @@ public class DemoController extends BaseController {
         return entity;
     }
 
-    private void seedRecurringExpenses(UUID userId) {
+    private void seedRecurringExpenses(Long userId) {
         recurringExpenseRepository.saveAll(List.of(
                 recurring(userId, "FOOD", "식비/카페", 320_000L, LocalDate.now().plusDays(16).getDayOfMonth(), 0.82),
                 recurring(userId, "COMM", "통신비", 70_000L, LocalDate.now().plusDays(11).getDayOfMonth(), 0.95),
@@ -149,7 +148,7 @@ public class DemoController extends BaseController {
         ));
     }
 
-    private RecurringExpenseEntity recurring(UUID userId, String category, String name, long amount, int dayOfMonth, double confidence) {
+    private RecurringExpenseEntity recurring(Long userId, String category, String name, long amount, int dayOfMonth, double confidence) {
         RecurringExpenseEntity entity = new RecurringExpenseEntity();
         entity.setUserId(userId);
         entity.setExpenseCategoryCode(category);

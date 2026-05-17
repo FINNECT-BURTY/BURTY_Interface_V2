@@ -4,9 +4,8 @@ import com.burty.domain.entity.ConsentRecordEntity;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;
-import java.util.UUID;
 
-public interface ConsentRecordRepository extends JpaRepository<ConsentRecordEntity, UUID> {
+public interface ConsentRecordRepository extends JpaRepository<ConsentRecordEntity, Long> {
     List<ConsentRecordEntity> findByUser_UserId(Long userId);
     List<ConsentRecordEntity> findByUser_UserIdOrderByAgreedAtDesc(Long userId);
 }

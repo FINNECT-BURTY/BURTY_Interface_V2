@@ -6,7 +6,6 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.time.LocalDateTime;
-import java.util.UUID;
 
 @Entity
 @Table(
@@ -22,11 +21,12 @@ import java.util.UUID;
 public class RecurringExpenseEntity {
 
     @Id
-    @Column(name = "recurring_id", columnDefinition = "BINARY(16)")
-    private UUID recurringId;
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "recurring_id")
+    private Long recurringId;
 
-    @Column(name = "user_id", columnDefinition = "BINARY(16)", nullable = false)
-    private UUID userId;
+    @Column(name = "user_id", nullable = false)
+    private Long userId;
 
     @Column(name = "expense_category_code", length = 40, nullable = false)
     private String expenseCategoryCode;
@@ -60,7 +60,6 @@ public class RecurringExpenseEntity {
 
     @PrePersist
     void onCreate() {
-        if (recurringId == null) recurringId = UUID.randomUUID();
         LocalDateTime now = LocalDateTime.now();
         if (createdAt == null) createdAt = now;
         if (updatedAt == null) updatedAt = now;

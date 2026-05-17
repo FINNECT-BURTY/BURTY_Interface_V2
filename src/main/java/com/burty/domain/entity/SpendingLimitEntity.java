@@ -3,14 +3,14 @@ package com.burty.domain.entity;
 import jakarta.persistence.*;
 
 import java.time.LocalDateTime;
-import java.util.UUID;
 
 @Entity
 @Table(name = "tbl_spending_limit")
 public class SpendingLimitEntity {
     @Id
-    @Column(name = "limit_id", columnDefinition = "BINARY(16)")
-    private UUID limitId;
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "limit_id")
+    private Long limitId;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)

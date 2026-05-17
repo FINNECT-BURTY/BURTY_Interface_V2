@@ -6,7 +6,6 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.time.LocalDateTime;
-import java.util.UUID;
 
 @Entity
 @Table(name = "tbl_notification")
@@ -43,8 +42,8 @@ public class NotificationEntity {
     @Column(name = "related_entity_type")
     private String relatedEntityType;
 
-    @Column(name = "related_entity_id", columnDefinition = "BINARY(16)")
-    private UUID relatedEntityId;
+    @Column(name = "related_entity_id")
+    private Long relatedEntityId;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false)

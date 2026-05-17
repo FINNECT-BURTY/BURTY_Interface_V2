@@ -3,7 +3,6 @@ package com.burty.domain.entity;
 import jakarta.persistence.*;
 
 import java.time.LocalDateTime;
-import java.util.UUID;
 
 @Entity
 @Table(name = "tbl_transfer_event")
@@ -31,8 +30,8 @@ public class TransferEventEntity {
     @Column(name = "actor_type", nullable = false)
     private ActorType actorType;
 
-    @Column(name = "actor_id", columnDefinition = "BINARY(16)")
-    private UUID actorId;
+    @Column(name = "actor_id")
+    private Long actorId;
 
     @Column(name = "occurred_at", nullable = false)
     private LocalDateTime occurredAt;

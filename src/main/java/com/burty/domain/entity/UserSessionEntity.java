@@ -6,7 +6,6 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.time.LocalDateTime;
-import java.util.UUID;
 
 @Entity
 @Table(name = "tbl_user_session", indexes = {
@@ -18,11 +17,12 @@ import java.util.UUID;
 @NoArgsConstructor
 public class UserSessionEntity {
     @Id
-    @Column(name = "session_id", columnDefinition = "BINARY(16)")
-    private UUID sessionId;
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "session_id")
+    private Long sessionId;
 
-    @Column(name = "user_id", length = 64, nullable = false)
-    private String userId;
+    @Column(name = "user_id", nullable = false)
+    private Long userId;
 
     @Column(name = "device_id", length = 64)
     private String deviceId;
@@ -41,7 +41,6 @@ public class UserSessionEntity {
 
     @PrePersist
     void onCreate() {
-        if (sessionId == null) sessionId = UUID.randomUUID();
         if (createdAt == null) createdAt = LocalDateTime.now();
     }
 }

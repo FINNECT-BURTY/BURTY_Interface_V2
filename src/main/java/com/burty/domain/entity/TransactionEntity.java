@@ -7,7 +7,6 @@ import lombok.Setter;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.UUID;
 
 @Entity
 @Table(
@@ -24,14 +23,15 @@ import java.util.UUID;
 public class TransactionEntity {
 
     @Id
-    @Column(name = "tx_id", columnDefinition = "BINARY(16)")
-    private UUID txId;
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "tx_id")
+    private Long txId;
 
-    @Column(name = "user_id", columnDefinition = "BINARY(16)", nullable = false)
-    private UUID userId;
+    @Column(name = "user_id", nullable = false)
+    private Long userId;
 
-    @Column(name = "account_id", columnDefinition = "BINARY(16)")
-    private UUID accountId;
+    @Column(name = "account_id")
+    private Long accountId;
 
     @Column(name = "external_tx_id", length = 80, nullable = false)
     private String externalTxId;
@@ -68,7 +68,6 @@ public class TransactionEntity {
 
     @PrePersist
     void onCreate() {
-        if (txId == null) txId = UUID.randomUUID();
         if (createdAt == null) createdAt = LocalDateTime.now();
     }
 }
