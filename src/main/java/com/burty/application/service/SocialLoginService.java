@@ -113,10 +113,26 @@ public class SocialLoginService implements SocialLoginUseCase {
                 .findByProviderAndProviderUserIdHash(provider.name(), providerUserIdHash)
                 .orElse(null);
 
-        boolean newUser = account == null;
-        Long userId = newUser
-                ? createNewSocialUser(provider, profile, providerUserIdHash)
-                : touchExistingAccount(account);
+        boolean newUser;
+        Long userId;
+        if (account == null) {
+            newUser = true;
+            userId = createNewSocialUser(provider, profile, providerUserIdHash);
+        } else {
+            Long existingUserId = account.getUserId();
+            UserEntity user = userRepository.findById(existingUserId).orElse(null);
+            if (user == null) {
+                log.warn("Social account points to missing user. Recreating account provider={} userId={} socialAccountId={}",
+                        provider, existingUserId, account.getSocialAccountId());
+                socialAccountRepository.delete(account);
+                socialAccountRepository.flush();
+                newUser = true;
+                userId = createNewSocialUser(provider, profile, providerUserIdHash);
+            } else {
+                newUser = false;
+                userId = touchExistingAccount(account, user);
+            }
+        }
         log.info("Social login user resolved provider={} userId={} newUser={}", provider, userId, newUser);
 
         boolean profileComplete = userProfileRepository.existsById(userId);
@@ -161,16 +177,14 @@ public class SocialLoginService implements SocialLoginUseCase {
         return userId;
     }
 
-    private Long touchExistingAccount(SocialAccountEntity account) {
+    private Long touchExistingAccount(SocialAccountEntity account, UserEntity user) {
         Long userId = account.getUserId();
         account.setLastLoginAt(LocalDateTime.now());
         socialAccountRepository.save(account);
-        userRepository.findById(userId).ifPresent(user -> {
-            LocalDateTime now = LocalDateTime.now();
-            user.setLastLoginAt(now);
-            user.setUpdatedAt(now);
-            userRepository.save(user);
-        });
+        LocalDateTime now = LocalDateTime.now();
+        user.setLastLoginAt(now);
+        user.setUpdatedAt(now);
+        userRepository.save(user);
         return userId;
     }
 
