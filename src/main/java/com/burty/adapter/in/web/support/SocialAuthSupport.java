@@ -121,6 +121,10 @@ public class SocialAuthSupport {
         if (request == null) {
             return null;
         }
+        String forwardedFrontendOrigin = request.getHeader("X-Frontend-Origin");
+        if (notBlank(forwardedFrontendOrigin)) {
+            return resolveFrontendBase(forwardedFrontendOrigin);
+        }
         String origin = request.getHeader("Origin");
         if (notBlank(origin)) {
             return resolveFrontendBase(origin);
