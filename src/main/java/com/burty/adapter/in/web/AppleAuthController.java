@@ -12,12 +12,14 @@ import com.burty.domain.model.SocialLoginResult;
 import com.burty.domain.model.SocialProvider;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/auth/apple")
-@Tag(name = "BURTY Auth - Apple", description = "Apple Sign in (authorize-url / SPA login / BFF callback). id_token 의 JWKS 서명 검증은 미구현.")
+@Tag(name = "BURTY Auth - Apple", description = "Apple Sign in (authorize-url / SPA login / BFF callback). Apple 은 response_mode=form_post 이므로 callback 은 POST.")
 public class AppleAuthController extends BaseController {
     private static final SocialProvider PROVIDER = SocialProvider.APPLE;
 
@@ -32,8 +34,12 @@ public class AppleAuthController extends BaseController {
     @GetMapping("/authorize-url")
     @Operation(summary = "Apple 인가 URL 생성", description = "Apple Sign in 인가 URL과 state를 반환합니다. Apple 은 response_mode=form_post 사용. ")
     public ApiResponse<AuthorizeUrlResponse> authorizeUrl(@RequestParam(required = false) String state,
-                                                          @RequestParam(required = false) String redirectUri) {
-        SocialAuthorizeUrlResult auth = socialLoginUseCase.createAuthorizeUrl(PROVIDER.name(), state, redirectUri);
+                                                          HttpServletRequest request) {
+        SocialAuthorizeUrlResult auth = socialLoginUseCase.createAuthorizeUrl(
+                PROVIDER.name(),
+                state,
+                support.resolveRequestFrontendOrigin(request)
+        );
         return ApiResponse.ok(new AuthorizeUrlResponse(auth.authorizeUrl(), auth.state()));
     }
 
@@ -50,8 +56,12 @@ public class AppleAuthController extends BaseController {
         return ApiResponse.ok(support.toResponse(result));
     }
 
-    @GetMapping("/callback")
-    @Operation(summary = "Apple BFF 콜백", description = "Apple 이 redirect 하는 GET 엔드포인트. id_token 페이로드로 사용자 식별 후 access/refresh 쿠키 set + FE 로 302.")
+    @PostMapping(value = "/callback", consumes = MediaType.APPLICATION_FORM_URLENCODED_VALUE)
+    @Operation(
+            summary = "Apple BFF 콜백",
+            description = "Apple Sign in 이 form_post 로 호출하는 POST 엔드포인트. JWKS 서명 검증 후 access/refresh 쿠키 set + FE 로 302.",
+            security = {}
+    )
     public ResponseEntity<Void> callback(@RequestParam(required = false) String code,
                                          @RequestParam(required = false) String state,
                                          @RequestParam(required = false) String error,

@@ -18,6 +18,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
 import org.springframework.web.util.UriComponentsBuilder;
 
+import jakarta.servlet.http.HttpServletRequest;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
@@ -69,7 +70,7 @@ public class SocialAuthSupport {
             ResponseCookie access = buildCookie(AuthCookies.ACCESS, result.getAccessToken(), result.getAccessExpiresInSeconds());
             ResponseCookie refresh = buildCookie(AuthCookies.REFRESH, result.getRefreshToken(), result.getRefreshExpiresInSeconds());
 
-            String location = buildFrontendUrl(null, result.isNewUser(), result.isProfileComplete());
+            String location = buildFrontendUrl(resolveFrontendBase(result.getFrontendOrigin()), null, result.isNewUser(), result.isProfileComplete());
             log.info("OAuth callback success provider={} userId={} newUser={} profileComplete={} redirect={}",
                     provider, result.getUserId(), result.isNewUser(), result.isProfileComplete(), location);
 
@@ -116,11 +117,23 @@ public class SocialAuthSupport {
         return b.build();
     }
 
+    public String resolveRequestFrontendOrigin(HttpServletRequest request) {
+        if (request == null) {
+            return null;
+        }
+        String origin = request.getHeader("Origin");
+        if (notBlank(origin)) {
+            return resolveFrontendBase(origin);
+        }
+        String referer = request.getHeader("Referer");
+        return resolveFrontendBase(referer);
+    }
+
     /** redirectToFrontend 가 어떤 이유로도 throw 하지 않도록 감싼다. 최후 fallback 으로 frontendUrl 루트로 보낸다. */
     private ResponseEntity<Void> safeRedirect(String errorCode) {
         try {
             return ResponseEntity.status(HttpStatus.FOUND)
-                    .location(URI.create(buildFrontendUrl(errorCode, null, null)))
+                    .location(URI.create(buildFrontendUrl(null, errorCode, null, null)))
                     .build();
         } catch (Exception e) {
             log.error("safeRedirect fallback triggered errorCode={}", errorCode, e);
@@ -138,8 +151,10 @@ public class SocialAuthSupport {
         }
     }
 
-    private String buildFrontendUrl(String error, Boolean newUser, Boolean profileComplete) {
-        String base = frontendUrl == null || frontendUrl.isBlank() ? "" : frontendUrl;
+    private String buildFrontendUrl(String baseOverride, String error, Boolean newUser, Boolean profileComplete) {
+        String base = baseOverride == null || baseOverride.isBlank()
+                ? (frontendUrl == null || frontendUrl.isBlank() ? "" : frontendUrl)
+                : baseOverride;
         String path = burtyAuthProperties.getOauthSuccessRedirect();
         // queryParam 이 자체 인코딩하므로 raw 값을 그대로 넘긴다 (double-encode 방지)
         UriComponentsBuilder b = UriComponentsBuilder.fromUriString(base + path);
@@ -150,6 +165,37 @@ public class SocialAuthSupport {
             if (profileComplete != null) b.queryParam("profileComplete", profileComplete);
         }
         return b.encode(StandardCharsets.UTF_8).build().toUriString();
+    }
+
+    private String resolveFrontendBase(String requestedFrontendOrigin) {
+        if (!notBlank(requestedFrontendOrigin)) {
+            return null;
+        }
+        try {
+            URI requested = URI.create(requestedFrontendOrigin);
+            String host = requested.getHost();
+            String scheme = requested.getScheme();
+            if (!("http".equalsIgnoreCase(scheme) || "https".equalsIgnoreCase(scheme)) || host == null) {
+                return null;
+            }
+
+            URI configured = frontendUrl == null || frontendUrl.isBlank() ? null : URI.create(frontendUrl);
+            boolean configuredHost = configured != null
+                    && host.equalsIgnoreCase(configured.getHost())
+                    && scheme.equalsIgnoreCase(configured.getScheme());
+            boolean localHost = "localhost".equalsIgnoreCase(host) || "127.0.0.1".equals(host);
+            if (!configuredHost && !localHost) {
+                log.warn("Ignoring unsupported frontend origin={}", requestedFrontendOrigin);
+                return null;
+            }
+
+            int port = requested.getPort();
+            String authority = port > -1 ? host + ":" + port : host;
+            return scheme + "://" + authority;
+        } catch (Exception e) {
+            log.warn("Ignoring invalid frontend origin={}", requestedFrontendOrigin);
+            return null;
+        }
     }
 
     private String mapProviderError(String providerError) {

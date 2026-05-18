@@ -12,6 +12,7 @@ import com.burty.domain.model.SocialLoginResult;
 import com.burty.domain.model.SocialProvider;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -30,13 +31,32 @@ public class KakaoAuthController extends BaseController {
     }
 
     @GetMapping("/authorize-url")
-    @Operation(summary = "카카오 인가 URL 생성", description = "카카오 OAuth 인가 URL과 state를 반환합니다. `redirectUri` 를 query param 으로 넘기면 그 값을 카카오에 전달 " +
-                    "— 단 해당 URI 가 카카오 콘솔에 사전 등록되어 있어야 함 (등록 안 되면 KOE006). "
-    )
+    @Operation(summary = "카카오 인가 URL 생성", description = "카카오 OAuth 인가 URL과 state를 반환합니다.")
     public ApiResponse<AuthorizeUrlResponse> authorizeUrl(@RequestParam(required = false) String state,
-                                                          @RequestParam(required = false) String redirectUri) {
-        SocialAuthorizeUrlResult auth = socialLoginUseCase.createAuthorizeUrl(PROVIDER.name(), state, redirectUri);
+                                                          HttpServletRequest request) {
+        SocialAuthorizeUrlResult auth = socialLoginUseCase.createAuthorizeUrl(
+                PROVIDER.name(),
+                state,
+                support.resolveRequestFrontendOrigin(request)
+        );
         return ApiResponse.ok(new AuthorizeUrlResponse(auth.authorizeUrl(), auth.state()));
+    }
+
+    @PostMapping("/login")
+    @Operation(
+            summary = "카카오 로그인 (SPA / API client 용)",
+            description = "카카오 authorization code를 검증하고 BURTY access + refresh token 쌍을 응답 body 로 반환합니다.",
+            security = {}
+    )
+    public ApiResponse<SocialLoginResponse> login(@RequestBody SocialLoginRequest request) {
+        SocialLoginResult result = socialLoginUseCase.login(
+                PROVIDER.name(),
+                request.getCode(),
+                request.getRedirectUri(),
+                request.getState(),
+                request.getCodeVerifier()
+        );
+        return ApiResponse.ok(support.toResponse(result));
     }
 
     @GetMapping("/callback")

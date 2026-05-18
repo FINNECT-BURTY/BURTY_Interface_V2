@@ -11,7 +11,7 @@ import java.time.LocalDateTime;
 @Table(
         name = "tbl_registered_account",
         uniqueConstraints = {
-                @UniqueConstraint(name = "uk_registered_account_pair", columnNames = {"user_id", "account_no_hash"})
+                @UniqueConstraint(name = "uk_registered_account_pair", columnNames = {"user_id", "account_no"})
         },
         indexes = {
                 @Index(name = "idx_registered_account_user", columnList = "user_id")
@@ -29,14 +29,8 @@ public class RegisteredAccountEntity {
     @Column(name = "user_id", length = 64, nullable = false)
     private String userId;
 
-    @Column(name = "account_no_hash", length = 64, nullable = false)
-    private String accountNoHash;
-
-    @Column(name = "account_no_encrypted", length = 500)
-    private String accountNoEncrypted;
-
-    @Column(name = "account_no_masked", length = 80)
-    private String accountNoMasked;
+    @Column(name = "account_no", length = 80, nullable = false)
+    private String accountNo;
 
     @Column(name = "alias", length = 80)
     private String alias;
@@ -46,7 +40,11 @@ public class RegisteredAccountEntity {
 
     @PrePersist
     void onCreate() {
-        if (registeredId == null) registeredId = userId + "|" + accountNoHash;
-        if (registeredAt == null) registeredAt = LocalDateTime.now();
+        if (registeredId == null) {
+            registeredId = userId + "|" + accountNo;
+        }
+        if (registeredAt == null) {
+            registeredAt = LocalDateTime.now();
+        }
     }
 }

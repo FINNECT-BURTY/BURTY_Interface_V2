@@ -2,6 +2,7 @@ package com.burty.config;
 
 import com.burty.core.constants.CommonConstants;
 import com.burty.security.AuthLevelInterceptor;
+import com.burty.security.RequestBodyOwnershipInterceptor;
 import com.burty.security.ResourceOwnershipInterceptor;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Configuration;
@@ -16,6 +17,7 @@ public class BurtyWebConfig implements WebMvcConfigurer {
 
     private final AuthLevelInterceptor authLevelInterceptor;
     private final ResourceOwnershipInterceptor resourceOwnershipInterceptor;
+    private final RequestBodyOwnershipInterceptor requestBodyOwnershipInterceptor;
 
     /**
      * com.burty.adapter.in.web 패키지의 모든 @RestController 에 /api/v1 prefix 를 자동 prepend.
@@ -39,5 +41,8 @@ public class BurtyWebConfig implements WebMvcConfigurer {
         registry.addInterceptor(resourceOwnershipInterceptor)
                 .addPathPatterns(pattern)
                 .order(1);
+        registry.addInterceptor(requestBodyOwnershipInterceptor)
+                .addPathPatterns(pattern)
+                .order(2);
     }
 }

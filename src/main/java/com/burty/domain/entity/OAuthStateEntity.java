@@ -26,6 +26,10 @@ public class OAuthStateEntity {
     @Column(name = "provider", length = 20, nullable = false)
     private String provider;
 
+    /** 로그인 완료 후 redirect 할 프론트 origin. */
+    @Column(name = "frontend_origin", length = 255)
+    private String frontendOrigin;
+
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 

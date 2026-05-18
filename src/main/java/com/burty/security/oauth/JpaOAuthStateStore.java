@@ -43,7 +43,7 @@ public class JpaOAuthStateStore implements OAuthStateStore {
 
     @Override
     @Transactional
-    public void remember(String provider, String state) {
+    public void remember(String provider, String state, String frontendOrigin) {
         if (state == null || state.isBlank()) {
             return;
         }
@@ -51,6 +51,7 @@ public class JpaOAuthStateStore implements OAuthStateStore {
         OAuthStateEntity entity = new OAuthStateEntity();
         entity.setStateKey(key);
         entity.setProvider(provider == null ? "" : provider.toUpperCase());
+        entity.setFrontendOrigin(blank(frontendOrigin) ? null : frontendOrigin.trim());
         entity.setExpiresAt(now().plus(ttl));
         try {
             repository.save(entity);
@@ -63,7 +64,7 @@ public class JpaOAuthStateStore implements OAuthStateStore {
 
     @Override
     @Transactional
-    public void verifyAndConsume(String provider, String state) {
+    public OAuthStateContext verifyAndConsume(String provider, String state) {
         if (state == null || state.isBlank()) {
             throw new IllegalStateException("OAuth state가 필요합니다.");
         }
@@ -73,6 +74,7 @@ public class JpaOAuthStateStore implements OAuthStateStore {
             throw new IllegalStateException("OAuth state가 유효하지 않거나 만료되었습니다.");
         }
         OAuthStateEntity entity = maybe.get();
+        String frontendOrigin = entity.getFrontendOrigin();
         // 검증 결과와 무관하게 단발성 — 삭제 먼저 (replay 방지)
         try {
             repository.deleteById(key);
@@ -83,6 +85,7 @@ public class JpaOAuthStateStore implements OAuthStateStore {
             throw new IllegalStateException("OAuth state가 유효하지 않거나 만료되었습니다.");
         }
         maybeCleanup();
+        return new OAuthStateContext(frontendOrigin);
     }
 
     private void maybeCleanup() {
@@ -113,5 +116,9 @@ public class JpaOAuthStateStore implements OAuthStateStore {
         } catch (Exception e) {
             throw new IllegalStateException("OAuth state key hashing failed", e);
         }
+    }
+
+    private static boolean blank(String value) {
+        return value == null || value.isBlank();
     }
 }

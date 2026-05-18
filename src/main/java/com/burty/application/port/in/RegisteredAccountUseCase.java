@@ -12,6 +12,5 @@ public interface RegisteredAccountUseCase {
 
     List<View> list(String userId);
 
-    /** Decrypted view for sensitive read; controller maps to masked-only DTO unless caller is privileged. */
-    record View(String accountNoHash, String accountNoMasked, String accountNoPlain, String alias) {}
+    record View(String accountNo, String alias) {}
 }

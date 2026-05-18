@@ -18,6 +18,7 @@ import com.burty.domain.repository.SocialAccountRepository;
 import com.burty.domain.repository.UserProfileRepository;
 import com.burty.domain.repository.UserRepository;
 import com.burty.security.RefreshTokenService;
+import com.burty.security.oauth.OAuthStateContext;
 import com.burty.security.oauth.OAuthStateStore;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -62,23 +63,20 @@ public class SocialLoginService implements SocialLoginUseCase {
     }
 
     @Override
-    public SocialAuthorizeUrlResult createAuthorizeUrl(String providerRaw, String state, String requestedRedirectUri) {
+    public SocialAuthorizeUrlResult createAuthorizeUrl(String providerRaw, String state, String frontendOrigin) {
         SocialProvider provider = SocialProvider.parse(providerRaw);
         SocialProviderStrategy strategy = providerRegistry.get(provider);
         SocialLoginProperties.Provider config = properties.get(provider);
 
-        // 호출자가 redirect_uri 를 지정했으면 그 값을 사용. 단 provider 콘솔에 등록된 URI 와 정확히 일치해야 함
-        // (등록 안 된 값이면 카카오 KOE006 / 구글 redirect_uri_mismatch 등).
-        String redirectUri = blank(requestedRedirectUri) ? config.getRedirectUri() : requestedRedirectUri.trim();
         String effectiveState = blank(state) ? UUID.randomUUID().toString() : state.trim();
         if (!properties.isStubMode()) {
-            oAuthStateStore.remember(provider.name(), effectiveState);
+            oAuthStateStore.remember(provider.name(), effectiveState, frontendOrigin);
         }
 
         UriComponentsBuilder builder = UriComponentsBuilder.fromUriString(config.getAuthorizeUrl())
                 .queryParam("response_type", "code")
                 .queryParam("client_id", config.getClientId())
-                .queryParam("redirect_uri", redirectUri)
+                .queryParam("redirect_uri", config.getRedirectUri())
                 .queryParam("state", effectiveState);
         if (!blank(config.getScope())) builder.queryParam("scope", config.getScope());
         strategy.customizeAuthorizeUrl(builder);
@@ -96,12 +94,14 @@ public class SocialLoginService implements SocialLoginUseCase {
         if (blank(code)) {
             throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE, "소셜 로그인 authorization code가 필요합니다.");
         }
-        verifyState(provider, state);
-        log.debug("Social login state verified provider={}", provider);
+        OAuthStateContext stateContext = verifyState(provider, state);
+        String frontendOrigin = stateContext == null ? null : stateContext.frontendOrigin();
+        String effectiveRedirectUri = blank(redirectUri) ? properties.get(provider).getRedirectUri() : redirectUri.trim();
+        log.debug("Social login state verified provider={} hasEffectiveRedirectUri={}", provider, !blank(effectiveRedirectUri));
 
         SocialProfile profile = properties.isStubMode()
                 ? stubProfile(provider, code)
-                : providerRegistry.get(provider).fetchProfile(code, redirectUri, codeVerifier);
+                : providerRegistry.get(provider).fetchProfile(code, effectiveRedirectUri, codeVerifier);
         if (blank(profile.providerUserId())) {
             throw new BusinessException(ErrorCode.EXTERNAL_API_ERROR, provider + " 사용자 식별자를 확인할 수 없습니다.");
         }
@@ -149,14 +149,16 @@ public class SocialLoginService implements SocialLoginUseCase {
                 tokens.accessExpiresInSeconds(),
                 tokens.refreshExpiresInSeconds(),
                 newUser,
-                profileComplete
+                profileComplete,
+                frontendOrigin
         );
     }
 
-    private void verifyState(SocialProvider provider, String state) {
-        if (properties.isStubMode()) return;
+    /** stub 모드이거나 state 검증 생략 시 null. */
+    private OAuthStateContext verifyState(SocialProvider provider, String state) {
+        if (properties.isStubMode()) return null;
         try {
-            oAuthStateStore.verifyAndConsume(provider.name(), state);
+            return oAuthStateStore.verifyAndConsume(provider.name(), state);
         } catch (IllegalStateException e) {
             throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE, e.getMessage());
         }

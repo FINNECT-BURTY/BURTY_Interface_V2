@@ -14,7 +14,6 @@ import com.burty.domain.repository.BiometricCredentialRepository;
 import com.burty.domain.repository.DeviceRepository;
 import com.burty.domain.repository.UserRepository;
 import com.burty.security.JwtTokenProvider;
-import com.burty.util.EncryptionUtil;
 import org.springframework.stereotype.Component;
 
 import java.nio.charset.StandardCharsets;
@@ -34,12 +33,10 @@ public class WebAuthnFido2Adapter implements BiometricAuthPort, WebAuthnCeremony
     private final UserRepository userRepository;
     private final DeviceRepository deviceRepository;
     private final JwtTokenProvider jwtTokenProvider;
-    private final EncryptionUtil encryptionUtil;
 
     public WebAuthnFido2Adapter(WebAuthnProperties properties, ChallengeStore challengeStore, WebAuthnAssertionVerifier assertionVerifier,
                                 BiometricCredentialRepository biometricCredentialRepository, UserRepository userRepository,
-                                DeviceRepository deviceRepository, JwtTokenProvider jwtTokenProvider,
-                                EncryptionUtil encryptionUtil) {
+                                DeviceRepository deviceRepository, JwtTokenProvider jwtTokenProvider) {
         this.properties = properties;
         this.challengeStore = challengeStore;
         this.assertionVerifier = assertionVerifier;
@@ -47,7 +44,6 @@ public class WebAuthnFido2Adapter implements BiometricAuthPort, WebAuthnCeremony
         this.userRepository = userRepository;
         this.deviceRepository = deviceRepository;
         this.jwtTokenProvider = jwtTokenProvider;
-        this.encryptionUtil = encryptionUtil;
     }
 
     @Override
@@ -247,10 +243,10 @@ public class WebAuthnFido2Adapter implements BiometricAuthPort, WebAuthnCeremony
         if (device.getDeviceId() == null) {
             plainToken = blank(plainToken) ? issueDeviceToken(userKey, fingerprint) : plainToken;
             device.setDeviceTokenHash(sha256(plainToken));
-            device.setDeviceTokenEncrypted(encryptionUtil.encrypt(plainToken));
+            device.setDeviceToken(plainToken);
             device.setCreatedAt(LocalDateTime.now());
         } else if (blank(plainToken)) {
-            plainToken = encryptionUtil.decrypt(device.getDeviceTokenEncrypted());
+            plainToken = device.getDeviceToken();
         }
         device.setUser(user);
         device.setDeviceFingerprint(fingerprint);
