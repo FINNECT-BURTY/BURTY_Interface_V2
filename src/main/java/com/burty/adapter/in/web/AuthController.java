@@ -1,6 +1,7 @@
 package com.burty.adapter.in.web;
 
 import com.burty.adapter.in.web.dto.LogoutResponse;
+import com.burty.adapter.in.web.dto.CurrentUserResponse;
 import com.burty.adapter.in.web.dto.RefreshTokenRequest;
 import com.burty.adapter.in.web.dto.TokenIssueRequest;
 import com.burty.adapter.in.web.dto.TokenPairResponse;
@@ -16,6 +17,7 @@ import com.burty.security.AuthCookies;
 import com.burty.security.JwtBlacklistService;
 import com.burty.security.JwtTokenProvider;
 import com.burty.security.RefreshTokenService;
+import com.burty.domain.repository.UserProfileRepository;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -24,6 +26,8 @@ import org.springframework.core.env.Environment;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Arrays;
@@ -49,19 +53,22 @@ public class AuthController extends BaseController {
     private final BurtyAuthProperties burtyAuthProperties;
     private final Environment environment;
     private final SocialAuthSupport socialAuthSupport;
+    private final UserProfileRepository userProfileRepository;
 
     public AuthController(JwtTokenProvider jwtTokenProvider,
                           JwtBlacklistService jwtBlacklistService,
                           RefreshTokenService refreshTokenService,
                           BurtyAuthProperties burtyAuthProperties,
                           Environment environment,
-                          SocialAuthSupport socialAuthSupport) {
+                          SocialAuthSupport socialAuthSupport,
+                          UserProfileRepository userProfileRepository) {
         this.jwtTokenProvider = jwtTokenProvider;
         this.jwtBlacklistService = jwtBlacklistService;
         this.refreshTokenService = refreshTokenService;
         this.burtyAuthProperties = burtyAuthProperties;
         this.environment = environment;
         this.socialAuthSupport = socialAuthSupport;
+        this.userProfileRepository = userProfileRepository;
     }
 
     @PostMapping("/token")
@@ -77,6 +84,29 @@ public class AuthController extends BaseController {
         }
         String userId = request.getUserId() != null ? request.getUserId() : UUID.randomUUID().toString();
         return ApiResponse.ok(new TokenResponse(jwtTokenProvider.generateToken(userId)));
+    }
+
+    @GetMapping("/me")
+    @Operation(
+            summary = "현재 로그인 사용자 조회",
+            description = "HttpOnly access cookie 또는 Authorization 헤더로 현재 사용자와 추가 프로필 완료 여부를 조회합니다.",
+            security = { @SecurityRequirement(name = "bearerAuth") }
+    )
+    public ApiResponse<CurrentUserResponse> me() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !authentication.isAuthenticated() || authentication.getPrincipal() == null) {
+            throw new BusinessException(ErrorCode.UNAUTHORIZED, "로그인이 필요합니다.");
+        }
+
+        String userId = String.valueOf(authentication.getPrincipal());
+        boolean profileComplete;
+        try {
+            profileComplete = userProfileRepository.existsById(Long.parseLong(userId));
+        } catch (NumberFormatException e) {
+            profileComplete = false;
+        }
+
+        return ApiResponse.ok(new CurrentUserResponse(userId, profileComplete));
     }
 
     @PostMapping("/refresh")
