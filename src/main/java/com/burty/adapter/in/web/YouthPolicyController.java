@@ -14,8 +14,6 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.Map;
-
 @RestController
 @RequestMapping("/youth-policies")
 @Tag(name = "Youth Policy", description = "온통청년 청년정책 조회/동기화 API")
@@ -51,19 +49,4 @@ public class YouthPolicyController extends BaseController {
         return ApiResponse.ok(result);
     }
 
-    @PostMapping("/sync")
-    @AuthLevel(RiskLevel.LEVEL_1)
-    @Operation(
-            summary = "청년정책 동기화",
-            description = "온통청년 OpenAPI에서 정책을 가져와 DB에 upsert합니다. zipCd/lclsfNm/keyword 미입력 시 전체 조회합니다.",
-            security = { @SecurityRequirement(name = "bearerAuth") }
-    )
-    public ApiResponse<Map<String, Object>> sync(
-            @RequestParam(required = false) String zipCd,
-            @RequestParam(required = false) String lclsfNm,
-            @RequestParam(required = false) String keyword
-    ) {
-        int count = youthPolicyUseCase.syncPolicies(zipCd, lclsfNm, keyword);
-        return ApiResponse.ok(Map.of("syncedCount", count));
-    }
 }

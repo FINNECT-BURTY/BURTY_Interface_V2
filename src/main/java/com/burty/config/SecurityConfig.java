@@ -47,8 +47,10 @@ public class SecurityConfig {
                                 "/webjars/**"
                         ).permitAll()
                         .requestMatchers("/api/v1/auth/**").permitAll()
+                        .requestMatchers("/api/v1/admin/auth/**").permitAll()
                         // refresh 호환 경로: 만료된 access token 으로도 호출 가능해야 함
                         .requestMatchers("/api/v1/sessions/refresh").permitAll()
+                        .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
                         .requestMatchers("/api/v1/**").authenticated()
                         .anyRequest().permitAll());
 
