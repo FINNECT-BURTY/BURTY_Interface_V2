@@ -5,10 +5,13 @@ package com.burty.security.oauth;
  */
 public interface OAuthStateStore {
 
-    void remember(String provider, String state);
+    /**
+     * @param frontendOrigin 로그인 완료 후 돌려보낼 FE origin (nullable)
+     */
+    void remember(String provider, String state, String frontendOrigin);
 
     /**
      * @throws IllegalStateException state가 없거나 만료된 경우
      */
-    void verifyAndConsume(String provider, String state);
+    OAuthStateContext verifyAndConsume(String provider, String state);
 }

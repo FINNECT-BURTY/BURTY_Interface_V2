@@ -39,8 +39,8 @@ public class DeviceEntity {
     @Column(name = "device_token_hash", length = 64, nullable = false)
     private String deviceTokenHash;
 
-    @Column(name = "device_token_encrypted", length = 500, nullable = false)
-    private String deviceTokenEncrypted;
+    @Column(name = "device_token", length = 500, nullable = false)
+    private String deviceToken;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "platform", nullable = false)

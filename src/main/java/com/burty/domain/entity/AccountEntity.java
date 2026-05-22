@@ -1,11 +1,17 @@
 package com.burty.domain.entity;
 
 import jakarta.persistence.*;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "tbl_account")
+@Getter
+@Setter
+@NoArgsConstructor
 public class AccountEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -16,13 +22,13 @@ public class AccountEntity {
     @JoinColumn(name = "link_id", nullable = false)
     private LinkedInstitutionEntity linkedInstitution;
 
-    @Column(name = "account_no_encrypted", nullable = false)
-    private byte[] accountNoEncrypted;
+    @Column(name = "account_no", nullable = false, length = 80)
+    private String accountNo;
 
     @Column(name = "account_no_hash", nullable = false, length = 64)
     private String accountNoHash;
 
-    @Column(name = "account_no_masked", nullable = false)
+    @Column(name = "account_no_masked", nullable = false, length = 80)
     private String accountNoMasked;
 
     @Column(name = "account_name")

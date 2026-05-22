@@ -30,13 +30,19 @@ public abstract class AbstractOAuthCodeStrategy implements SocialProviderStrateg
         return properties.get(supports());
     }
 
+    /** Apple 은 ES256 JWT client_secret 을 동적으로 생성한다. */
+    protected String resolveClientSecret(SocialLoginProperties.Provider cfg) {
+        return cfg.getClientSecret();
+    }
+
     /** authorization_code 로 access_token 교환. Apple 의 id_token 케이스는 extractToken override. */
     protected String exchangeAccessToken(String code, String redirectUri, String codeVerifier) {
         SocialLoginProperties.Provider cfg = config();
         MultiValueMap<String, String> form = new LinkedMultiValueMap<>();
         form.add("grant_type", "authorization_code");
         form.add("client_id", cfg.getClientId());
-        if (notBlank(cfg.getClientSecret())) form.add("client_secret", cfg.getClientSecret());
+        String clientSecret = resolveClientSecret(cfg);
+        if (notBlank(clientSecret)) form.add("client_secret", clientSecret);
         form.add("redirect_uri", notBlank(redirectUri) ? redirectUri : cfg.getRedirectUri());
         form.add("code", code);
         if (notBlank(codeVerifier)) form.add("code_verifier", codeVerifier);

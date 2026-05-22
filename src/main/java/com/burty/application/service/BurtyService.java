@@ -26,7 +26,6 @@ import com.burty.domain.repository.RegisteredAccountRepository;
 import com.burty.domain.repository.TransferRecordRepository;
 import com.burty.domain.repository.UserSettingRepository;
 import com.burty.util.AccountNumberHasher;
-import com.burty.util.EncryptionUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -67,7 +66,6 @@ public class BurtyService implements BurtyUseCase {
     private final RegisteredAccountRepository registeredAccountRepository;
     private final PersonaInferenceUseCase personaInferenceUseCase;
     private final AccountNumberHasher accountNumberHasher;
-    private final EncryptionUtil encryptionUtil;
     private final MyDataLinkStatusRepository myDataLinkStatusRepository;
 
     private static final String LIMIT_KEY = "TRANSFER_LIMIT";
@@ -94,7 +92,6 @@ public class BurtyService implements BurtyUseCase {
                         RegisteredAccountRepository registeredAccountRepository,
                         PersonaInferenceUseCase personaInferenceUseCase,
                         AccountNumberHasher accountNumberHasher,
-                        EncryptionUtil encryptionUtil,
                         MyDataLinkStatusRepository myDataLinkStatusRepository) {
         this.easyReadPort = easyReadPort;
         this.myDataPort = myDataPort;
@@ -115,7 +112,6 @@ public class BurtyService implements BurtyUseCase {
         this.registeredAccountRepository = registeredAccountRepository;
         this.personaInferenceUseCase = personaInferenceUseCase;
         this.accountNumberHasher = accountNumberHasher;
-        this.encryptionUtil = encryptionUtil;
         this.myDataLinkStatusRepository = myDataLinkStatusRepository;
     }
 
@@ -164,7 +160,7 @@ public class BurtyService implements BurtyUseCase {
         boolean notify = amount >= FAMILY_ALERT_THRESHOLD;
         boolean unusualNightTransfer = LocalTime.now().isAfter(LocalTime.of(23, 0)) || LocalTime.now().isBefore(LocalTime.of(6, 0));
         boolean unregisteredAccountTransfer = !registeredAccountRepository
-                .existsByUserIdAndAccountNoHash(userId, accountNumberHasher.hash(toAccount));
+                .existsByUserIdAndAccountNo(userId, toAccount);
         boolean largeTransfer = amount >= LARGE_TRANSFER_THRESHOLD;
 
         if (unusualNightTransfer || unregisteredAccountTransfer || largeTransfer) {

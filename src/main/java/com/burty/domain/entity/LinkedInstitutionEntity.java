@@ -1,11 +1,17 @@
 package com.burty.domain.entity;
 
 import jakarta.persistence.*;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "tbl_linked_institution")
+@Getter
+@Setter
+@NoArgsConstructor
 public class LinkedInstitutionEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -26,11 +32,11 @@ public class LinkedInstitutionEntity {
     @Column(name = "institution_type", nullable = false)
     private InstitutionType institutionType;
 
-    @Column(name = "access_token_encrypted", nullable = false)
-    private byte[] accessTokenEncrypted;
+    @Column(name = "access_token", nullable = false, length = 2000)
+    private String accessToken;
 
-    @Column(name = "refresh_token_encrypted", nullable = false)
-    private byte[] refreshTokenEncrypted;
+    @Column(name = "refresh_token", nullable = false, length = 2000)
+    private String refreshToken;
 
     @Column(name = "token_expires_at", nullable = false)
     private LocalDateTime tokenExpiresAt;

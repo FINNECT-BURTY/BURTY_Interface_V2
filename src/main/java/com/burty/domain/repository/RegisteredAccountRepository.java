@@ -8,5 +8,5 @@ import java.util.List;
 public interface RegisteredAccountRepository extends JpaRepository<RegisteredAccountEntity, String> {
     List<RegisteredAccountEntity> findByUserId(String userId);
 
-    boolean existsByUserIdAndAccountNoHash(String userId, String accountNoHash);
+    boolean existsByUserIdAndAccountNo(String userId, String accountNo);
 }

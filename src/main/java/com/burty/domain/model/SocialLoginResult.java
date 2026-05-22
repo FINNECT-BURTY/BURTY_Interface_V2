@@ -9,6 +9,7 @@ public class SocialLoginResult {
     private final long refreshExpiresInSeconds;
     private final boolean newUser;
     private final boolean profileComplete;
+    private final String frontendOrigin;
 
     public SocialLoginResult(String userId,
                              String provider,
@@ -17,7 +18,8 @@ public class SocialLoginResult {
                              long accessExpiresInSeconds,
                              long refreshExpiresInSeconds,
                              boolean newUser,
-                             boolean profileComplete) {
+                             boolean profileComplete,
+                             String frontendOrigin) {
         this.userId = userId;
         this.provider = provider;
         this.accessToken = accessToken;
@@ -26,6 +28,7 @@ public class SocialLoginResult {
         this.refreshExpiresInSeconds = refreshExpiresInSeconds;
         this.newUser = newUser;
         this.profileComplete = profileComplete;
+        this.frontendOrigin = frontendOrigin;
     }
 
     public String getUserId() { return userId; }
@@ -36,4 +39,5 @@ public class SocialLoginResult {
     public long getRefreshExpiresInSeconds() { return refreshExpiresInSeconds; }
     public boolean isNewUser() { return newUser; }
     public boolean isProfileComplete() { return profileComplete; }
+    public String getFrontendOrigin() { return frontendOrigin; }
 }

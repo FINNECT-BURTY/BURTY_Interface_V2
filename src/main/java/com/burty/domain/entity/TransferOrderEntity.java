@@ -1,11 +1,17 @@
 package com.burty.domain.entity;
 
 import jakarta.persistence.*;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "tbl_transfer_order")
+@Getter
+@Setter
+@NoArgsConstructor
 public class TransferOrderEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -23,10 +29,10 @@ public class TransferOrderEntity {
     @JoinColumn(name = "from_account_id", nullable = false)
     private AccountEntity fromAccount;
 
-    @Column(name = "to_account_no_encrypted", nullable = false)
-    private byte[] toAccountNoEncrypted;
+    @Column(name = "to_account_no", nullable = false, length = 80)
+    private String toAccountNo;
 
-    @Column(name = "to_account_no_masked", nullable = false)
+    @Column(name = "to_account_no_masked", nullable = false, length = 80)
     private String toAccountNoMasked;
 
     @Column(name = "to_bank_code", nullable = false)

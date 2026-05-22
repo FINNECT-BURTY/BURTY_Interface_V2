@@ -41,9 +41,9 @@ class BurtyE2ETests {
         String nonce = UUID.randomUUID().toString().replace("-", "");
         UserEntity user = new UserEntity();
         user.setCiHash(nonce + nonce);
-        user.setCiEncrypted("ci".getBytes());
+        user.setCi("ci-" + nonce);
         user.setPhoneHash(nonce + "0".repeat(32));
-        user.setPhoneEncrypted("phone".getBytes());
+        user.setPhone("01000000000");
         user.setStatus(UserEntity.UserStatus.ACTIVE);
         user.setFailedLoginCount(0);
         user.setCreatedAt(LocalDateTime.now());
@@ -198,9 +198,9 @@ class BurtyE2ETests {
         UserEntity otherUser = new UserEntity();
         String nonce = UUID.randomUUID().toString().replace("-", "");
         otherUser.setCiHash(nonce + nonce);
-        otherUser.setCiEncrypted("x".getBytes());
+        otherUser.setCi("x");
         otherUser.setPhoneHash("d" + nonce + "d".repeat(31));
-        otherUser.setPhoneEncrypted("y".getBytes());
+        otherUser.setPhone("01011112222");
         otherUser.setStatus(UserEntity.UserStatus.ACTIVE);
         otherUser.setFailedLoginCount(0);
         otherUser.setCreatedAt(LocalDateTime.now());

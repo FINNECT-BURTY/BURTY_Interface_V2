@@ -12,6 +12,7 @@ import com.burty.domain.model.SocialLoginResult;
 import com.burty.domain.model.SocialProvider;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -32,13 +33,16 @@ public class GoogleAuthController extends BaseController {
     @GetMapping("/authorize-url")
     @Operation(
             summary = "구글 인가 URL 생성",
-            description = "구글 OAuth 인가 URL과 state를 반환합니다. `redirectUri` 를 넘기면 구글에 전달 — Google Cloud Console 에 사전 등록 필수 " +
-                    "(아니면 redirect_uri_mismatch). default 는 `burty.social.google.redirect-uri`.",
+            description = "구글 OAuth 인가 URL과 state를 반환합니다.",
             security = {}
     )
     public ApiResponse<AuthorizeUrlResponse> authorizeUrl(@RequestParam(required = false) String state,
-                                                          @RequestParam(required = false) String redirectUri) {
-        SocialAuthorizeUrlResult auth = socialLoginUseCase.createAuthorizeUrl(PROVIDER.name(), state, redirectUri);
+                                                          HttpServletRequest request) {
+        SocialAuthorizeUrlResult auth = socialLoginUseCase.createAuthorizeUrl(
+                PROVIDER.name(),
+                state,
+                support.resolveRequestFrontendOrigin(request)
+        );
         return ApiResponse.ok(new AuthorizeUrlResponse(auth.authorizeUrl(), auth.state()));
     }
 

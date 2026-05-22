@@ -57,8 +57,12 @@ services:
       # CORS / 쿠키
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:3000,http://localhost:8080}
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost:8080}
-      COOKIE_DOMAIN: ${COOKIE_DOMAIN:-localhost}
-      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      # 비워두면 callback 을 받은 현재 호스트에 host-only cookie 로 저장된다.
+      # 운영 예: COOKIE_DOMAIN=burty.co.kr 또는 빈 값
+      # localhost 프론트에서 원격 HTTPS API 를 직접 호출해 테스트할 때는 COOKIE_SAMESITE=None, COOKIE_SECURE=true 필요.
+      COOKIE_DOMAIN: ${COOKIE_DOMAIN:-}
+      COOKIE_SECURE: ${COOKIE_SECURE:-true}
+      COOKIE_SAMESITE: ${COOKIE_SAMESITE:-Lax}
 
       # Mail (optional)
       MAIL_HOST: ${MAIL_HOST:-smtp.gmail.com}

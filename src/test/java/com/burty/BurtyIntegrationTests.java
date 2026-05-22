@@ -48,9 +48,9 @@ class BurtyIntegrationTests {
         String nonce = UUID.randomUUID().toString().replace("-", "");
         UserEntity user = new UserEntity();
         user.setCiHash(nonce + nonce);
-        user.setCiEncrypted("enc-ci".getBytes());
+        user.setCi("ci-" + nonce);
         user.setPhoneHash("b" + nonce + "b".repeat(31));
-        user.setPhoneEncrypted("enc-phone".getBytes());
+        user.setPhone("01000000000");
         user.setStatus(UserEntity.UserStatus.ACTIVE);
         user.setFailedLoginCount(0);
         user.setCreatedAt(LocalDateTime.now());
