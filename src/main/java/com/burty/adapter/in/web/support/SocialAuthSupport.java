@@ -41,7 +41,7 @@ public class SocialAuthSupport {
     private final String frontendUrl;
 
     public SocialAuthSupport(BurtyAuthProperties burtyAuthProperties,
-                             @Value("${FRONTEND_URL:${app.base-url:https://burty.co.kr}}") String frontendUrl) {
+                             @Value("${burty.auth.frontend-url:https://burty.co.kr}") String frontendUrl) {
         this.burtyAuthProperties = burtyAuthProperties;
         this.frontendUrl = frontendUrl;
     }
