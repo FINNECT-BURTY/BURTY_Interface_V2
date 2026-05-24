@@ -59,8 +59,35 @@ public class YouthPolicyService implements YouthPolicyUseCase {
         return totalSaved;
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public Page<YouthPolicyEntity> searchByDomain(String domain, String keyword,
+                                                   Integer minAge, Integer maxAge,
+                                                   Pageable pageable) {
+        String domainKeyword = resolveDomainKeyword(domain);
+        return youthPolicyRepository.findByDomain(
+                domainKeyword,
+                blank(keyword) ? null : keyword,
+                minAge,
+                maxAge,
+                pageable
+        );
+    }
+
+    private String resolveDomainKeyword(String domain) {
+        if (domain == null) return null;
+        return switch (domain.toLowerCase()) {
+            case "finance", "금융"   -> "금융";
+            case "housing", "주거"   -> "주거";
+            case "welfare", "복지"   -> "복지";
+            case "subsidy", "지원금" -> "지원금";
+            default -> null;
+        };
+    }
+
     private boolean isFinanceRelated(String lclsfNm) {
-        return lclsfNm != null && lclsfNm.contains("금융");
+        if (lclsfNm == null) return false;
+        return lclsfNm.contains("금융") || lclsfNm.contains("주거") || lclsfNm.contains("복지");
     }
 
     @Override

@@ -17,4 +17,15 @@ public interface YouthPolicyUseCase {
             Integer maxAge,
             Pageable pageable
     );
+
+    /**
+     * domain: finance(금융지원), housing(주거), welfare(복지), subsidy(지원금·보조금)
+     */
+    Page<YouthPolicyEntity> searchByDomain(
+            String domain,
+            String keyword,
+            Integer minAge,
+            Integer maxAge,
+            Pageable pageable
+    );
 }

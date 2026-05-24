@@ -36,4 +36,28 @@ public interface YouthPolicyRepository extends JpaRepository<YouthPolicyEntity, 
             @Param("maxAge") Integer maxAge,
             Pageable pageable
     );
+
+    @Query("""
+            select p from YouthPolicyEntity p
+            where (:domainKeyword is null
+                   or p.lclsfNm     like %:domainKeyword%
+                   or p.mclsfNm     like %:domainKeyword%
+                   or p.plcyKywdNm  like %:domainKeyword%
+                   or p.plcyNm      like %:domainKeyword%)
+              and (:keyword is null
+                   or p.plcyNm      like %:keyword%
+                   or p.plcyKywdNm  like %:keyword%
+                   or p.plcyExplnCn like %:keyword%)
+              and (:minAge is null or p.sprtTrgtMaxAge is null
+                   or CAST(p.sprtTrgtMaxAge AS integer) >= :minAge)
+              and (:maxAge is null or p.sprtTrgtMinAge is null
+                   or CAST(p.sprtTrgtMinAge AS integer) <= :maxAge)
+            """)
+    Page<YouthPolicyEntity> findByDomain(
+            @Param("domainKeyword") String domainKeyword,
+            @Param("keyword") String keyword,
+            @Param("minAge") Integer minAge,
+            @Param("maxAge") Integer maxAge,
+            Pageable pageable
+    );
 }
