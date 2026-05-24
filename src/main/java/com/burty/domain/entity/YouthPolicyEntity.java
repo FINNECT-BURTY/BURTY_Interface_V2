@@ -12,8 +12,7 @@ import java.time.LocalDateTime;
         name = "tbl_youth_policy",
         indexes = {
                 @Index(name = "idx_youth_policy_no", columnList = "plcy_no", unique = true),
-                @Index(name = "idx_youth_policy_lclsf", columnList = "lclsf_nm"),
-                @Index(name = "idx_youth_policy_zip", columnList = "zip_cd")
+                @Index(name = "idx_youth_policy_lclsf", columnList = "lclsf_nm")
         }
 )
 @Getter
@@ -80,7 +79,7 @@ public class YouthPolicyEntity {
     @Column(name = "sprt_trgt_age_lmt_yn", length = 1)
     private String sprtTrgtAgeLmtYn;
 
-    @Column(name = "zip_cd", length = 200)
+    @Column(name = "zip_cd", columnDefinition = "TEXT")
     private String zipCd;
 
     @Column(name = "earn_cnd_se_cd", length = 10)
@@ -98,16 +97,16 @@ public class YouthPolicyEntity {
     @Column(name = "mrg_stts_cd", length = 10)
     private String mrgSttsCd;
 
-    @Column(name = "job_cd", length = 100)
+    @Column(name = "job_cd", columnDefinition = "TEXT")
     private String jobCd;
 
-    @Column(name = "school_cd", length = 100)
+    @Column(name = "school_cd", columnDefinition = "TEXT")
     private String schoolCd;
 
-    @Column(name = "s_biz_cd", length = 100)
+    @Column(name = "s_biz_cd", columnDefinition = "TEXT")
     private String sBizCd;
 
-    @Column(name = "aply_ymd", length = 200)
+    @Column(name = "aply_ymd", columnDefinition = "TEXT")
     private String aplyYmd;
 
     @Column(name = "frst_reg_dt", length = 30)
