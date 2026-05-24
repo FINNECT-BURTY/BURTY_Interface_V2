@@ -28,24 +28,28 @@ public class YouthPolicyService implements YouthPolicyUseCase {
     }
 
     @Override
-    @Transactional
     public int syncPolicies(String zipCd, String lclsfNm, String keyword) {
+        // 카테고리 미지정 시 금융 관련 정책만 동기화
+        String effectiveLclsfNm = blank(lclsfNm) ? "금융･복지･문화" : lclsfNm;
+
         int pageNum = 1;
         int totalSaved = 0;
 
         while (true) {
             List<YouthPolicyEntity> fetched = youthPolicyPort.fetchPolicies(
-                    pageNum, properties.getPageSize(), zipCd, lclsfNm, keyword
+                    pageNum, properties.getPageSize(), zipCd, effectiveLclsfNm, keyword
             );
             if (fetched.isEmpty()) break;
 
             for (YouthPolicyEntity incoming : fetched) {
                 if (incoming.getPlcyNo() == null) continue;
-                youthPolicyRepository.findByPlcyNo(incoming.getPlcyNo())
-                        .ifPresentOrElse(
-                                existing -> copyFields(incoming, existing),
-                                () -> youthPolicyRepository.save(incoming)
-                        );
+                YouthPolicyEntity existing = youthPolicyRepository.findByPlcyNo(incoming.getPlcyNo()).orElse(null);
+                if (existing != null) {
+                    copyFields(incoming, existing);
+                    youthPolicyRepository.save(existing);
+                } else {
+                    youthPolicyRepository.save(incoming);
+                }
                 totalSaved++;
             }
 
