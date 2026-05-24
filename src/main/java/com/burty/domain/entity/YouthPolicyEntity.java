@@ -64,10 +64,10 @@ public class YouthPolicyEntity {
     @Column(name = "plcy_aply_mthd_cn", columnDefinition = "TEXT")
     private String plcyAplyMthdCn;
 
-    @Column(name = "aply_url_addr", length = 500)
+    @Column(name = "aply_url_addr", columnDefinition = "TEXT")
     private String aplyUrlAddr;
 
-    @Column(name = "ref_url_addr1", length = 500)
+    @Column(name = "ref_url_addr1", columnDefinition = "TEXT")
     private String refUrlAddr1;
 
     @Column(name = "sprt_trgt_min_age", length = 10)
