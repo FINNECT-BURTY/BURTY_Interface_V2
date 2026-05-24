@@ -81,6 +81,8 @@ services:
 
       UPLOAD_PATH: /app/uploads/
       LOG_PATH: /app/logs
+      LOG_LEVEL_BURTY: ${LOG_LEVEL_BURTY:-INFO}
+      LOG_LEVEL_SQL: ${LOG_LEVEL_SQL:-WARN}
       JAVA_OPTS: >-
         -Xms512m -Xmx1024m -XX:+UseContainerSupport
         -Duser.timezone=Asia/Seoul

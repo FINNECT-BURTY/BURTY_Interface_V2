@@ -80,6 +80,7 @@ public class UserOnboardingService implements UserOnboardingUseCase {
         String phoneHash = sha256(normalizedPhone);
         userRepository.findByPhoneHash(phoneHash)
                 .filter(u -> !u.getUserId().equals(numericUserId))
+                .filter(u -> userProfileRepository.existsById(u.getUserId()))
                 .ifPresent(u -> {
                     throw new BusinessException(ErrorCode.DUPLICATE_RESOURCE, "이미 사용 중인 휴대폰 번호입니다.");
                 });
