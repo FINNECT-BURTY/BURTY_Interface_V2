@@ -29,20 +29,20 @@ public class YouthPolicyService implements YouthPolicyUseCase {
 
     @Override
     public int syncPolicies(String zipCd, String lclsfNm, String keyword) {
-        // 카테고리 미지정 시 금융 관련 정책만 동기화
-        String effectiveLclsfNm = blank(lclsfNm) ? "금융･복지･문화" : lclsfNm;
-
         int pageNum = 1;
         int totalSaved = 0;
 
         while (true) {
             List<YouthPolicyEntity> fetched = youthPolicyPort.fetchPolicies(
-                    pageNum, properties.getPageSize(), zipCd, effectiveLclsfNm, keyword
+                    pageNum, properties.getPageSize(), zipCd, lclsfNm, keyword
             );
             if (fetched.isEmpty()) break;
 
             for (YouthPolicyEntity incoming : fetched) {
                 if (incoming.getPlcyNo() == null) continue;
+                // lclsfNm 미지정 시 금융 관련 정책만 저장
+                if (blank(lclsfNm) && !isFinanceRelated(incoming.getLclsfNm())) continue;
+
                 YouthPolicyEntity existing = youthPolicyRepository.findByPlcyNo(incoming.getPlcyNo()).orElse(null);
                 if (existing != null) {
                     copyFields(incoming, existing);
@@ -57,6 +57,10 @@ public class YouthPolicyService implements YouthPolicyUseCase {
             pageNum++;
         }
         return totalSaved;
+    }
+
+    private boolean isFinanceRelated(String lclsfNm) {
+        return lclsfNm != null && lclsfNm.contains("금융");
     }
 
     @Override
