@@ -8,11 +8,18 @@ import java.util.List;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class YouthCenterApiResponse {
 
-    @JsonProperty("youthPolicyList")
-    private List<PolicyItem> youthPolicyList;
+    @JsonProperty("result")
+    private Result result;
 
-    public List<PolicyItem> getYouthPolicyList() { return youthPolicyList; }
-    public void setYouthPolicyList(List<PolicyItem> list) { this.youthPolicyList = list; }
+    public List<PolicyItem> getYouthPolicyList() {
+        return result != null ? result.youthPolicyList : null;
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public static class Result {
+        @JsonProperty("youthPolicyList")
+        private List<PolicyItem> youthPolicyList;
+    }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     public static class PolicyItem {
