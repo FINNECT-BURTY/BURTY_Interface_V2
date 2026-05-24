@@ -70,6 +70,9 @@ services:
       MAIL_USERNAME: ${MAIL_USERNAME:-}
       MAIL_PASSWORD: ${MAIL_PASSWORD:-}
 
+      # 온통청년 API
+      YOUTH_CENTER_API_KEY: ${YOUTH_CENTER_API_KEY:-5379dfca-8d86-4145-9a9a-24c3c75a6465}
+
       # Gemini / Vertex AI (optional)
       GEMINI_ENABLED: ${GEMINI_ENABLED:-false}
       GEMINI_PROJECT_ID: ${GEMINI_PROJECT_ID:-}
