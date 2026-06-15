@@ -28,13 +28,22 @@ pipeline {
             }
         }
 
+        stage('Test & Format') {
+            steps {
+                sh '''
+                    set -e
+                    chmod +x gradlew
+                    ./gradlew spotlessCheck test --no-daemon
+                '''
+            }
+        }
+
         stage('Inject .env') {
             steps {
                 withCredentials([file(credentialsId: 'BURTY_ENV_FILE', variable: 'ENV_FILE')]) {
                     sh '''
                         set -e
                         install -m 600 "$ENV_FILE" .env
-                        # 파라미터로 받은 SPRING_PROFILE 을 마지막에 append → docker-compose 변수 보간 시 우선
                         printf "\nSPRING_PROFILES_ACTIVE=%s\n" "${SPRING_PROFILE}" >> .env
                     '''
                 }
@@ -45,8 +54,6 @@ pipeline {
             steps {
                 sh '''
                     set -e
-                    # global-nginx 네트워크가 미리 만들어져 있어야 burty 가 가입 가능.
-                    # 운영 전환 중에는 자체 global-nginx 또는 기존 nginx-proxy 둘 중 하나가 ingress 역할을 한다.
                     if ! docker network inspect global-nginx >/dev/null 2>&1; then
                       echo "❌ global-nginx 네트워크 없음. ingress 스택을 먼저 기동하세요."
                       exit 1
@@ -54,7 +61,7 @@ pipeline {
                     if docker ps --format '{{.Names}}' | grep -Eq '^(global-nginx|nginx-proxy)$'; then
                       echo "✅ ingress 컨테이너 실행 중"
                     else
-                      echo "⚠️  ingress 컨테이너(global-nginx 또는 nginx-proxy)가 실행 중이 아닙니다. 배포는 계속 진행하지만 외부 접근은 안 됩니다."
+                      echo "⚠️  ingress 컨테이너가 실행 중이 아닙니다."
                     fi
                 '''
             }
@@ -76,7 +83,6 @@ pipeline {
             steps {
                 sh '''
                     set -e
-                    # burty 컨테이너 내부 health (ingress 와 무관)
                     CODE=000
                     for i in $(seq 1 20); do
                       CODE=$(docker exec "${CONTAINER}" curl -s -o /dev/null -w "%{http_code}" \
@@ -90,14 +96,13 @@ pipeline {
                       exit 1
                     fi
 
-                    # 외부 도메인 (ingress 경유 HTTPS)
                     EXT=000
                     for i in $(seq 1 20); do
-                      EXT=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 https://${DOMAIN}/api/v1/swagger-ui/index.html || echo 000)
+                      EXT=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 https://${DOMAIN}/health || echo 000)
                       [ "$EXT" = "200" ] && break
                       sleep 3
                     done
-                    echo "external https://${DOMAIN}/api/v1/swagger-ui/index.html → HTTP ${EXT}"
+                    echo "external https://${DOMAIN}/health → HTTP ${EXT}"
                     if [ "$EXT" != "200" ]; then
                       docker logs --tail 120 nginx-proxy 2>/dev/null || true
                       exit 1
@@ -115,8 +120,7 @@ pipeline {
             echo """
             배포 완료
             - API:     https://burty.co.kr/api/v1
-            - Swagger: https://burty.co.kr/api/v1/swagger-ui/index.html
-            - Health:  docker exec ${CONTAINER} curl http://localhost:8080/health
+            - Health:  https://burty.co.kr/health
             - Jenkins: http://${SERVER_HOST}:8081/
             """
         }

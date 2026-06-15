@@ -4,15 +4,10 @@
 #   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
 #
 # 차이점:
-#   - 앱 컨테이너의 8080 포트를 호스트에 직접 노출 (Swagger 등 디버그 용)
-#   - 현재 운영 nginx-proxy 는 docker-compose.yml 의 VIRTUAL_* 로 라우팅
-#     · https://burty.co.kr/         → frontend
-#     · https://burty.co.kr/api/v1/  → burty:8080
-#   - 그 외 환경변수는 .env 로 주입 (COOKIE_DOMAIN, FRONTEND_URL 등)
-#
-# EC2 Security Group 에서 8080 TCP 인바운드도 열려 있어야 함.
+#   - HOST_LOG_DIR / HOST_UPLOAD_DIR 바인드 경로 지정
+#   - prod 필수 secret 은 Jenkins BURTY_ENV_FILE (.env) 로 주입
+#   - 8080 포트는 nginx 경유만 허용 (직접 노출하지 않음)
 
 services:
   burty:
-    ports:
-      - "8080:8080"
+    ports: []

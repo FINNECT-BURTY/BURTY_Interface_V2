@@ -6,7 +6,7 @@ COPY gradlew settings.gradle build.gradle ./
 COPY gradle ./gradle
 COPY src ./src
 
-RUN chmod +x gradlew && ./gradlew build -x test --no-daemon
+RUN chmod +x gradlew && ./gradlew build --no-daemon
 
 # ── Runtime ────────────────────────────────────────────────────────────────────
 FROM eclipse-temurin:21-jre-alpine

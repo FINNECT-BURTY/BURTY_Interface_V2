@@ -13,84 +13,59 @@ services:
     environment:
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-dev}
 
-      # 첫 배포: update (Hibernate 가 스키마 생성). 운영 안정화 후 validate 로 전환.
       SPRING_JPA_DDLAUTO: ${SPRING_JPA_DDLAUTO:-update}
 
-      # MariaDB (호스트 또는 컨테이너)
       DB_HOST: ${DB_HOST:-host.docker.internal}
       DB_PORT: ${DB_PORT:-3306}
       DB_NAME: ${DB_NAME:-burty}
       DB_USER: ${DB_USER:-root}
       DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
 
-      # Current production ingress is nginx-proxy.
-      # Keep API traffic pinned to the backend path so frontend owns /.
-      # If infra/global-nginx is used later, these envs are ignored.
       VIRTUAL_HOST: www.burty.co.kr,burty.co.kr
       VIRTUAL_PATH: /api/v1/
       VIRTUAL_PORT: "8080"
 
-      # Redis
       REDIS_HOST: ${REDIS_HOST:-host.docker.internal}
       REDIS_PORT: ${REDIS_PORT:-6379}
       REDIS_PASSWORD: ${REDIS_PASSWORD:-}
-      burty.redis.enabled: ${BURTY_REDIS_ENABLED:-false}
+      BURTY_REDIS_ENABLED: ${BURTY_REDIS_ENABLED:-false}
 
-      # JWT / Burty 설정
       JWT_SECRET: ${JWT_SECRET:-change-me-jwt-secret-key-minimum-256-bits}
-      burty.jwt.secret: ${JWT_SECRET:-change-me-jwt-secret-key-minimum-256-bits}
+      BURTY_SIGN_SECRET: ${BURTY_SIGN_SECRET:-change-me-burty-sign-secret}
+      ADMIN_SETUP_KEY: ${ADMIN_SETUP_KEY:-burty-admin-setup-key}
+      BURTY_YOUTH_CENTER_API_KEY: ${BURTY_YOUTH_CENTER_API_KEY:-}
 
-      # 소셜 로그인 redirect_uri 가 OAuth provider 콘솔 등록값과 정확히 일치해야 함.
-      # application-{prod,dev}.properties 의 ${app.base-url}/api/v1/auth/social/{p}/callback 패턴 사용.
       APP_BASE_URL: ${APP_BASE_URL:-https://burty.co.kr}
 
-      # 소셜 로그인 — Spring env 가 application-*.properties 보다 우선함.
-      # 기본값은 application-prod.properties 와 동일. 운영 키 교체 시 .env 에 BURTY_SOCIAL_* 설정.
-      BURTY_SOCIAL_STUB_MODE: ${BURTY_SOCIAL_STUB_MODE:-false}
-      BURTY_SOCIAL_KAKAO_CLIENT_ID: ${BURTY_SOCIAL_KAKAO_CLIENT_ID:-1a11791b2ad6dd2aaf87f850c5b92b79}
-      BURTY_SOCIAL_KAKAO_CLIENT_SECRET: ${BURTY_SOCIAL_KAKAO_CLIENT_SECRET:-MBEdYAn8BTyqGE7KJsnzcCm7bBZ7Dl5N}
-      BURTY_SOCIAL_GOOGLE_CLIENT_ID: ${BURTY_SOCIAL_GOOGLE_CLIENT_ID:-750601777199-kljuo1nfu0iv7tsi0n686bt46ipank3s.apps.googleusercontent.com}
-      BURTY_SOCIAL_GOOGLE_CLIENT_SECRET: ${BURTY_SOCIAL_GOOGLE_CLIENT_SECRET:-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}
-      BURTY_SOCIAL_NAVER_CLIENT_ID: ${BURTY_SOCIAL_NAVER_CLIENT_ID:-WX_YM9KzLUSoOduxftIc}
-      BURTY_SOCIAL_NAVER_CLIENT_SECRET: ${BURTY_SOCIAL_NAVER_CLIENT_SECRET:-if4k7dE_L6}
+      BURTY_SOCIAL_STUB_MODE: ${BURTY_SOCIAL_STUB_MODE:-true}
+      BURTY_SOCIAL_KAKAO_CLIENT_ID: ${BURTY_SOCIAL_KAKAO_CLIENT_ID:-}
+      BURTY_SOCIAL_KAKAO_CLIENT_SECRET: ${BURTY_SOCIAL_KAKAO_CLIENT_SECRET:-}
+      BURTY_SOCIAL_GOOGLE_CLIENT_ID: ${BURTY_SOCIAL_GOOGLE_CLIENT_ID:-}
+      BURTY_SOCIAL_GOOGLE_CLIENT_SECRET: ${BURTY_SOCIAL_GOOGLE_CLIENT_SECRET:-}
+      BURTY_SOCIAL_NAVER_CLIENT_ID: ${BURTY_SOCIAL_NAVER_CLIENT_ID:-}
+      BURTY_SOCIAL_NAVER_CLIENT_SECRET: ${BURTY_SOCIAL_NAVER_CLIENT_SECRET:-}
 
-      # CORS / 쿠키
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:3000,http://localhost:8080}
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost:8080}
-      # SameSite=None + Secure: 프론트(burty.co.kr)와 API(burty.co.kr)가 same-site이므로 None 필요.
-      # 로컬 개발 시 HTTPS가 아니면 SameSite=None 쿠키가 브라우저에서 거부될 수 있음.
-      # 로컬 테스트가 필요하면 .env에 COOKIE_SAMESITE=Lax, COOKIE_DOMAIN= 으로 override.
-      COOKIE_DOMAIN: ${COOKIE_DOMAIN:-.burty.co.kr}
+      COOKIE_DOMAIN: ${COOKIE_DOMAIN:-}
       COOKIE_SECURE: ${COOKIE_SECURE:-true}
-      COOKIE_SAMESITE: ${COOKIE_SAMESITE:-None}
+      COOKIE_SAMESITE: ${COOKIE_SAMESITE:-Lax}
 
-      # Mail (optional)
       MAIL_HOST: ${MAIL_HOST:-smtp.gmail.com}
       MAIL_PORT: ${MAIL_PORT:-587}
       MAIL_USERNAME: ${MAIL_USERNAME:-}
       MAIL_PASSWORD: ${MAIL_PASSWORD:-}
 
-      # 온통청년 API
-      YOUTH_CENTER_API_KEY: ${YOUTH_CENTER_API_KEY:-5379dfca-8d86-4145-9a9a-24c3c75a6465}
-
-      # Gemini / Vertex AI (optional)
-      GEMINI_ENABLED: ${GEMINI_ENABLED:-false}
-      GEMINI_PROJECT_ID: ${GEMINI_PROJECT_ID:-}
-      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.5-flash}
-      GOOGLE_APPLICATION_CREDENTIALS: /app/secrets/keys.json
-
       UPLOAD_PATH: /app/uploads/
       LOG_PATH: /app/logs
-      LOG_LEVEL_BURTY: ${LOG_LEVEL_BURTY:-INFO}
-      LOG_LEVEL_SQL: ${LOG_LEVEL_SQL:-WARN}
+      LOG_FILE: /app/logs/application.log
       JAVA_OPTS: >-
         -Xms512m -Xmx1024m -XX:+UseContainerSupport
         -Duser.timezone=Asia/Seoul
         -Dio.grpc.netty.shaded.io.netty.handler.ssl.noOpenSsl=true
     volumes:
-      - burty-logs:/app/logs
-      - burty-uploads:/app/uploads
-      # GCP 키: docker-compose.override.yml 에서 keys.json 마운트 (예시는 .env.example 참고)
+      - ${HOST_LOG_DIR:-./logs}:/app/logs
+      - ${HOST_UPLOAD_DIR:-./uploads}:/app/uploads
     networks:
       - global-nginx
     healthcheck:
@@ -101,11 +76,6 @@ services:
       start_period: 90s
 
 networks:
-  # infra/global-nginx 스택이 만든 네트워크 재사용 (먼저 그쪽이 떠 있어야 함)
   global-nginx:
     external: true
     name: global-nginx
-
-volumes:
-  burty-logs:
-  burty-uploads:
