@@ -1,0 +1,95 @@
+/**
+ *
+ *
+ * <pre>
+ * <b>Description  : 가족보호 엔티티 (GuardianLinkEntity)</b>
+ * <b>Project Name : BURTY</b>
+ * package  : com.burty.domain.family.entity
+ * </pre>
+ *
+ * @author : RosieOh
+ * @version : 1.0
+ * @since
+ *     <pre>
+ * Modification Information
+ *    수정일              수정자                수정내용
+ * ---------------   ---------------   ----------------------------
+ *  2026.06.15        RosieOh     최초생성
+ *        </pre>
+ */
+package com.burty.domain.family.entity;
+
+import com.burty.domain.user.entity.UserEntity;
+import jakarta.persistence.*;
+import java.time.LocalDateTime;
+
+@Entity
+@Table(name = "tbl_guardian_link")
+public class GuardianLinkEntity {
+  @Id
+  @GeneratedValue(strategy = GenerationType.IDENTITY)
+  @Column(name = "link_id")
+  private Long linkId;
+
+  @ManyToOne(fetch = FetchType.LAZY)
+  @JoinColumn(name = "senior_user_id", nullable = false)
+  private UserEntity seniorUser;
+
+  @ManyToOne(fetch = FetchType.LAZY)
+  @JoinColumn(name = "guardian_user_id", nullable = false)
+  private UserEntity guardianUser;
+
+  @Enumerated(EnumType.STRING)
+  @Column(name = "relation", nullable = false)
+  private Relation relation;
+
+  @Enumerated(EnumType.STRING)
+  @Column(name = "permission", nullable = false)
+  private Permission permission = Permission.VIEW_ONLY;
+
+  @Column(name = "senior_consent_id", nullable = false)
+  private Long seniorConsentId;
+
+  @Column(name = "guardian_consent_id", nullable = false)
+  private Long guardianConsentId;
+
+  @Enumerated(EnumType.STRING)
+  @Column(name = "status", nullable = false)
+  private LinkStatus status = LinkStatus.PENDING;
+
+  @Column(name = "linked_at")
+  private LocalDateTime linkedAt;
+
+  @Column(name = "revoked_at")
+  private LocalDateTime revokedAt;
+
+  @Enumerated(EnumType.STRING)
+  @Column(name = "revoked_by")
+  private RevokedBy revokedBy;
+
+  public enum Relation {
+    CHILD,
+    SPOUSE,
+    PARENT,
+    SIBLING,
+    CAREGIVER
+  }
+
+  public enum Permission {
+    VIEW_ONLY,
+    VIEW_AND_ALERT
+  }
+
+  public enum LinkStatus {
+    PENDING,
+    ACTIVE,
+    SUSPENDED,
+    REVOKED
+  }
+
+  public enum RevokedBy {
+    SENIOR,
+    GUARDIAN,
+    SYSTEM
+  }
+}

@@ -1,0 +1,22 @@
+/**
+ *
+ *
+ * <pre>
+ * <b>Description  : 거래 응답 DTO (TransactionChangeResponse)</b>
+ * <b>Project Name : BURTY</b>
+ * package  : com.burty.application.dto.transaction
+ * </pre>
+ *
+ * @author : RosieOh
+ * @version : 1.0
+ * @since
+ *     <pre>
+ * Modification Information
+ *    수정일              수정자                수정내용
+ * ---------------   ---------------   ----------------------------
+ *  2026.06.15        RosieOh     최초생성
+ *        </pre>
+ */
+package com.burty.application.dto.transaction;
+
+public record TransactionChangeResponse(int changed, String userId) {}
