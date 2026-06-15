@@ -1,13 +1,32 @@
+/**
+ *
+ *
+ * <pre>
+ * <b>Description  : 코어 예외 (JenkinsJobNotFoundException)</b>
+ * <b>Project Name : BURTY</b>
+ * package  : com.burty.core.jenkins.exception
+ * </pre>
+ *
+ * @author : RosieOh
+ * @version : 1.0
+ * @since
+ *     <pre>
+ * Modification Information
+ *    수정일              수정자                수정내용
+ * ---------------   ---------------   ----------------------------
+ *  2026.06.15        RosieOh     최초생성
+ *        </pre>
+ */
 package com.burty.core.jenkins.exception;
 
 // Jenkins Job을 찾을 수 없을 때 발생하는 예외
 public class JenkinsJobNotFoundException extends JenkinsException {
 
-    public JenkinsJobNotFoundException(String jobName) {
-        super("Jenkins job not found: " + jobName);
-    }
+  public JenkinsJobNotFoundException(String jobName) {
+    super("Jenkins job not found: " + jobName);
+  }
 
-    public JenkinsJobNotFoundException(String message, Throwable cause) {
-        super(message, cause);
-    }
+  public JenkinsJobNotFoundException(String message, Throwable cause) {
+    super(message, cause);
+  }
 }

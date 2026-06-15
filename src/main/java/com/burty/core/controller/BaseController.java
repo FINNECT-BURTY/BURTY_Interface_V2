@@ -1,3 +1,22 @@
+/**
+ *
+ *
+ * <pre>
+ * <b>Description  : 코어 API 컨트롤러 (BaseController)</b>
+ * <b>Project Name : BURTY</b>
+ * package  : com.burty.core.controller
+ * </pre>
+ *
+ * @author : RosieOh
+ * @version : 1.0
+ * @since
+ *     <pre>
+ * Modification Information
+ *    수정일              수정자                수정내용
+ * ---------------   ---------------   ----------------------------
+ *  2026.06.15        RosieOh     최초생성
+ *        </pre>
+ */
 package com.burty.core.controller;
 
 import com.burty.core.dto.response.ApiResponse;
@@ -6,83 +25,37 @@ import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
-
-import java.util.Map;
 
 // 공통 API base path(/api/v1) 는 BurtyWebConfig.configurePathMatch() 에서
 // com.burty.adapter.in.web 패키지의 @RestController 에 자동으로 prepend 된다.
-// 이 클래스는 응답/인증 유틸리티만 담당한다.
 @Slf4j
 public abstract class BaseController {
 
-    /**
-     * 성공 응답 생성
-     */
-    protected <T> ResponseEntity<ApiResponse<T>> success(T data) {
-        return ResponseEntity.ok(ApiResponse.success(data));
+  protected <T> ResponseEntity<ApiResponse<T>> ok(T data) {
+    return ResponseEntity.ok(ApiResponse.ok(data));
+  }
+
+  protected <T> ResponseEntity<ApiResponse<T>> ok(T data, String message) {
+    return ResponseEntity.ok(ApiResponse.success(data, message));
+  }
+
+  protected <T> ResponseEntity<ApiResponse<T>> created(T data, String message) {
+    return ResponseEntity.status(201).body(ApiResponse.success(data, message));
+  }
+
+  protected <T> ResponseEntity<ApiResponse<Page<T>>> okPage(Page<T> page) {
+    return ResponseEntity.ok(ApiResponse.ok(page));
+  }
+
+  protected String getCurrentUsername() {
+    Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+    if (authentication != null && authentication.isAuthenticated()) {
+      return authentication.getName();
     }
+    return null;
+  }
 
-    /**
-     * 성공 응답 생성 (메시지 포함)
-     */
-    protected <T> ResponseEntity<ApiResponse<T>> success(T data, String message) {
-        return ResponseEntity.ok(ApiResponse.success(data, message));
-    }
-
-    /**
-     * 생성 성공 응답 (201 Created)
-     */
-    protected <T> ResponseEntity<ApiResponse<T>> created(T data, String message) {
-        return ResponseEntity.status(201).body(ApiResponse.success(data, message));
-    }
-
-    /**
-     * 페이징 응답 생성
-     */
-    protected <T> ResponseEntity<ApiResponse<Page<T>>> successPage(Page<T> page) {
-        return ResponseEntity.ok(ApiResponse.ok(page));
-    }
-
-    /**
-     * 현재 인증된 사용자명 가져오기
-     */
-    protected String getCurrentUsername() {
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        if (authentication != null && authentication.isAuthenticated()) {
-            return authentication.getName();
-        }
-        return null;
-    }
-
-    /**
-     * 현재 인증된 사용자 정보 가져오기
-     */
-    protected Authentication getCurrentAuthentication() {
-        return SecurityContextHolder.getContext().getAuthentication();
-    }
-
-    /**
-     * 헬스체크용 서비스
-     */
-    @RestController
-    @RequestMapping("/health")
-    public static class HealthService {
-
-        @GetMapping
-        public Map<String, Object> health() {
-            return Map.of(
-                    "status", "UP",
-                    "timestamp", System.currentTimeMillis(),
-                    "service", "DDaSum API"
-            );
-        }
-
-        @GetMapping("/ping")
-        public Map<String, String> ping() {
-            return Map.of("message", "pong");
-        }
-    }
+  protected Authentication getCurrentAuthentication() {
+    return SecurityContextHolder.getContext().getAuthentication();
+  }
 }
