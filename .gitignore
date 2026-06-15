@@ -46,3 +46,7 @@ out/
 !.env.example
 secrets/
 !secrets/.gitkeep
+
+### Runtime logs (HOST_LOG_DIR / LOG_PATH) ###
+logs/
+uploads/
