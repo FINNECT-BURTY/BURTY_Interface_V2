@@ -1,3 +1,22 @@
+/**
+ *
+ *
+ * <pre>
+ * <b>Description  : 설정 설정 (BurtyWebConfig)</b>
+ * <b>Project Name : BURTY</b>
+ * package  : com.burty.config
+ * </pre>
+ *
+ * @author : RosieOh
+ * @version : 1.0
+ * @since
+ *     <pre>
+ * Modification Information
+ *    수정일              수정자                수정내용
+ * ---------------   ---------------   ----------------------------
+ *  2026.06.15        RosieOh     최초생성
+ *        </pre>
+ */
 package com.burty.config;
 
 import com.burty.core.constants.CommonConstants;
@@ -15,34 +34,28 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 @RequiredArgsConstructor
 public class BurtyWebConfig implements WebMvcConfigurer {
 
-    private final AuthLevelInterceptor authLevelInterceptor;
-    private final ResourceOwnershipInterceptor resourceOwnershipInterceptor;
-    private final RequestBodyOwnershipInterceptor requestBodyOwnershipInterceptor;
+  private final AuthLevelInterceptor authLevelInterceptor;
+  private final ResourceOwnershipInterceptor resourceOwnershipInterceptor;
+  private final RequestBodyOwnershipInterceptor requestBodyOwnershipInterceptor;
 
-    /**
-     * com.burty.adapter.in.web 패키지의 모든 @RestController 에 /api/v1 prefix 를 자동 prepend.
-     * springdoc / health 등 다른 패키지 컨트롤러는 영향 받지 않음.
-     */
-    @Override
-    public void configurePathMatch(PathMatchConfigurer configurer) {
-        configurer.addPathPrefix(
-                CommonConstants.API_BASE_PATH,
-                c -> c.isAnnotationPresent(RestController.class)
-                        && c.getPackageName().startsWith("com.burty.adapter.in.web")
-        );
-    }
+  /**
+   * com.burty.adapter.in.web 패키지의 모든 @RestController 에 /api/v1 prefix 를 자동 prepend. springdoc /
+   * health 등 다른 패키지 컨트롤러는 영향 받지 않음.
+   */
+  @Override
+  public void configurePathMatch(PathMatchConfigurer configurer) {
+    configurer.addPathPrefix(
+        CommonConstants.API_BASE_PATH,
+        c ->
+            c.isAnnotationPresent(RestController.class)
+                && c.getPackageName().startsWith("com.burty.adapter.in.web"));
+  }
 
-    @Override
-    public void addInterceptors(InterceptorRegistry registry) {
-        String pattern = CommonConstants.API_BASE_PATH + "/**";
-        registry.addInterceptor(authLevelInterceptor)
-                .addPathPatterns(pattern)
-                .order(0);
-        registry.addInterceptor(resourceOwnershipInterceptor)
-                .addPathPatterns(pattern)
-                .order(1);
-        registry.addInterceptor(requestBodyOwnershipInterceptor)
-                .addPathPatterns(pattern)
-                .order(2);
-    }
+  @Override
+  public void addInterceptors(InterceptorRegistry registry) {
+    String pattern = CommonConstants.API_BASE_PATH + "/**";
+    registry.addInterceptor(authLevelInterceptor).addPathPatterns(pattern).order(0);
+    registry.addInterceptor(resourceOwnershipInterceptor).addPathPatterns(pattern).order(1);
+    registry.addInterceptor(requestBodyOwnershipInterceptor).addPathPatterns(pattern).order(2);
+  }
 }
