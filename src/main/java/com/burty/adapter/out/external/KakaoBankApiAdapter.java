@@ -1,43 +1,45 @@
+/**
+ *
+ *
+ * <pre>
+ * <b>Description  : 외부연동 외부 연동 어댑터 (KakaoBankApiAdapter)</b>
+ * <b>Project Name : BURTY</b>
+ * package  : com.burty.adapter.out.external
+ * </pre>
+ *
+ * @author : RosieOh
+ * @version : 1.0
+ * @since
+ *     <pre>
+ * Modification Information
+ *    수정일              수정자                수정내용
+ * ---------------   ---------------   ----------------------------
+ *  2026.06.15        RosieOh     최초생성
+ *        </pre>
+ */
 package com.burty.adapter.out.external;
 
-import com.burty.application.port.out.KakaoBankPort;
+import com.burty.application.port.out.bank.KakaoBankPort;
 import com.burty.config.ExternalFinanceProperties;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.MediaType;
+import java.util.Map;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestTemplate;
 
-import java.util.Map;
-import java.util.UUID;
-
 @Component
-public class KakaoBankApiAdapter implements KakaoBankPort {
-    private final RestTemplate restTemplate;
-    private final ExternalFinanceProperties properties;
+public class KakaoBankApiAdapter extends AbstractBankTransferAdapter implements KakaoBankPort {
 
-    public KakaoBankApiAdapter(RestTemplate restTemplate, ExternalFinanceProperties properties) {
-        this.restTemplate = restTemplate;
-        this.properties = properties;
-    }
+  public KakaoBankApiAdapter(RestTemplate restTemplate, ExternalFinanceProperties properties) {
+    super(restTemplate, properties);
+  }
 
-    @Override
-    public Map<String, Object> transfer(String userId, String toAccount, long amount) {
-        if (!properties.isStubMode()) {
-            HttpHeaders headers = new HttpHeaders();
-            headers.setContentType(MediaType.APPLICATION_JSON);
-            headers.add("X-API-KEY", properties.getKakaoApiKey());
-            Map<String, Object> body = Map.of("userId", userId, "toAccount", toAccount, "amount", amount);
-            Map response = restTemplate.postForObject(properties.getKakaoTransferUrl(), new HttpEntity<>(body, headers), Map.class);
-            if (response != null) return response;
-        }
-        return Map.of(
-                "provider", "KAKAO_BANK",
-                "transactionId", UUID.randomUUID().toString(),
-                "userId", userId,
-                "toAccount", toAccount,
-                "amount", amount,
-                "status", "ACCEPTED"
-        );
-    }
+  @Override
+  public Map<String, Object> transfer(String userId, String toAccount, long amount) {
+    return transfer(
+        "KAKAO_BANK",
+        properties.getKakaoTransferUrl(),
+        properties.getKakaoApiKey(),
+        userId,
+        toAccount,
+        amount);
+  }
 }
