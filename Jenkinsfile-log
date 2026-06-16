@@ -1,0 +1,331 @@
+pipeline {
+    agent any
+
+    parameters {
+        choice(
+            name: 'ACCESS_MODE',
+            choices: ['ssh-file', 'local-file', 'docker'],
+            description: 'ssh-file=dev/prod SSH+파일 | local-file=Jenkins 에이전트 파일 | docker=컨테이너 stdout'
+        )
+        choice(
+            name: 'TARGET',
+            choices: ['dev', 'prod'],
+            description: '대상 서버 (dev=개발기 / prod=운영기) — ssh-file 모드에서 SSH 대상'
+        )
+        choice(
+            name: 'LOG_TYPE',
+            choices: ['app', 'error', 'login-fail', 'nginx'],
+            description: '로그 종류 (app/nginx=스트리밍 가능, error/login-fail=전체 읽기)'
+        )
+        choice(
+            name: 'DURATION',
+            choices: ['snapshot', '5min-stream', '10min-stream'],
+            description: '조회 방식 — app/nginx에만 적용 (error/login-fail은 무시)'
+        )
+    }
+
+    environment {
+        CONTAINER = 'burty'
+        NGINX_CONTAINER = 'global-nginx'
+        DOMAIN = 'burty.co.kr'
+    }
+
+    stages {
+        stage('Set Config') {
+            steps {
+                script {
+                    // ── dev/prod 서버 (ssh-file) ─────────────────────────────
+                    // Jenkins Credentials: burty-ssh-key-dev, burty-ssh-key-prod 등록 필요
+                    // dev IP 는 개발 EC2 확정 후 Set Config 블록에서 수정하세요.
+                    if (params.TARGET == 'dev') {
+                        env.REMOTE_HOST = 'DEV_EC2_IP_PLACEHOLDER'
+                        env.SSH_CREDENTIAL_ID = 'burty-ssh-key-dev'
+                        env.LOG_DIR = '/home/ubuntu/burty/logs'
+                        env.LOCAL_LOG_DIR = '/home/ubuntu/burty/logs'
+                    } else {
+                        env.REMOTE_HOST = '44.194.3.230'
+                        env.SSH_CREDENTIAL_ID = 'burty-ssh-key-prod'
+                        env.LOG_DIR = '/home/ubuntu/burty/logs'
+                        env.LOCAL_LOG_DIR = '/home/ubuntu/burty/logs'
+                    }
+
+                    env.STREAM_MODE = (params.LOG_TYPE in ['app', 'nginx']) ? 'true' : 'false'
+
+                    switch (params.DURATION) {
+                        case 'snapshot':
+                            env.TIMEOUT_MIN = '0'
+                            break
+                        case '5min-stream':
+                            env.TIMEOUT_MIN = '5'
+                            break
+                        case '10min-stream':
+                            env.TIMEOUT_MIN = '10'
+                            break
+                    }
+
+                    def isSnapshot = (params.DURATION == 'snapshot')
+                    def isStream = (env.STREAM_MODE == 'true')
+
+                    if (params.ACCESS_MODE == 'ssh-file') {
+                        switch (params.LOG_TYPE) {
+                            case 'app':
+                                env.LOG_CMD = isSnapshot
+                                    ? "tail -200 ${env.LOG_DIR}/application.log"
+                                    : "tail -200f ${env.LOG_DIR}/application.log"
+                                break
+                            case 'error':
+                                env.LOG_CMD = "cat ${env.LOG_DIR}/error.log 2>/dev/null || echo '(error.log 없음)'"
+                                break
+                            case 'login-fail':
+                                env.LOG_CMD = "for f in \$(ls -t ${env.LOG_DIR}/login_fail_*.log ${env.LOG_DIR}/login_fail.log 2>/dev/null); do echo \"===== \$f =====\"; cat \"\$f\"; done"
+                                break
+                            case 'nginx':
+                                env.LOG_CMD = isSnapshot
+                                    ? "docker logs --tail 200 \${NG:-${NGINX_CONTAINER}} 2>/dev/null || sudo -n tail -200 /var/log/nginx/error.log"
+                                    : "docker logs --tail 200 -f \${NG:-${NGINX_CONTAINER}} 2>/dev/null || sudo -n tail -200f /var/log/nginx/error.log"
+                                break
+                        }
+                    } else if (params.ACCESS_MODE == 'local-file') {
+                        switch (params.LOG_TYPE) {
+                            case 'app':
+                                env.LOG_CMD = isSnapshot
+                                    ? "tail -200 ${env.LOCAL_LOG_DIR}/application.log"
+                                    : "tail -200f ${env.LOCAL_LOG_DIR}/application.log"
+                                break
+                            case 'error':
+                                env.LOG_CMD = "cat ${env.LOCAL_LOG_DIR}/error.log 2>/dev/null || echo '(error.log 없음)'"
+                                break
+                            case 'login-fail':
+                                env.LOG_CMD = "for f in \$(ls -t ${env.LOCAL_LOG_DIR}/login_fail_*.log ${env.LOCAL_LOG_DIR}/login_fail.log 2>/dev/null); do echo \"===== \$f =====\"; cat \"\$f\"; done"
+                                break
+                            case 'nginx':
+                                env.LOG_CMD = isSnapshot
+                                    ? "docker logs --tail 200 ${NGINX_CONTAINER}"
+                                    : "docker logs --tail 200 -f ${NGINX_CONTAINER}"
+                                break
+                        }
+                    }
+
+                    echo '========================================='
+                    echo "  ACCESS   : ${params.ACCESS_MODE}"
+                    echo "  TARGET   : ${params.TARGET}"
+                    echo "  LOG_TYPE : ${params.LOG_TYPE}"
+                    echo "  DURATION : ${params.DURATION}"
+                    if (params.ACCESS_MODE == 'ssh-file') {
+                        echo "  HOST     : ${env.REMOTE_HOST}"
+                        echo "  LOG_DIR  : ${env.LOG_DIR}"
+                        echo "  SSH_KEY  : ${env.SSH_CREDENTIAL_ID}"
+                    } else if (params.ACCESS_MODE == 'local-file') {
+                        echo "  LOG_DIR  : ${env.LOCAL_LOG_DIR}"
+                    } else {
+                        echo "  CONTAINER: ${env.CONTAINER}"
+                    }
+                    if (params.ACCESS_MODE != 'docker' && env.LOG_CMD) {
+                        echo "  COMMAND  : ${env.LOG_CMD}"
+                    }
+                    if (!isStream && params.LOG_TYPE in ['error', 'login-fail']) {
+                        echo ''
+                        echo '  ※ error, login-fail은 전체 파일 읽기로 DURATION 무시됩니다.'
+                    }
+                    echo '========================================='
+                }
+            }
+        }
+
+        stage('Verify Target') {
+            when {
+                expression { params.ACCESS_MODE != 'docker' }
+            }
+            steps {
+                script {
+                    if (params.ACCESS_MODE == 'ssh-file' && env.REMOTE_HOST == 'DEV_EC2_IP_PLACEHOLDER') {
+                        error('dev EC2 IP 가 설정되지 않았습니다. Jenkinsfile-log Set Config 의 REMOTE_HOST(dev) 를 수정하세요.')
+                    }
+                }
+                sh '''
+                    set -e
+                    if [ "${ACCESS_MODE}" = "local-file" ]; then
+                      if [ ! -d "${LOCAL_LOG_DIR}" ]; then
+                        echo "⚠️  ${LOCAL_LOG_DIR} 디렉터리가 없습니다. HOST_LOG_DIR 마운트 또는 mkdir 후 재배포하세요."
+                      fi
+                      if docker ps --format '{{.Names}}' | grep -qx "${CONTAINER}"; then
+                        PROFILE=$(docker exec "${CONTAINER}" printenv SPRING_PROFILES_ACTIVE 2>/dev/null || echo unknown)
+                        echo "burty SPRING_PROFILES_ACTIVE=${PROFILE} (요청 TARGET=${TARGET})"
+                      fi
+                    fi
+                '''
+            }
+        }
+
+        stage('Verify Container') {
+            when {
+                expression { params.ACCESS_MODE == 'docker' }
+            }
+            steps {
+                sh '''
+                    set -e
+                    if ! docker ps --format '{{.Names}}' | grep -qx "${CONTAINER}"; then
+                      echo "❌ ${CONTAINER} 컨테이너가 실행 중이 아닙니다."
+                      docker ps -a --filter "name=${CONTAINER}" || true
+                      exit 1
+                    fi
+                    PROFILE=$(docker exec "${CONTAINER}" printenv SPRING_PROFILES_ACTIVE 2>/dev/null || echo unknown)
+                    echo "burty SPRING_PROFILES_ACTIVE=${PROFILE} (요청 TARGET=${TARGET})"
+                '''
+            }
+        }
+
+        stage('Stream Log (SSH/File)') {
+            when {
+                allOf {
+                    expression { params.ACCESS_MODE in ['ssh-file', 'local-file'] }
+                    expression { env.STREAM_MODE == 'true' && env.TIMEOUT_MIN != '0' }
+                }
+            }
+            steps {
+                script {
+                    if (params.ACCESS_MODE == 'ssh-file') {
+                        timeout(time: Integer.parseInt(env.TIMEOUT_MIN), unit: 'MINUTES') {
+                            withCredentials([
+                                sshUserPrivateKey(
+                                    credentialsId: env.SSH_CREDENTIAL_ID,
+                                    keyFileVariable: 'SSH_KEY',
+                                    usernameVariable: 'SSH_USER'
+                                )
+                            ]) {
+                                sh """
+                                    ssh -i "\$SSH_KEY" -o StrictHostKeyChecking=no \${SSH_USER}@${REMOTE_HOST} \
+                                      'NG=\$(docker ps --format "{{.Names}}" | grep -E "^(global-nginx|nginx-proxy)\$" | head -1); ${env.LOG_CMD}'
+                                """
+                            }
+                        }
+                    } else {
+                        timeout(time: Integer.parseInt(env.TIMEOUT_MIN), unit: 'MINUTES') {
+                            sh "${env.LOG_CMD}"
+                        }
+                    }
+                }
+            }
+        }
+
+        stage('Read Log (SSH/File)') {
+            when {
+                allOf {
+                    expression { params.ACCESS_MODE in ['ssh-file', 'local-file'] }
+                    expression { env.STREAM_MODE == 'false' || env.TIMEOUT_MIN == '0' }
+                }
+            }
+            steps {
+                script {
+                    if (params.ACCESS_MODE == 'ssh-file') {
+                        withCredentials([
+                            sshUserPrivateKey(
+                                credentialsId: env.SSH_CREDENTIAL_ID,
+                                keyFileVariable: 'SSH_KEY',
+                                usernameVariable: 'SSH_USER'
+                            )
+                        ]) {
+                            sh """
+                                ssh -i "\$SSH_KEY" -o StrictHostKeyChecking=no \${SSH_USER}@${REMOTE_HOST} \
+                                  'NG=\$(docker ps --format "{{.Names}}" | grep -E "^(global-nginx|nginx-proxy)\$" | head -1); ${env.LOG_CMD}'
+                            """
+                        }
+                    } else {
+                        sh "${env.LOG_CMD}"
+                    }
+                }
+            }
+        }
+
+        stage('Stream Log (Docker)') {
+            when {
+                allOf {
+                    expression { params.ACCESS_MODE == 'docker' }
+                    expression { env.STREAM_MODE == 'true' && env.TIMEOUT_MIN != '0' }
+                }
+            }
+            steps {
+                timeout(time: Integer.parseInt(env.TIMEOUT_MIN), unit: 'MINUTES') {
+                    sh '''
+                        set -e
+                        resolve_nginx_container() {
+                          docker ps --format '{{.Names}}' | grep -E '^(global-nginx|nginx-proxy)$' | head -1
+                        }
+                        case "${LOG_TYPE}" in
+                          app) docker logs --tail 200 -f "${CONTAINER}" ;;
+                          nginx)
+                            NG=$(resolve_nginx_container)
+                            NG="${NG:-${NGINX_CONTAINER}}"
+                            docker logs --tail 200 -f "${NG}"
+                            ;;
+                        esac
+                    '''
+                }
+            }
+        }
+
+        stage('Read Log (Docker)') {
+            when {
+                allOf {
+                    expression { params.ACCESS_MODE == 'docker' }
+                    expression { env.STREAM_MODE == 'false' || env.TIMEOUT_MIN == '0' }
+                }
+            }
+            steps {
+                sh '''
+                    set -e
+                    resolve_nginx_container() {
+                      docker ps --format '{{.Names}}' | grep -E '^(global-nginx|nginx-proxy)$' | head -1
+                    }
+                    case "${LOG_TYPE}" in
+                      app)
+                        if [ -f "${LOCAL_LOG_DIR:-./logs}/application.log" ]; then
+                          tail -200 "${LOCAL_LOG_DIR:-./logs}/application.log"
+                        else
+                          docker logs --tail 200 "${CONTAINER}"
+                        fi
+                        ;;
+                      error)
+                        if [ -f "${LOCAL_LOG_DIR:-./logs}/error.log" ]; then
+                          cat "${LOCAL_LOG_DIR:-./logs}/error.log"
+                        else
+                          docker logs "${CONTAINER}" 2>&1 | grep -E 'ERROR|Exception|WARN' || true
+                        fi
+                        ;;
+                      login-fail)
+                        if ls "${LOCAL_LOG_DIR:-./logs}"/login_fail_*.log >/dev/null 2>&1; then
+                          for f in $(ls -t "${LOCAL_LOG_DIR:-./logs}"/login_fail_*.log); do
+                            echo "===== $f ====="
+                            cat "$f"
+                          done
+                        else
+                          docker logs "${CONTAINER}" 2>&1 \
+                            | grep -Ei 'type=ADMIN|type=AUTH|type=TOKEN|login.?fail|unauthorized' \
+                            || true
+                        fi
+                        ;;
+                      nginx)
+                        NG=$(resolve_nginx_container)
+                        NG="${NG:-${NGINX_CONTAINER}}"
+                        docker logs --tail 200 "${NG}"
+                        ;;
+                    esac
+                '''
+            }
+        }
+    }
+
+    post {
+        aborted {
+            echo '로그 스트리밍 중단됨 (사용자 취소 또는 타임아웃)'
+        }
+        success {
+            echo '로그 조회 완료'
+        }
+        failure {
+            sh '''
+              docker logs --tail 80 "${CONTAINER}" 2>/dev/null || true
+            '''
+        }
+    }
+}

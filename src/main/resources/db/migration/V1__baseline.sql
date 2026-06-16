@@ -1,0 +1,1 @@
+-- Flyway baseline (기존 Hibernate 스키마 위에 마이그레이션 추적 시작)

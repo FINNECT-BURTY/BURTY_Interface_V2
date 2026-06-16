@@ -1,85 +1,157 @@
+/**
+ *
+ *
+ * <pre>
+ * <b>Description  : 유틸 (PasswordAttemptTracker)</b>
+ * <b>Project Name : BURTY</b>
+ * package  : com.burty.util
+ * </pre>
+ *
+ * @author : RosieOh
+ * @version : 1.0
+ * @since
+ *     <pre>
+ * Modification Information
+ *    수정일              수정자                수정내용
+ * ---------------   ---------------   ----------------------------
+ *  2026.06.15        RosieOh     최초생성
+ *        </pre>
+ */
 package com.burty.util;
-
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.redis.core.StringRedisTemplate;
-import org.springframework.stereotype.Component;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.stereotype.Component;
 
-/**
- * 비밀번호 시도 횟수 추적 및 락아웃 관리
- * Redis 기반 분산 환경 지원
- */
+/** 비밀번호 시도 횟수 추적 및 락아웃 관리 (Redis 우선, 없으면 in-memory). */
 @Slf4j
 @Component
-@RequiredArgsConstructor
 public class PasswordAttemptTracker {
 
-    private static final int MAX_ATTEMPTS = 5;
-    private static final int LOCKOUT_DURATION_MINUTES = 15;
-    private static final String ATTEMPT_KEY_PREFIX = "password:attempt:";
-    private static final String LOCKOUT_KEY_PREFIX = "password:lockout:";
+  private static final int MAX_ATTEMPTS = 5;
+  private static final int LOCKOUT_DURATION_MINUTES = 15;
+  private static final String ATTEMPT_KEY_PREFIX = "password:attempt:";
+  private static final String LOCKOUT_KEY_PREFIX = "password:lockout:";
 
-    private final StringRedisTemplate redisTemplate;
+  private final StringRedisTemplate redisTemplate;
+  private final ConcurrentHashMap<String, AtomicInteger> localAttempts = new ConcurrentHashMap<>();
+  private final ConcurrentHashMap<String, Long> localLockouts = new ConcurrentHashMap<>();
 
-    // 시도 실패 기록
-    public void recordFailedAttempt(String token) {
-        String attemptKey = ATTEMPT_KEY_PREFIX + token;
-        Long attempts = redisTemplate.opsForValue().increment(attemptKey);
+  public PasswordAttemptTracker(@Autowired(required = false) StringRedisTemplate redisTemplate) {
+    this.redisTemplate = redisTemplate;
+  }
 
-        // 첫 시도일 경우 TTL 설정 (락아웃 시간 후 자동 만료)
-        if (attempts != null && attempts == 1) {
-            redisTemplate.expire(attemptKey, Duration.ofMinutes(LOCKOUT_DURATION_MINUTES));
-        }
-
-        if (attempts != null && attempts >= MAX_ATTEMPTS) {
-            String lockoutKey = LOCKOUT_KEY_PREFIX + token;
-            redisTemplate.opsForValue().set(lockoutKey, "locked", Duration.ofMinutes(LOCKOUT_DURATION_MINUTES));
-            log.warn("Token {} locked out for {} minutes", token, LOCKOUT_DURATION_MINUTES);
-        }
+  public void recordFailedAttempt(String token) {
+    if (redisTemplate != null) {
+      try {
+        recordFailedAttemptRedis(token);
+        return;
+      } catch (Exception e) {
+        log.warn("Redis password tracker fallback: {}", e.getMessage());
+      }
     }
+    recordFailedAttemptLocal(token);
+  }
 
-    // 시도 성공 시 초기화
-    public void resetAttempts(String token) {
+  public void resetAttempts(String token) {
+    if (redisTemplate != null) {
+      try {
         redisTemplate.delete(ATTEMPT_KEY_PREFIX + token);
         redisTemplate.delete(LOCKOUT_KEY_PREFIX + token);
+        return;
+      } catch (Exception ignored) {
+        // fallback below
+      }
     }
+    localAttempts.remove(token);
+    localLockouts.remove(token);
+  }
 
-    // 락아웃 상태 확인
-    public boolean isLockedOut(String token) {
+  public boolean isLockedOut(String token) {
+    if (redisTemplate != null) {
+      try {
         return Boolean.TRUE.equals(redisTemplate.hasKey(LOCKOUT_KEY_PREFIX + token));
+      } catch (Exception ignored) {
+        // fallback below
+      }
     }
+    Long until = localLockouts.get(token);
+    if (until == null) return false;
+    if (until <= System.currentTimeMillis()) {
+      localLockouts.remove(token);
+      return false;
+    }
+    return true;
+  }
 
-    // 현재 시도 횟수 조회
-    public int getAttempts(String token) {
+  public int getAttempts(String token) {
+    if (redisTemplate != null) {
+      try {
         String value = redisTemplate.opsForValue().get(ATTEMPT_KEY_PREFIX + token);
         return value != null ? Integer.parseInt(value) : 0;
+      } catch (Exception ignored) {
+        // fallback below
+      }
     }
+    return localAttempts.getOrDefault(token, new AtomicInteger()).get();
+  }
 
-    // 남은 시도 횟수 조회
-    public int getRemainingAttempts(String token) {
-        int currentAttempts = getAttempts(token);
-        return Math.max(0, MAX_ATTEMPTS - currentAttempts);
-    }
+  public int getRemainingAttempts(String token) {
+    return Math.max(0, MAX_ATTEMPTS - getAttempts(token));
+  }
 
-    // 락아웃 종료 시간 조회
-    public LocalDateTime getLockoutUntil(String token) {
+  public LocalDateTime getLockoutUntil(String token) {
+    if (redisTemplate != null) {
+      try {
         Long ttl = redisTemplate.getExpire(LOCKOUT_KEY_PREFIX + token);
         if (ttl != null && ttl > 0) {
-            return LocalDateTime.now().plusSeconds(ttl);
+          return LocalDateTime.now().plusSeconds(ttl);
         }
         return null;
+      } catch (Exception ignored) {
+        // fallback below
+      }
     }
+    Long until = localLockouts.get(token);
+    if (until == null) return null;
+    return LocalDateTime.now().plusSeconds((until - System.currentTimeMillis()) / 1000);
+  }
 
-    // 최대 시도 횟수 조회
-    public int getMaxAttempts() {
-        return MAX_ATTEMPTS;
-    }
+  public int getMaxAttempts() {
+    return MAX_ATTEMPTS;
+  }
 
-    // 락아웃 시간(분) 조회
-    public int getLockoutDurationMinutes() {
-        return LOCKOUT_DURATION_MINUTES;
+  public int getLockoutDurationMinutes() {
+    return LOCKOUT_DURATION_MINUTES;
+  }
+
+  private void recordFailedAttemptRedis(String token) {
+    String attemptKey = ATTEMPT_KEY_PREFIX + token;
+    Long attempts = redisTemplate.opsForValue().increment(attemptKey);
+    if (attempts != null && attempts == 1) {
+      redisTemplate.expire(attemptKey, Duration.ofMinutes(LOCKOUT_DURATION_MINUTES));
     }
+    if (attempts != null && attempts >= MAX_ATTEMPTS) {
+      redisTemplate
+          .opsForValue()
+          .set(LOCKOUT_KEY_PREFIX + token, "locked", Duration.ofMinutes(LOCKOUT_DURATION_MINUTES));
+      log.warn("Token {} locked out for {} minutes", token, LOCKOUT_DURATION_MINUTES);
+    }
+  }
+
+  private void recordFailedAttemptLocal(String token) {
+    int attempts =
+        localAttempts.computeIfAbsent(token, ignored -> new AtomicInteger()).incrementAndGet();
+    if (attempts >= MAX_ATTEMPTS) {
+      localLockouts.put(
+          token,
+          System.currentTimeMillis() + Duration.ofMinutes(LOCKOUT_DURATION_MINUTES).toMillis());
+      log.warn("Token {} locked out locally for {} minutes", token, LOCKOUT_DURATION_MINUTES);
+    }
+  }
 }
