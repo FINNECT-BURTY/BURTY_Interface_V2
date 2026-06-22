@@ -37,18 +37,24 @@ public class ProdStartupValidator {
   private final SocialLoginProperties socialLoginProperties;
   private final ExternalFinanceProperties externalFinanceProperties;
   private final BurtyApiProperties apiProperties;
+  private final IdentityProperties identityProperties;
+  private final NotifyProperties notifyProperties;
 
   public ProdStartupValidator(
       Environment environment,
       MyDataProperties myDataProperties,
       SocialLoginProperties socialLoginProperties,
       ExternalFinanceProperties externalFinanceProperties,
-      BurtyApiProperties apiProperties) {
+      BurtyApiProperties apiProperties,
+      IdentityProperties identityProperties,
+      NotifyProperties notifyProperties) {
     this.environment = environment;
     this.myDataProperties = myDataProperties;
     this.socialLoginProperties = socialLoginProperties;
     this.externalFinanceProperties = externalFinanceProperties;
     this.apiProperties = apiProperties;
+    this.identityProperties = identityProperties;
+    this.notifyProperties = notifyProperties;
   }
 
   @EventListener(ApplicationReadyEvent.class)
@@ -86,6 +92,31 @@ public class ProdStartupValidator {
     if (apiProperties.isSwaggerEnabled()) {
       throw new IllegalStateException(
           "PROD startup blocked: burty.api.swagger-enabled must be false.");
+    }
+    if (!identityProperties.isStubMode()) {
+      if (identityProperties.getProvider() == IdentityProperties.Provider.NICE
+          && !identityProperties.getNice().isConfigured()) {
+        throw new IllegalStateException(
+            "PROD startup blocked: NICE identity credentials required when stub-mode=false.");
+      }
+      if (identityProperties.getProvider() == IdentityProperties.Provider.KCB
+          && !identityProperties.getKcb().isConfigured()) {
+        throw new IllegalStateException(
+            "PROD startup blocked: KCB identity credentials required when stub-mode=false.");
+      }
+    }
+    if (!notifyProperties.getEmail().isStubMode()
+        && (environment.getProperty("spring.mail.host", "").isBlank())) {
+      throw new IllegalStateException(
+          "PROD startup blocked: MAIL_HOST required when email stub-mode=false.");
+    }
+    if (!notifyProperties.getSms().isStubMode() && !notifyProperties.getSms().isConfigured()) {
+      throw new IllegalStateException(
+          "PROD startup blocked: SMS API credentials required when sms stub-mode=false.");
+    }
+    if (!notifyProperties.getPush().isStubMode() && !notifyProperties.getPush().isConfigured()) {
+      throw new IllegalStateException(
+          "PROD startup blocked: FCM credentials required when push stub-mode=false.");
     }
   }
 
