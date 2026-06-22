@@ -19,6 +19,7 @@
  */
 package com.burty.adapter.out.external;
 
+import com.burty.adapter.out.http.ResilientHttpExecutor;
 import com.burty.adapter.out.store.TokenStore;
 import com.burty.application.port.out.bank.OpenBankingPort;
 import com.burty.config.ExternalFinanceProperties;
@@ -46,12 +47,17 @@ public class OpenBankingApiAdapter implements OpenBankingPort {
   private final RestTemplate restTemplate;
   private final ExternalFinanceProperties properties;
   private final TokenStore tokenStore;
+  private final ResilientHttpExecutor resilientHttpExecutor;
 
   public OpenBankingApiAdapter(
-      RestTemplate restTemplate, ExternalFinanceProperties properties, TokenStore tokenStore) {
+      RestTemplate restTemplate,
+      ExternalFinanceProperties properties,
+      TokenStore tokenStore,
+      ResilientHttpExecutor resilientHttpExecutor) {
     this.restTemplate = restTemplate;
     this.properties = properties;
     this.tokenStore = tokenStore;
+    this.resilientHttpExecutor = resilientHttpExecutor;
   }
 
   @Override
@@ -195,6 +201,12 @@ public class OpenBankingApiAdapter implements OpenBankingPort {
   }
 
   private Map<String, Object> executeWithRetry(
+      String userId, Function<String, Map<String, Object>> call) {
+    return resilientHttpExecutor.execute(
+        "openbanking", () -> executeWithRetryInternal(userId, call));
+  }
+
+  private Map<String, Object> executeWithRetryInternal(
       String userId, Function<String, Map<String, Object>> call) {
     int maxAttempts = Math.max(1, properties.getOpenBankingRetryCount() + 1);
     String token = resolveAccessToken(userId);
