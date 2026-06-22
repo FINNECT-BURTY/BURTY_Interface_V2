@@ -20,13 +20,18 @@
 package com.burty.application.service.notification;
 
 import com.burty.application.port.out.notify.NotificationChannelPort;
+import com.burty.application.port.out.queue.AsyncJobPort;
+import com.burty.application.port.out.queue.AsyncJobType;
+import com.burty.config.NotifyProperties;
 import com.burty.domain.family.entity.AlertSubscriptionEntity;
 import com.burty.domain.family.repository.AlertSubscriptionRepository;
 import java.util.EnumMap;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 
 /**
@@ -39,15 +44,21 @@ public class NotificationDispatcher {
 
   private final Map<NotificationChannelPort.Channel, NotificationChannelPort> channelMap;
   private final AlertSubscriptionRepository alertSubscriptionRepository;
+  private final ObjectProvider<AsyncJobPort> asyncJobPort;
+  private final NotifyProperties notifyProperties;
 
   public NotificationDispatcher(
       List<NotificationChannelPort> ports,
-      AlertSubscriptionRepository alertSubscriptionRepository) {
+      AlertSubscriptionRepository alertSubscriptionRepository,
+      ObjectProvider<AsyncJobPort> asyncJobPort,
+      NotifyProperties notifyProperties) {
     this.channelMap = new EnumMap<>(NotificationChannelPort.Channel.class);
     for (NotificationChannelPort port : ports) {
       this.channelMap.put(port.channel(), port);
     }
     this.alertSubscriptionRepository = alertSubscriptionRepository;
+    this.asyncJobPort = asyncJobPort;
+    this.notifyProperties = notifyProperties;
   }
 
   /**
@@ -61,6 +72,22 @@ public class NotificationDispatcher {
 
   /** Direct dispatch to a specific channel. */
   public boolean dispatch(
+      String userId, NotificationChannelPort.Channel channel, String title, String body) {
+    AsyncJobPort queue = asyncJobPort.getIfAvailable();
+    if (notifyProperties.isAsyncEnabled() && queue != null && queue.isEnabled()) {
+      Map<String, String> payload = new HashMap<>();
+      payload.put("userId", userId);
+      payload.put("channel", channel.name());
+      payload.put("title", title != null ? title : "");
+      payload.put("body", body != null ? body : "");
+      queue.publish(AsyncJobType.NOTIFICATION, payload);
+      return true;
+    }
+    return dispatchDirect(userId, channel, title, body);
+  }
+
+  /** Queue consumer / synchronous path — always sends immediately. */
+  public boolean dispatchDirect(
       String userId, NotificationChannelPort.Channel channel, String title, String body) {
     NotificationChannelPort port = channelMap.get(channel);
     if (port == null) {
