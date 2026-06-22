@@ -19,6 +19,7 @@
  */
 package com.burty.adapter.out.mydata;
 
+import com.burty.adapter.out.http.ResilientHttpExecutor;
 import com.burty.adapter.out.mydata.dto.MyDataAssetResponse;
 import com.burty.application.port.out.mydata.MyDataOAuthPort;
 import com.burty.application.port.out.mydata.MyDataPort;
@@ -43,16 +44,19 @@ public class MyDataApiAdapter implements MyDataPort {
   private final MyDataTokenHydrationService tokenHydrationService;
   private final RestTemplate restTemplate;
   private final MyDataProperties properties;
+  private final ResilientHttpExecutor resilientHttpExecutor;
 
   public MyDataApiAdapter(
       MyDataOAuthPort myDataOAuthPort,
       MyDataTokenHydrationService tokenHydrationService,
       RestTemplate restTemplate,
-      MyDataProperties properties) {
+      MyDataProperties properties,
+      ResilientHttpExecutor resilientHttpExecutor) {
     this.myDataOAuthPort = myDataOAuthPort;
     this.tokenHydrationService = tokenHydrationService;
     this.restTemplate = restTemplate;
     this.properties = properties;
+    this.resilientHttpExecutor = resilientHttpExecutor;
   }
 
   @Override
@@ -71,6 +75,12 @@ public class MyDataApiAdapter implements MyDataPort {
 
     HttpHeaders headers = new HttpHeaders();
     headers.setBearerAuth(accessToken);
+    return resilientHttpExecutor.execute(
+        "mydata", () -> fetchAssetSnapshotInternal(userId, headers, scopeKey));
+  }
+
+  private AssetSnapshot fetchAssetSnapshotInternal(
+      String userId, HttpHeaders headers, String scopeKey) {
     int maxAttempts = Math.max(1, properties.getRetryCount() + 1);
     RestClientException lastError = null;
     ResponseEntity<MyDataAssetResponse> response = null;
