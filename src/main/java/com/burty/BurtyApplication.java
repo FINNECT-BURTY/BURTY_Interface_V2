@@ -20,13 +20,14 @@
 package com.burty;
 
 import com.burty.core.jenkins.config.JenkinsModuleConfiguration;
+import io.github.resilience4j.springboot3.retry.autoconfigure.RetryAutoConfiguration;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.FilterType;
 import org.springframework.context.annotation.Import;
 
-@SpringBootApplication
+@SpringBootApplication(exclude = RetryAutoConfiguration.class)
 @Import(JenkinsModuleConfiguration.class)
 @ComponentScan(
     excludeFilters =
