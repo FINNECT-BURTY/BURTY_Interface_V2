@@ -19,10 +19,12 @@
  */
 package com.burty.core.config;
 
+import com.burty.config.ExternalFinanceProperties;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.client.RestTemplate;
@@ -32,9 +34,15 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 @RequiredArgsConstructor
 public class AppConfig implements WebMvcConfigurer {
 
+  private final ExternalFinanceProperties externalFinanceProperties;
+
   @Bean
   public RestTemplate restTemplate() {
-    return new RestTemplate();
+    int timeoutMs = Math.max(1000, externalFinanceProperties.getTimeoutMs());
+    SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
+    factory.setConnectTimeout(timeoutMs);
+    factory.setReadTimeout(timeoutMs);
+    return new RestTemplate(factory);
   }
 
   @Bean
