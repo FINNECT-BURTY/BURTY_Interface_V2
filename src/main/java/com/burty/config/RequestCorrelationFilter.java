@@ -32,7 +32,7 @@ import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
-/** 요청별 correlation ID 를 MDC 와 응답 헤더에 기록합니다. */
+/** 요청별 correlation ID 를 MDC 와 응답 헤더에 기록합니다. traceparent 가 있으면 traceId 로 사용. */
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE)
 public class RequestCorrelationFilter extends OncePerRequestFilter {
@@ -40,6 +40,7 @@ public class RequestCorrelationFilter extends OncePerRequestFilter {
   public static final String REQUEST_ID_HEADER = "X-Request-Id";
   public static final String MDC_REQUEST_ID = "requestId";
   public static final String MDC_CLIENT_IP = "clientIp";
+  public static final String TRACEPARENT_HEADER = "traceparent";
 
   @Override
   protected void doFilterInternal(
@@ -47,7 +48,12 @@ public class RequestCorrelationFilter extends OncePerRequestFilter {
       throws ServletException, IOException {
     String requestId = request.getHeader(REQUEST_ID_HEADER);
     if (requestId == null || requestId.isBlank()) {
-      requestId = UUID.randomUUID().toString().replace("-", "");
+      String traceparent = request.getHeader(TRACEPARENT_HEADER);
+      if (traceparent != null && traceparent.length() >= 55) {
+        requestId = traceparent.substring(3, 35);
+      } else {
+        requestId = UUID.randomUUID().toString().replace("-", "");
+      }
     }
     MDC.put(MDC_REQUEST_ID, requestId);
     MDC.put(MDC_CLIENT_IP, IpUtil.getClientIp(request));
