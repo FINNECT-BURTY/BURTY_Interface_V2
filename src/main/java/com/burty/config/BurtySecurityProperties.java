@@ -39,6 +39,7 @@ public class BurtySecurityProperties {
   private Mode mode = Mode.JWT_FILTER;
   private final ResourceServer resourceServer = new ResourceServer();
   private final Cors cors = new Cors();
+  private final Actuator actuator = new Actuator();
 
   public Mode getMode() {
     return mode;
@@ -54,6 +55,10 @@ public class BurtySecurityProperties {
 
   public Cors getCors() {
     return cors;
+  }
+
+  public Actuator getActuator() {
+    return actuator;
   }
 
   public boolean isResourceServerEnabled() {
@@ -169,6 +174,30 @@ public class BurtySecurityProperties {
 
     public boolean isEnabled() {
       return allowedOrigins != null && !allowedOrigins.isEmpty();
+    }
+  }
+
+  /** Actuator / Prometheus 노출 정책. */
+  public static class Actuator {
+    /** false 이면 /actuator/** 는 ADMIN 역할 필요 (health liveness 제외). */
+    private boolean prometheusPermitAll = true;
+
+    private String internalToken = "";
+
+    public boolean isPrometheusPermitAll() {
+      return prometheusPermitAll;
+    }
+
+    public void setPrometheusPermitAll(boolean prometheusPermitAll) {
+      this.prometheusPermitAll = prometheusPermitAll;
+    }
+
+    public String getInternalToken() {
+      return internalToken;
+    }
+
+    public void setInternalToken(String internalToken) {
+      this.internalToken = internalToken;
     }
   }
 }
