@@ -72,7 +72,12 @@ public class SecurityConfig {
               auth.requestMatchers(
                       "/health", "/health/**", "/actuator/health", "/actuator/health/**")
                   .permitAll();
-              auth.requestMatchers("/actuator/prometheus").permitAll();
+              if (securityProperties.getActuator().isPrometheusPermitAll()) {
+                auth.requestMatchers("/actuator/prometheus").permitAll();
+              } else {
+                auth.requestMatchers("/actuator/prometheus").hasRole("ADMIN");
+              }
+              auth.requestMatchers("/actuator/**").hasRole("ADMIN");
               if (apiProperties.isSwaggerEnabled()) {
                 auth.requestMatchers(
                         "/swagger-ui.html",
