@@ -1,0 +1,151 @@
+# 로컬/스테이징 전체 스택 — docker-compose.yml 과 함께 사용
+#
+#   docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --build
+#
+# 포함: MariaDB, Redis, Prometheus, Loki, Promtail, Grafana, OTel Collector
+
+services:
+  mariadb:
+    image: mariadb:11
+    container_name: burty-mariadb
+    restart: unless-stopped
+    environment:
+      MARIADB_ROOT_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
+      MARIADB_DATABASE: ${DB_NAME:-burty}
+      MARIADB_USER: ${DB_USER:-burty}
+      MARIADB_PASSWORD: ${DB_PASSWORD}
+    ports:
+      - "${DB_PORT:-3306}:3306"
+    volumes:
+      - burty-mariadb-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - global-nginx
+
+  redis:
+    image: redis:7-alpine
+    container_name: burty-redis
+    restart: unless-stopped
+    command: >
+      redis-server
+      ${REDIS_PASSWORD:+--requirepass ${REDIS_PASSWORD}}
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - burty-redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    networks:
+      - global-nginx
+
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    container_name: burty-prometheus
+    restart: unless-stopped
+    volumes:
+      - ./infra/observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - burty-prometheus-data:/prometheus
+    ports:
+      - "${PROMETHEUS_PORT:-9090}:9090"
+    networks:
+      - global-nginx
+
+  grafana:
+    image: grafana/grafana:11.4.0
+    container_name: burty-grafana
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_SECURITY_ALLOW_EMBEDDING: "true"
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      GF_SERVER_ROOT_URL: ${GRAFANA_ROOT_URL:-http://localhost:3001}
+      GF_SERVER_SERVE_FROM_SUB_PATH: ${GRAFANA_SERVE_FROM_SUB_PATH:-false}
+    volumes:
+      - ./infra/observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./infra/observability/grafana/dashboards:/etc/grafana/dashboards:ro
+      - burty-grafana-data:/var/lib/grafana
+    ports:
+      - "${GRAFANA_PORT:-3001}:3000"
+    depends_on:
+      - prometheus
+      - loki
+    networks:
+      - global-nginx
+
+  loki:
+    image: grafana/loki:3.3.2
+    container_name: burty-loki
+    restart: unless-stopped
+    command: -config.file=/etc/loki/loki-config.yml
+    volumes:
+      - ./infra/observability/loki-config.yml:/etc/loki/loki-config.yml:ro
+      - burty-loki-data:/loki
+    ports:
+      - "${LOKI_PORT:-3100}:3100"
+    networks:
+      - global-nginx
+
+  promtail:
+    image: grafana/promtail:3.3.2
+    container_name: burty-promtail
+    restart: unless-stopped
+    command: -config.file=/etc/promtail/promtail-config.yml
+    volumes:
+      - ./infra/observability/promtail-config.yml:/etc/promtail/promtail-config.yml:ro
+      - ${HOST_LOG_DIR:-./logs}:/var/log/burty:ro
+    depends_on:
+      - loki
+    networks:
+      - global-nginx
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.116.1
+    container_name: burty-otel-collector
+    restart: unless-stopped
+    command: ["--config=/etc/otel-collector-config.yml"]
+    volumes:
+      - ./infra/observability/otel-collector-config.yml:/etc/otel-collector-config.yml:ro
+    ports:
+      - "4317:4317"
+      - "4318:4318"
+    networks:
+      - global-nginx
+
+  burty:
+    depends_on:
+      mariadb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      DB_HOST: mariadb
+      REDIS_HOST: redis
+      BURTY_REDIS_ENABLED: "true"
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+      OTEL_SERVICE_NAME: BURTY
+      MANAGEMENT_OTLP_TRACING_ENDPOINT: http://otel-collector:4318/v1/traces
+      BURTY_GRAFANA_ENABLED: "true"
+      BURTY_GRAFANA_PUBLIC_BASE_URL: ${GRAFANA_PUBLIC_URL:-http://localhost:3001}
+
+volumes:
+  burty-mariadb-data:
+  burty-redis-data:
+  burty-prometheus-data:
+  burty-grafana-data:
+  burty-loki-data:
+
+networks:
+  global-nginx:
+    external: true
+    name: global-nginx
