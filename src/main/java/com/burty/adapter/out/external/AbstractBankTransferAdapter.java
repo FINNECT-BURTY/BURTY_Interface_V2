@@ -20,6 +20,8 @@
 package com.burty.adapter.out.external;
 
 import com.burty.config.ExternalFinanceProperties;
+import com.burty.core.error.enums.ErrorCode;
+import com.burty.core.exception.BusinessException;
 import java.util.Map;
 import java.util.UUID;
 import org.springframework.http.HttpEntity;
@@ -45,18 +47,25 @@ abstract class AbstractBankTransferAdapter {
       String userId,
       String toAccount,
       long amount) {
-    if (!properties.isStubMode()) {
-      HttpHeaders headers = new HttpHeaders();
-      headers.setContentType(MediaType.APPLICATION_JSON);
-      headers.add("X-API-KEY", apiKey);
-      Map<String, Object> body = Map.of("userId", userId, "toAccount", toAccount, "amount", amount);
-      @SuppressWarnings("unchecked")
-      Map<String, Object> response =
-          restTemplate.postForObject(transferUrl, new HttpEntity<>(body, headers), Map.class);
-      if (response != null) {
-        return response;
-      }
+    if (properties.isStubMode()) {
+      return stubTransfer(provider, userId, toAccount, amount);
     }
+    HttpHeaders headers = new HttpHeaders();
+    headers.setContentType(MediaType.APPLICATION_JSON);
+    headers.add("X-API-KEY", apiKey);
+    Map<String, Object> body = Map.of("userId", userId, "toAccount", toAccount, "amount", amount);
+    @SuppressWarnings("unchecked")
+    Map<String, Object> response =
+        restTemplate.postForObject(transferUrl, new HttpEntity<>(body, headers), Map.class);
+    if (response == null) {
+      throw new BusinessException(
+          ErrorCode.EXTERNAL_API_ERROR, provider + " 이체 API가 빈 응답을 반환했습니다. userId=" + userId);
+    }
+    return response;
+  }
+
+  private Map<String, Object> stubTransfer(
+      String provider, String userId, String toAccount, long amount) {
     return Map.of(
         "provider",
         provider,
