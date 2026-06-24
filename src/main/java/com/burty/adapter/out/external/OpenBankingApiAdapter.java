@@ -62,20 +62,105 @@ public class OpenBankingApiAdapter implements OpenBankingPort {
 
   @Override
   public Map<String, Object> getAccounts(String userId) {
-    if (!properties.isStubMode()) {
-      Map<String, Object> response =
-          executeWithRetry(
-              userId,
-              token ->
-                  restTemplate
-                      .exchange(
-                          properties.getOpenBankingAccountsUrl() + "?userId=" + userId,
-                          HttpMethod.GET,
-                          new HttpEntity<>(buildHeaders(userId, token)),
-                          new ParameterizedTypeReference<Map<String, Object>>() {})
-                      .getBody());
-      if (response != null) return response;
+    if (properties.isStubMode()) {
+      return stubAccounts(userId);
     }
+    return requireResponse(
+        executeWithRetry(
+            userId,
+            token ->
+                restTemplate
+                    .exchange(
+                        properties.getOpenBankingAccountsUrl() + "?userId=" + userId,
+                        HttpMethod.GET,
+                        new HttpEntity<>(buildHeaders(userId, token)),
+                        new ParameterizedTypeReference<Map<String, Object>>() {})
+                    .getBody()),
+        "accounts");
+  }
+
+  @Override
+  public Map<String, Object> getBalance(String userId, String fintechUseNum) {
+    if (properties.isStubMode()) {
+      return stubBalance(userId, fintechUseNum);
+    }
+    return requireResponse(
+        executeWithRetry(
+            userId,
+            token ->
+                restTemplate
+                    .exchange(
+                        properties.getOpenBankingBalanceUrl() + "?fintechUseNum=" + fintechUseNum,
+                        HttpMethod.GET,
+                        new HttpEntity<>(buildHeaders(userId, token)),
+                        new ParameterizedTypeReference<Map<String, Object>>() {})
+                    .getBody()),
+        "balance");
+  }
+
+  @Override
+  public Map<String, Object> getTransactions(String userId, String fintechUseNum) {
+    if (properties.isStubMode()) {
+      return stubTransactions(userId, fintechUseNum);
+    }
+    return requireResponse(
+        executeWithRetry(
+            userId,
+            token ->
+                restTemplate
+                    .exchange(
+                        properties.getOpenBankingTransactionsUrl()
+                            + "?fintechUseNum="
+                            + fintechUseNum,
+                        HttpMethod.GET,
+                        new HttpEntity<>(buildHeaders(userId, token)),
+                        new ParameterizedTypeReference<Map<String, Object>>() {})
+                    .getBody()),
+        "transactions");
+  }
+
+  @Override
+  public Map<String, Object> transfer(
+      String userId, String fromAccount, String toAccount, long amount, String idempotencyKey) {
+    if (properties.isStubMode()) {
+      return stubTransfer(userId, fromAccount, toAccount, amount, idempotencyKey);
+    }
+    return requireResponse(
+        executeWithRetry(
+            userId,
+            token -> {
+              HttpHeaders headers = buildHeaders(userId, token);
+              headers.setContentType(MediaType.APPLICATION_JSON);
+              if (idempotencyKey != null && !idempotencyKey.isBlank()) {
+                headers.add("X-Idempotency-Key", idempotencyKey);
+              }
+              Map<String, Object> body =
+                  Map.of(
+                      "fromAccount", fromAccount,
+                      "toAccount", toAccount,
+                      "amount", amount,
+                      "bankTranId", UUID.randomUUID().toString());
+              return restTemplate
+                  .exchange(
+                      properties.getOpenBankingTransferUrl(),
+                      HttpMethod.POST,
+                      new HttpEntity<>(body, headers),
+                      new ParameterizedTypeReference<Map<String, Object>>() {})
+                  .getBody();
+            }),
+        "transfer");
+  }
+
+  private Map<String, Object> requireResponse(Map<String, Object> response, String operation) {
+    if (response == null) {
+      throw new BusinessException(
+          ErrorCode.EXTERNAL_API_ERROR,
+          "OpenBanking " + operation + " API returned empty response");
+    }
+    return response;
+  }
+
+  private Map<String, Object> stubAccounts(String userId) {
     return Map.of(
         "provider",
         "OPEN_BANKING",
@@ -92,22 +177,7 @@ public class OpenBankingApiAdapter implements OpenBankingPort {
                 "123-****-8901")));
   }
 
-  @Override
-  public Map<String, Object> getBalance(String userId, String fintechUseNum) {
-    if (!properties.isStubMode()) {
-      Map<String, Object> response =
-          executeWithRetry(
-              userId,
-              token ->
-                  restTemplate
-                      .exchange(
-                          properties.getOpenBankingBalanceUrl() + "?fintechUseNum=" + fintechUseNum,
-                          HttpMethod.GET,
-                          new HttpEntity<>(buildHeaders(userId, token)),
-                          new ParameterizedTypeReference<Map<String, Object>>() {})
-                      .getBody());
-      if (response != null) return response;
-    }
+  private Map<String, Object> stubBalance(String userId, String fintechUseNum) {
     return Map.of(
         "provider",
         "OPEN_BANKING",
@@ -121,24 +191,7 @@ public class OpenBankingApiAdapter implements OpenBankingPort {
         "KRW");
   }
 
-  @Override
-  public Map<String, Object> getTransactions(String userId, String fintechUseNum) {
-    if (!properties.isStubMode()) {
-      Map<String, Object> response =
-          executeWithRetry(
-              userId,
-              token ->
-                  restTemplate
-                      .exchange(
-                          properties.getOpenBankingTransactionsUrl()
-                              + "?fintechUseNum="
-                              + fintechUseNum,
-                          HttpMethod.GET,
-                          new HttpEntity<>(buildHeaders(userId, token)),
-                          new ParameterizedTypeReference<Map<String, Object>>() {})
-                      .getBody());
-      if (response != null) return response;
-    }
+  private Map<String, Object> stubTransactions(String userId, String fintechUseNum) {
     return Map.of(
         "provider",
         "OPEN_BANKING",
@@ -152,35 +205,8 @@ public class OpenBankingApiAdapter implements OpenBankingPort {
             Map.of("type", "WITHDRAWAL", "amount", 45000L, "memo", "coffee")));
   }
 
-  @Override
-  public Map<String, Object> transfer(
+  private Map<String, Object> stubTransfer(
       String userId, String fromAccount, String toAccount, long amount, String idempotencyKey) {
-    if (!properties.isStubMode()) {
-      Map<String, Object> response =
-          executeWithRetry(
-              userId,
-              token -> {
-                HttpHeaders headers = buildHeaders(userId, token);
-                headers.setContentType(MediaType.APPLICATION_JSON);
-                if (idempotencyKey != null && !idempotencyKey.isBlank()) {
-                  headers.add("X-Idempotency-Key", idempotencyKey);
-                }
-                Map<String, Object> body =
-                    Map.of(
-                        "fromAccount", fromAccount,
-                        "toAccount", toAccount,
-                        "amount", amount,
-                        "bankTranId", UUID.randomUUID().toString());
-                return restTemplate
-                    .exchange(
-                        properties.getOpenBankingTransferUrl(),
-                        HttpMethod.POST,
-                        new HttpEntity<>(body, headers),
-                        new ParameterizedTypeReference<Map<String, Object>>() {})
-                    .getBody();
-              });
-      if (response != null) return response;
-    }
     return Map.of(
         "provider", "OPEN_BANKING",
         "transactionId", UUID.randomUUID().toString(),
