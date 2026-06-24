@@ -82,11 +82,7 @@ public class SmsNotificationAdapter implements NotificationChannelPort {
   }
 
   private String buildAuthHeader() {
-    return "HMAC-SHA256 ApiKey="
-        + notifyProperties.getSms().getApiKey()
-        + ", Date="
-        + java.time.Instant.now().toString()
-        + ", Salt=burty, Signature="
-        + notifyProperties.getSms().getApiSecret();
+    return SolapiAuthHeaderBuilder.build(
+        notifyProperties.getSms().getApiKey(), notifyProperties.getSms().getApiSecret());
   }
 }
