@@ -1,22 +1,3 @@
-/**
- *
- *
- * <pre>
- * <b>Description  : 설정 검증기 (ProdStartupValidator)</b>
- * <b>Project Name : BURTY</b>
- * package  : com.burty.config
- * </pre>
- *
- * @author : RosieOh
- * @version : 1.0
- * @since
- *     <pre>
- * Modification Information
- *    수정일              수정자                수정내용
- * ---------------   ---------------   ----------------------------
- *  2026.06.15        RosieOh     최초생성
- *        </pre>
- */
 package com.burty.config;
 
 import org.springframework.boot.context.event.ApplicationReadyEvent;
@@ -31,6 +12,7 @@ public class ProdStartupValidator {
   private static final String DEFAULT_JWT = "change-me-jwt-secret-key-for-burty";
   private static final String DEFAULT_SIGN = "change-me-burty-sign-secret";
   private static final String DEFAULT_ADMIN = "burty-admin-setup-key";
+  private static final String DEFAULT_FIELD_ENCRYPTION = "change-me-burty-field-encryption-key-32";
 
   private final Environment environment;
   private final MyDataProperties myDataProperties;
@@ -66,12 +48,18 @@ public class ProdStartupValidator {
     String jwt = environment.getProperty("burty.jwt.secret", DEFAULT_JWT);
     String sign = environment.getProperty("burty.sign.secret", DEFAULT_SIGN);
     String admin = environment.getProperty("burty.admin.setup-key", DEFAULT_ADMIN);
+    String fieldEncryption =
+        environment.getProperty("burty.security.field-encryption-key", DEFAULT_FIELD_ENCRYPTION);
     boolean redisEnabled =
         environment.getProperty("burty.redis.enabled", Boolean.class, Boolean.FALSE);
 
     if (containsDefaultSecret(jwt) || containsDefaultSecret(sign) || containsDefaultSecret(admin)) {
       throw new IllegalStateException(
           "PROD startup blocked: JWT/sign/admin secrets must not use default values.");
+    }
+    if (containsDefaultSecret(fieldEncryption)) {
+      throw new IllegalStateException(
+          "PROD startup blocked: burty.security.field-encryption-key must be set to a unique value.");
     }
     if (!redisEnabled) {
       throw new IllegalStateException(
@@ -93,30 +81,38 @@ public class ProdStartupValidator {
       throw new IllegalStateException(
           "PROD startup blocked: burty.api.swagger-enabled must be false.");
     }
-    if (!identityProperties.isStubMode()) {
-      if (identityProperties.getProvider() == IdentityProperties.Provider.NICE
-          && !identityProperties.getNice().isConfigured()) {
-        throw new IllegalStateException(
-            "PROD startup blocked: NICE identity credentials required when stub-mode=false.");
-      }
-      if (identityProperties.getProvider() == IdentityProperties.Provider.KCB
-          && !identityProperties.getKcb().isConfigured()) {
-        throw new IllegalStateException(
-            "PROD startup blocked: KCB identity credentials required when stub-mode=false.");
-      }
-    }
-    if (!notifyProperties.getEmail().isStubMode()
-        && (environment.getProperty("spring.mail.host", "").isBlank())) {
+    if (identityProperties.isStubMode()) {
       throw new IllegalStateException(
-          "PROD startup blocked: MAIL_HOST required when email stub-mode=false.");
+          "PROD startup blocked: burty.identity.stub-mode must be false.");
     }
-    if (!notifyProperties.getSms().isStubMode() && !notifyProperties.getSms().isConfigured()) {
-      throw new IllegalStateException(
-          "PROD startup blocked: SMS API credentials required when sms stub-mode=false.");
+    if (identityProperties.getProvider() == IdentityProperties.Provider.NICE
+        && !identityProperties.getNice().isConfigured()) {
+      throw new IllegalStateException("PROD startup blocked: NICE identity credentials required.");
     }
-    if (!notifyProperties.getPush().isStubMode() && !notifyProperties.getPush().isConfigured()) {
+    if (identityProperties.getProvider() == IdentityProperties.Provider.KCB
+        && !identityProperties.getKcb().isConfigured()) {
+      throw new IllegalStateException("PROD startup blocked: KCB identity credentials required.");
+    }
+    if (notifyProperties.getEmail().isStubMode()) {
       throw new IllegalStateException(
-          "PROD startup blocked: FCM credentials required when push stub-mode=false.");
+          "PROD startup blocked: burty.notify.email.stub-mode must be false.");
+    }
+    if (notifyProperties.getSms().isStubMode()) {
+      throw new IllegalStateException(
+          "PROD startup blocked: burty.notify.sms.stub-mode must be false.");
+    }
+    if (notifyProperties.getPush().isStubMode()) {
+      throw new IllegalStateException(
+          "PROD startup blocked: burty.notify.push.stub-mode must be false.");
+    }
+    if (environment.getProperty("spring.mail.host", "").isBlank()) {
+      throw new IllegalStateException("PROD startup blocked: MAIL_HOST is required.");
+    }
+    if (!notifyProperties.getSms().isConfigured()) {
+      throw new IllegalStateException("PROD startup blocked: SMS API credentials required.");
+    }
+    if (!notifyProperties.getPush().isConfigured()) {
+      throw new IllegalStateException("PROD startup blocked: FCM credentials required.");
     }
   }
 
