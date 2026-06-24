@@ -3,11 +3,89 @@
 # 사용:
 #   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
 #
-# 차이점:
-#   - HOST_LOG_DIR / HOST_UPLOAD_DIR 바인드 경로 지정
-#   - prod 필수 secret 은 Jenkins BURTY_ENV_FILE (.env) 로 주입
-#   - 8080 포트는 nginx 경유만 허용 (직접 노출하지 않음)
+# 포함: burty prod 설정 + Prometheus + Loki + Promtail (+ Grafana localhost only)
 
 services:
   burty:
     ports: []
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      BURTY_REDIS_ENABLED: "true"
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-http://otel-collector:4318}
+      OTEL_SERVICE_NAME: BURTY
+      MANAGEMENT_OTLP_TRACING_ENDPOINT: ${MANAGEMENT_OTLP_TRACING_ENDPOINT:-http://otel-collector:4318/v1/traces}
+      BURTY_GRAFANA_ENABLED: ${BURTY_GRAFANA_ENABLED:-true}
+      BURTY_GRAFANA_PUBLIC_BASE_URL: ${GRAFANA_PUBLIC_URL:-http://127.0.0.1:3001}
+
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    container_name: burty-prometheus
+    restart: unless-stopped
+    volumes:
+      - ./infra/observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - burty-prometheus-data:/prometheus
+    networks:
+      - global-nginx
+
+  loki:
+    image: grafana/loki:3.3.2
+    container_name: burty-loki
+    restart: unless-stopped
+    command: -config.file=/etc/loki/loki-config.yml
+    volumes:
+      - ./infra/observability/loki-config.yml:/etc/loki/loki-config.yml:ro
+      - burty-loki-data:/loki
+    networks:
+      - global-nginx
+
+  promtail:
+    image: grafana/promtail:3.3.2
+    container_name: burty-promtail
+    restart: unless-stopped
+    command: -config.file=/etc/promtail/promtail-config.yml
+    volumes:
+      - ./infra/observability/promtail-config.yml:/etc/promtail/promtail-config.yml:ro
+      - ${HOST_LOG_DIR:-./logs}:/var/log/burty:ro
+    depends_on:
+      - loki
+    networks:
+      - global-nginx
+
+  grafana:
+    image: grafana/grafana:11.4.0
+    container_name: burty-grafana
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?GRAFANA_ADMIN_PASSWORD is required}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_SECURITY_ALLOW_EMBEDDING: "true"
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_SERVER_ROOT_URL: ${GRAFANA_ROOT_URL:-http://127.0.0.1:3001}
+      GF_SERVER_SERVE_FROM_SUB_PATH: ${GRAFANA_SERVE_FROM_SUB_PATH:-false}
+    volumes:
+      - ./infra/observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./infra/observability/grafana/dashboards:/etc/grafana/dashboards:ro
+      - burty-grafana-data:/var/lib/grafana
+    ports:
+      - "127.0.0.1:${GRAFANA_PORT:-3001}:3000"
+    depends_on:
+      - prometheus
+      - loki
+    networks:
+      - global-nginx
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.116.1
+    container_name: burty-otel-collector
+    restart: unless-stopped
+    command: ["--config=/etc/otel-collector-config.yml"]
+    volumes:
+      - ./infra/observability/otel-collector-config.yml:/etc/otel-collector-config.yml:ro
+    networks:
+      - global-nginx
+
+volumes:
+  burty-prometheus-data:
+  burty-loki-data:
+  burty-grafana-data:
