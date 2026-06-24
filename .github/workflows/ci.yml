@@ -33,3 +33,12 @@ jobs:
 
       - name: Docker build (validation only)
         run: docker build -t burty:ci .
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: burty:ci
+          format: table
+          exit-code: 1
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
