@@ -13,7 +13,7 @@ services:
     environment:
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-dev}
 
-      SPRING_JPA_DDLAUTO: ${SPRING_JPA_DDLAUTO:-update}
+      SPRING_JPA_DDLAUTO: ${SPRING_JPA_DDLAUTO:-validate}
 
       DB_HOST: ${DB_HOST:-host.docker.internal}
       DB_PORT: ${DB_PORT:-3306}
