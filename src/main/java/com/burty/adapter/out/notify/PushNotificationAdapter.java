@@ -22,14 +22,17 @@ public class PushNotificationAdapter implements NotificationChannelPort {
   private final NotifyProperties notifyProperties;
   private final RestTemplate restTemplate;
   private final NotificationRecipientResolver recipientResolver;
+  private final FcmOAuthTokenProvider fcmOAuthTokenProvider;
 
   public PushNotificationAdapter(
       NotifyProperties notifyProperties,
       RestTemplate restTemplate,
-      NotificationRecipientResolver recipientResolver) {
+      NotificationRecipientResolver recipientResolver,
+      FcmOAuthTokenProvider fcmOAuthTokenProvider) {
     this.notifyProperties = notifyProperties;
     this.restTemplate = restTemplate;
     this.recipientResolver = recipientResolver;
+    this.fcmOAuthTokenProvider = fcmOAuthTokenProvider;
   }
 
   @Override
@@ -70,7 +73,8 @@ public class PushNotificationAdapter implements NotificationChannelPort {
               + "/messages:send";
       HttpHeaders headers = new HttpHeaders();
       headers.setContentType(MediaType.APPLICATION_JSON);
-      headers.setBearerAuth(notifyProperties.getPush().getFcmCredentialsJson());
+      headers.setBearerAuth(
+          fcmOAuthTokenProvider.getAccessToken(notifyProperties.getPush().getFcmCredentialsJson()));
       Map<String, Object> payload =
           Map.of(
               "message",
