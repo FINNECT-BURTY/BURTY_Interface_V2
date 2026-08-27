@@ -31,6 +31,7 @@ import com.burty.security.AuthLevel;
 import com.burty.security.RiskLevel;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -74,7 +75,7 @@ public class BaseCodeController extends BaseController {
   @PostMapping
   @AuthLevel(RiskLevel.LEVEL_3)
   @Operation(summary = "코드 등록/수정", description = "관리자 전용. LEVEL_3 인증 필요.")
-  public ApiResponse<CodeItem> upsert(@RequestBody BaseCodeUpsertRequest request) {
+  public ApiResponse<CodeItem> upsert(@Valid @RequestBody BaseCodeUpsertRequest request) {
     BaseCodeEntity entity = request.toEntity();
     BaseCodeEntity saved = baseCodeUseCase.upsert(entity, currentUser());
     return ApiResponse.ok(CodeItem.from(saved));

@@ -23,6 +23,7 @@ import com.burty.application.dto.shared.SimpleResultResponse;
 import com.burty.application.dto.user.ConsentResponse;
 import com.burty.application.port.in.mydata.MyDataAuthUseCase;
 import com.burty.application.port.in.user.ConsentManagementUseCase;
+import com.burty.core.annotation.CurrentUserId;
 import com.burty.core.controller.BaseController;
 import com.burty.core.dto.response.ApiResponse;
 import com.burty.security.AuthLevel;
@@ -45,7 +46,7 @@ public class ConsentManagementController extends BaseController {
   @GetMapping
   @AuthLevel(RiskLevel.LEVEL_2)
   @Operation(summary = "동의 이력 조회", description = "사용자의 개인정보/마이데이터/위치/보안 로그 동의 이력을 조회합니다.")
-  public ApiResponse<List<ConsentResponse>> consents(@RequestParam String userId) {
+  public ApiResponse<List<ConsentResponse>> consents(@CurrentUserId String userId) {
     return ApiResponse.ok(consentManagementUseCase.listConsents(userId));
   }
 
@@ -62,7 +63,7 @@ public class ConsentManagementController extends BaseController {
   @AuthLevel(RiskLevel.LEVEL_3)
   @Operation(summary = "마이데이터 연결 해제", description = "특정 기관의 마이데이터 연결을 해제합니다.")
   public ApiResponse<SimpleResultResponse> unlinkMyData(
-      @RequestParam String userId, @PathVariable String institutionCode) {
+      @CurrentUserId String userId, @PathVariable String institutionCode) {
     myDataAuthUseCase.unlinkInstitution(userId, institutionCode);
     return ApiResponse.ok(new SimpleResultResponse(true, "마이데이터 연결이 해제되었습니다."));
   }
@@ -71,7 +72,7 @@ public class ConsentManagementController extends BaseController {
   @AuthLevel(RiskLevel.LEVEL_3)
   @Operation(summary = "소셜 로그인 연결 해제", description = "카카오/네이버/애플 소셜 계정 연결을 해제합니다.")
   public ApiResponse<SimpleResultResponse> unlinkSocial(
-      @RequestParam String userId, @PathVariable String provider) {
+      @CurrentUserId String userId, @PathVariable String provider) {
     consentManagementUseCase.unlinkSocial(userId, provider);
     return ApiResponse.ok(new SimpleResultResponse(true, "소셜 로그인 연결이 해제되었습니다."));
   }
@@ -79,7 +80,7 @@ public class ConsentManagementController extends BaseController {
   @DeleteMapping("/biometric")
   @AuthLevel(RiskLevel.LEVEL_3)
   @Operation(summary = "생체 인증 해제", description = "사용자의 모든 활성 생체 credential을 폐기합니다.")
-  public ApiResponse<SimpleResultResponse> revokeBiometric(@RequestParam String userId) {
+  public ApiResponse<SimpleResultResponse> revokeBiometric(@CurrentUserId String userId) {
     consentManagementUseCase.revokeBiometric(userId);
     return ApiResponse.ok(new SimpleResultResponse(true, "동의가 철회되었습니다."));
   }

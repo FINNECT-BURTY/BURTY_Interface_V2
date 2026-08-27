@@ -22,6 +22,7 @@ package com.burty.adapter.in.web.asset;
 import com.burty.application.dto.asset.AssetSummaryResponse;
 import com.burty.application.dto.asset.AssetTrendItemResponse;
 import com.burty.application.port.in.asset.AssetSummaryUseCase;
+import com.burty.core.annotation.CurrentUserId;
 import com.burty.core.controller.BaseController;
 import com.burty.core.dto.response.ApiResponse;
 import com.burty.security.AuthLevel;
@@ -30,7 +31,6 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -42,13 +42,13 @@ public class AssetSummaryController extends BaseController {
 
   @GetMapping("/assets/summary")
   @AuthLevel(RiskLevel.LEVEL_1)
-  public ApiResponse<AssetSummaryResponse> assetSummary(@RequestParam String userId) {
+  public ApiResponse<AssetSummaryResponse> assetSummary(@CurrentUserId String userId) {
     return ApiResponse.ok(assetSummaryUseCase.summary(userId));
   }
 
   @GetMapping("/assets/trend")
   @AuthLevel(RiskLevel.LEVEL_1)
-  public ApiResponse<List<AssetTrendItemResponse>> assetTrend(@RequestParam String userId) {
+  public ApiResponse<List<AssetTrendItemResponse>> assetTrend(@CurrentUserId String userId) {
     return ApiResponse.ok(assetSummaryUseCase.trend(userId));
   }
 }

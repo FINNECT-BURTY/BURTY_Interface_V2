@@ -40,6 +40,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseCookie;
@@ -70,7 +71,7 @@ public class AuthController extends BaseController {
       summary = "JWT 발급 (테스트용)",
       description = "userId로 테스트 access token 발급 (test-token-enabled, non-prod 전용).",
       security = {})
-  public ApiResponse<TokenResponse> issueToken(@RequestBody TokenIssueRequest request) {
+  public ApiResponse<TokenResponse> issueToken(@Valid @RequestBody TokenIssueRequest request) {
     return ApiResponse.ok(new TokenResponse(authUseCase.issueTestToken(request.userId())));
   }
 
@@ -98,7 +99,8 @@ public class AuthController extends BaseController {
       summary = "Access / Refresh token 재발급",
       description = "refresh token(body/쿠키)으로 access·refresh 재발급 및 rotation.")
   public ResponseEntity<ApiResponse<TokenPairResponse>> refresh(
-      @RequestBody(required = false) RefreshTokenRequest request, HttpServletRequest httpRequest) {
+      @Valid @RequestBody(required = false) RefreshTokenRequest request,
+      HttpServletRequest httpRequest) {
     String cookieRefresh = AuthCookieReader.read(httpRequest, AuthCookies.REFRESH);
     String refreshToken = resolveRefreshToken(request, cookieRefresh);
     boolean fromCookie = cookieRefresh != null && cookieRefresh.equals(refreshToken);
@@ -129,7 +131,7 @@ public class AuthController extends BaseController {
       security = {@SecurityRequirement(name = "bearerAuth")})
   public ResponseEntity<ApiResponse<LogoutResponse>> logout(
       @RequestHeader(value = "Authorization", required = false) String authHeader,
-      @RequestBody(required = false) RefreshTokenRequest request,
+      @Valid @RequestBody(required = false) RefreshTokenRequest request,
       HttpServletRequest httpRequest) {
     String accessToken = resolveAccessToken(authHeader, httpRequest);
     if (accessToken != null) {
