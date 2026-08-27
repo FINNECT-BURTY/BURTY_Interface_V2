@@ -86,18 +86,32 @@ public class NotificationDispatcher {
     return dispatchDirect(userId, channel, title, body);
   }
 
-  /** Queue consumer / synchronous path — always sends immediately. */
+  /**
+   * 즉시 발송. 실패하면 <b>예외를 던진다.</b>
+   *
+   * <p>예전에는 {@code false} 를 반환했고, 호출부(큐 컨슈머)는 그 값을 보지도 않고 ACK 했다. 실패가 신호로 전달되지 않으면 재시도할 수 없다.
+   */
   public boolean dispatchDirect(
       String userId, NotificationChannelPort.Channel channel, String title, String body) {
     NotificationChannelPort port = channelMap.get(channel);
     if (port == null) {
-      log.warn("No adapter registered for channel={}, dropping userId={}", channel, userId);
-      return false;
+      throw new IllegalStateException("등록된 알림 채널 어댑터가 없습니다: " + channel);
     }
-    return port.send(userId, title, body);
+    boolean sent = port.send(userId, title, body);
+    if (!sent) {
+      throw new NotificationDeliveryException("알림 발송 실패 channel=" + channel + " userId=" + userId);
+    }
+    return true;
   }
 
-  private NotificationChannelPort.Channel resolvePreferredChannel(String userId) {
+  /** 발송 실패. 아웃박스/큐가 재시도 여부를 판단하는 신호다. */
+  public static class NotificationDeliveryException extends RuntimeException {
+    public NotificationDeliveryException(String message) {
+      super(message);
+    }
+  }
+
+  public NotificationChannelPort.Channel resolvePreferredChannel(String userId) {
     try {
       Long userKey = Long.parseLong(userId);
       return alertSubscriptionRepository.findByGuardianLink_SeniorUser_UserId(userKey).stream()
