@@ -9,3 +9,14 @@ updates:
     directory: /
     schedule:
       interval: weekly
+
+  # 베이스 이미지(gradle:9.4.1-jdk21-alpine, eclipse-temurin:21-jre-alpine)의
+  # CVE 패치를 자동으로 받아온다. CI 의 Trivy 게이트가 HIGH/CRITICAL 을 막고 있어서
+  # 베이스가 낡으면 배포 자체가 멈춘다.
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "CHORE"
