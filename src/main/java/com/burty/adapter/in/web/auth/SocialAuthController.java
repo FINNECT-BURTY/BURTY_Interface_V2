@@ -33,6 +33,7 @@ import com.burty.domain.auth.model.SocialProvider;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -69,7 +70,7 @@ public class SocialAuthController extends BaseController {
       description = "authorization code 로 JWT 를 발급합니다.",
       security = {})
   public ApiResponse<SocialLoginResponse> login(
-      @PathVariable String provider, @RequestBody SocialLoginRequest request) {
+      @PathVariable String provider, @Valid @RequestBody SocialLoginRequest request) {
     SocialProvider socialProvider = SocialProvider.parse(provider);
     SocialLoginResult result =
         socialLoginUseCase.login(

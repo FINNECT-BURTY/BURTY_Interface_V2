@@ -26,12 +26,14 @@ import com.burty.application.dto.finance.OpenBankingTransactionsResponse;
 import com.burty.application.dto.finance.PensionSummaryResponse;
 import com.burty.application.dto.finance.TransferRequest;
 import com.burty.application.port.in.finance.ExternalFinanceUseCase;
+import com.burty.core.annotation.CurrentUserId;
 import com.burty.core.controller.BaseController;
 import com.burty.core.dto.response.ApiResponse;
 import com.burty.security.AuthLevel;
 import com.burty.security.RiskLevel;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -50,56 +52,53 @@ public class ExternalFinanceController extends BaseController {
   @AuthLevel(RiskLevel.LEVEL_3)
   @Operation(summary = "카카오뱅크 이체")
   public ApiResponse<ExternalTransferResponse> kakaoBankTransfer(
-      @RequestBody TransferRequest request) {
+      @CurrentUserId String userId, @Valid @RequestBody TransferRequest request) {
     return ApiResponse.ok(
-        externalFinanceUseCase.transferToKakaoBank(
-            request.userId(), request.toAccount(), request.amount()));
+        externalFinanceUseCase.transferToKakaoBank(userId, request.toAccount(), request.amount()));
   }
 
   @PostMapping("/external/hana-bank/transfer")
   @AuthLevel(RiskLevel.LEVEL_3)
   @Operation(summary = "하나은행 이체")
   public ApiResponse<ExternalTransferResponse> hanaBankTransfer(
-      @RequestBody TransferRequest request) {
+      @CurrentUserId String userId, @Valid @RequestBody TransferRequest request) {
     return ApiResponse.ok(
-        externalFinanceUseCase.transferToHanaBank(
-            request.userId(), request.toAccount(), request.amount()));
+        externalFinanceUseCase.transferToHanaBank(userId, request.toAccount(), request.amount()));
   }
 
   @PostMapping("/external/kb-bank/transfer")
   @AuthLevel(RiskLevel.LEVEL_3)
   @Operation(summary = "KB국민은행 이체")
   public ApiResponse<ExternalTransferResponse> kbBankTransfer(
-      @RequestBody TransferRequest request) {
+      @CurrentUserId String userId, @Valid @RequestBody TransferRequest request) {
     return ApiResponse.ok(
-        externalFinanceUseCase.transferToKbBank(
-            request.userId(), request.toAccount(), request.amount()));
+        externalFinanceUseCase.transferToKbBank(userId, request.toAccount(), request.amount()));
   }
 
   @PostMapping("/external/shinhan-bank/transfer")
   @AuthLevel(RiskLevel.LEVEL_3)
   @Operation(summary = "신한은행 이체")
   public ApiResponse<ExternalTransferResponse> shinhanBankTransfer(
-      @RequestBody TransferRequest request) {
+      @CurrentUserId String userId, @Valid @RequestBody TransferRequest request) {
     return ApiResponse.ok(
         externalFinanceUseCase.transferToShinhanBank(
-            request.userId(), request.toAccount(), request.amount()));
+            userId, request.toAccount(), request.amount()));
   }
 
   @PostMapping("/external/im-bank/transfer")
   @AuthLevel(RiskLevel.LEVEL_3)
   @Operation(summary = "iM뱅크 이체")
   public ApiResponse<ExternalTransferResponse> imBankTransfer(
-      @RequestBody TransferRequest request) {
+      @CurrentUserId String userId, @Valid @RequestBody TransferRequest request) {
     return ApiResponse.ok(
-        externalFinanceUseCase.transferToImBank(
-            request.userId(), request.toAccount(), request.amount()));
+        externalFinanceUseCase.transferToImBank(userId, request.toAccount(), request.amount()));
   }
 
   @GetMapping("/external/openbanking/accounts")
   @AuthLevel(RiskLevel.LEVEL_1)
   @Operation(summary = "오픈뱅킹 계좌 조회")
-  public ApiResponse<OpenBankingAccountsResponse> openBankingAccounts(@RequestParam String userId) {
+  public ApiResponse<OpenBankingAccountsResponse> openBankingAccounts(
+      @CurrentUserId String userId) {
     return ApiResponse.ok(externalFinanceUseCase.getOpenBankingAccounts(userId));
   }
 
@@ -107,7 +106,7 @@ public class ExternalFinanceController extends BaseController {
   @AuthLevel(RiskLevel.LEVEL_1)
   @Operation(summary = "오픈뱅킹 잔액 조회")
   public ApiResponse<OpenBankingBalanceResponse> openBankingBalance(
-      @RequestParam String userId, @RequestParam String fintechUseNum) {
+      @CurrentUserId String userId, @RequestParam String fintechUseNum) {
     return ApiResponse.ok(externalFinanceUseCase.getOpenBankingBalance(userId, fintechUseNum));
   }
 
@@ -115,7 +114,7 @@ public class ExternalFinanceController extends BaseController {
   @AuthLevel(RiskLevel.LEVEL_1)
   @Operation(summary = "오픈뱅킹 거래내역 조회")
   public ApiResponse<OpenBankingTransactionsResponse> openBankingTransactions(
-      @RequestParam String userId, @RequestParam String fintechUseNum) {
+      @CurrentUserId String userId, @RequestParam String fintechUseNum) {
     return ApiResponse.ok(externalFinanceUseCase.getOpenBankingTransactions(userId, fintechUseNum));
   }
 
@@ -123,10 +122,10 @@ public class ExternalFinanceController extends BaseController {
   @AuthLevel(RiskLevel.LEVEL_3)
   @Operation(summary = "오픈뱅킹 이체")
   public ApiResponse<ExternalTransferResponse> openBankingTransfer(
-      @RequestBody TransferRequest request) {
+      @CurrentUserId String userId, @Valid @RequestBody TransferRequest request) {
     return ApiResponse.ok(
         externalFinanceUseCase.transferByOpenBanking(
-            request.userId(),
+            userId,
             request.fromAccount(),
             request.toAccount(),
             request.amount(),
@@ -135,7 +134,7 @@ public class ExternalFinanceController extends BaseController {
 
   @GetMapping("/external/pension/summary")
   @AuthLevel(RiskLevel.LEVEL_1)
-  public ApiResponse<PensionSummaryResponse> pensionSummary(@RequestParam String userId) {
+  public ApiResponse<PensionSummaryResponse> pensionSummary(@CurrentUserId String userId) {
     return ApiResponse.ok(externalFinanceUseCase.getPensionSummary(userId));
   }
 }

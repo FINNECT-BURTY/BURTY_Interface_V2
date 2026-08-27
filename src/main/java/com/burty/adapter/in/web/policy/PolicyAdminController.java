@@ -29,6 +29,7 @@ import com.burty.security.AuthLevel;
 import com.burty.security.RiskLevel;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
@@ -50,7 +51,7 @@ public class PolicyAdminController extends BaseController {
   @PostMapping
   @AuthLevel(RiskLevel.LEVEL_3)
   @Operation(summary = "정책 등록/수정", description = "정책명, 신청 URL, 지역/소득/나이 조건, 만료일을 등록 또는 수정합니다.")
-  public ApiResponse<PolicyAdminResponse> upsert(@RequestBody PolicyAdminRequest request) {
+  public ApiResponse<PolicyAdminResponse> upsert(@Valid @RequestBody PolicyAdminRequest request) {
     return ApiResponse.ok(policyAdminUseCase.upsert(request));
   }
 

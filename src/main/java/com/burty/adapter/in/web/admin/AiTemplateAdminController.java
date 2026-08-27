@@ -28,6 +28,7 @@ import com.burty.core.dto.response.ApiResponse;
 import com.burty.security.AuthLevel;
 import com.burty.security.RiskLevel;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
@@ -49,7 +50,7 @@ public class AiTemplateAdminController extends BaseController {
   @PostMapping
   @AuthLevel(RiskLevel.LEVEL_3)
   public ApiResponse<AiFallbackTemplateResponse> upsert(
-      @RequestBody AiFallbackTemplateRequest request) {
+      @Valid @RequestBody AiFallbackTemplateRequest request) {
     return ApiResponse.ok(aiTemplateAdminUseCase.upsert(request));
   }
 

@@ -24,12 +24,14 @@ import com.burty.application.dto.auth.SessionResponse;
 import com.burty.application.dto.auth.TokenPairResponse;
 import com.burty.application.dto.shared.SimpleResultResponse;
 import com.burty.application.port.in.auth.SessionManagementUseCase;
+import com.burty.core.annotation.CurrentUserId;
 import com.burty.core.controller.BaseController;
 import com.burty.core.dto.response.ApiResponse;
 import com.burty.security.AuthLevel;
 import com.burty.security.RiskLevel;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
@@ -53,7 +55,7 @@ public class SessionManagementController extends BaseController {
   @AuthLevel(RiskLevel.LEVEL_2)
   @Operation(summary = "세션 생성", description = "사용자+기기 refresh token 발급 (기기 등록·관리용).")
   public ApiResponse<TokenPairResponse> create(
-      @RequestParam String userId, @RequestParam(required = false) String deviceId) {
+      @CurrentUserId String userId, @RequestParam(required = false) String deviceId) {
     return ApiResponse.ok(sessionManagementUseCase.createSession(userId, deviceId));
   }
 
@@ -61,14 +63,14 @@ public class SessionManagementController extends BaseController {
   @Operation(
       summary = "access + refresh token 재발급 (호환 경로)",
       description = "POST /api/v1/auth/refresh 와 동일. 새 코드에서는 /auth/refresh 사용 권장.")
-  public ApiResponse<TokenPairResponse> refresh(@RequestBody RefreshTokenRequest request) {
+  public ApiResponse<TokenPairResponse> refresh(@Valid @RequestBody RefreshTokenRequest request) {
     return ApiResponse.ok(sessionManagementUseCase.refreshSession(request.refreshToken()));
   }
 
   @GetMapping
   @AuthLevel(RiskLevel.LEVEL_2)
   @Operation(summary = "활성 세션 목록", description = "사용자의 revoke 되지 않은 세션을 조회합니다.")
-  public ApiResponse<List<SessionResponse>> sessions(@RequestParam String userId) {
+  public ApiResponse<List<SessionResponse>> sessions(@CurrentUserId String userId) {
     return ApiResponse.ok(sessionManagementUseCase.listActiveSessions(userId));
   }
 
@@ -83,7 +85,7 @@ public class SessionManagementController extends BaseController {
   @DeleteMapping
   @AuthLevel(RiskLevel.LEVEL_3)
   @Operation(summary = "전체 세션 종료", description = "사용자의 모든 활성 세션을 한 번에 종료합니다. (비밀번호 변경, 도난 의심 등)")
-  public ApiResponse<SimpleResultResponse> revokeAll(@RequestParam String userId) {
+  public ApiResponse<SimpleResultResponse> revokeAll(@CurrentUserId String userId) {
     sessionManagementUseCase.revokeAllSessions(userId);
     return ApiResponse.ok(new SimpleResultResponse(true, "전체 세션이 만료되었습니다."));
   }

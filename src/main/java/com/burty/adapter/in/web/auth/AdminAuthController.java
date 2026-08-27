@@ -28,6 +28,7 @@ import com.burty.core.controller.BaseController;
 import com.burty.core.dto.response.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
@@ -41,7 +42,7 @@ public class AdminAuthController extends BaseController {
 
   @PostMapping("/login")
   @Operation(summary = "관리자 로그인", description = "아이디·비밀번호로 로그인해 ROLE_ADMIN JWT를 발급합니다.")
-  public ApiResponse<AdminTokenResponse> login(@RequestBody AdminLoginRequest request) {
+  public ApiResponse<AdminTokenResponse> login(@Valid @RequestBody AdminLoginRequest request) {
     String token = adminAuthUseCase.login(request.username(), request.password());
     return ApiResponse.ok(new AdminTokenResponse(token));
   }
@@ -52,7 +53,7 @@ public class AdminAuthController extends BaseController {
       description = "setup-key로 관리자 계정 생성 (role: ADMIN | SUPER_ADMIN).",
       security = {})
   public ApiResponse<AdminRegisterResultResponse> register(
-      @RequestBody AdminRegisterRequest request) {
+      @Valid @RequestBody AdminRegisterRequest request) {
     adminAuthUseCase.register(
         request.setupKey(), request.username(), request.password(), request.role());
     return ApiResponse.ok(new AdminRegisterResultResponse(true));

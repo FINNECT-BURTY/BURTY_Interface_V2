@@ -22,6 +22,7 @@ package com.burty.adapter.in.web.notification;
 import com.burty.application.dto.notification.NotificationResponse;
 import com.burty.application.dto.notification.ReminderGenerateResponse;
 import com.burty.application.port.in.notification.NotificationManagementUseCase;
+import com.burty.core.annotation.CurrentUserId;
 import com.burty.core.controller.BaseController;
 import com.burty.core.dto.response.ApiResponse;
 import com.burty.security.AuthLevel;
@@ -42,14 +43,14 @@ public class NotificationManagementController extends BaseController {
 
   @GetMapping
   @AuthLevel(RiskLevel.LEVEL_1)
-  public ApiResponse<List<NotificationResponse>> notifications(@RequestParam String userId) {
+  public ApiResponse<List<NotificationResponse>> notifications(@CurrentUserId String userId) {
     return ApiResponse.ok(notificationManagementUseCase.notifications(userId));
   }
 
   @PostMapping("/generate-reminders")
   @AuthLevel(RiskLevel.LEVEL_2)
   @Operation(summary = "알림 생성", description = "위험일 D-7/D-3/D-1, 카드/월세 납부 전, 정책 마감 전 알림을 생성합니다.")
-  public ApiResponse<ReminderGenerateResponse> generateReminders(@RequestParam String userId) {
+  public ApiResponse<ReminderGenerateResponse> generateReminders(@CurrentUserId String userId) {
     return ApiResponse.ok(notificationManagementUseCase.generateReminders(userId));
   }
 }

@@ -26,6 +26,7 @@ import com.burty.application.dto.auth.RiskProofResponse;
 import com.burty.application.dto.auth.WebAuthnBeginRequest;
 import com.burty.application.dto.auth.WebAuthnFinishRequest;
 import com.burty.application.port.in.auth.WebAuthnUseCase;
+import com.burty.core.annotation.CurrentUserId;
 import com.burty.core.controller.BaseController;
 import com.burty.core.dto.response.ApiResponse;
 import com.burty.domain.auth.model.BiometricAuthResult;
@@ -33,6 +34,7 @@ import com.burty.security.AuthLevel;
 import com.burty.security.RiskLevel;
 import com.burty.security.RiskProofService;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -59,42 +61,40 @@ public class WebAuthnSecurityController extends BaseController {
   @PostMapping("/security/webauthn/register/begin")
   @AuthLevel(RiskLevel.LEVEL_1)
   public ApiResponse<ChallengeResponse> beginRegistration(
-      @RequestBody WebAuthnBeginRequest request) {
-    return ApiResponse.ok(
-        new ChallengeResponse(webAuthnUseCase.beginRegistration(request.userId())));
+      @CurrentUserId String userId, @Valid @RequestBody WebAuthnBeginRequest request) {
+    return ApiResponse.ok(new ChallengeResponse(webAuthnUseCase.beginRegistration(userId)));
   }
 
   @PostMapping("/security/webauthn/register/finish")
   @AuthLevel(RiskLevel.LEVEL_1)
   public ApiResponse<BiometricAuthResponse> finishRegistration(
-      @RequestBody WebAuthnFinishRequest request) {
+      @CurrentUserId String userId, @Valid @RequestBody WebAuthnFinishRequest request) {
     BiometricAuthResult result =
         webAuthnUseCase.finishRegistration(
-            request.userId(),
+            userId,
             request.challengeId(),
             request.payload(),
             request.deviceFingerprint(),
             request.platform(),
             request.biometricType());
-    return ApiResponse.ok(toBiometricResponse(request.userId(), result, true));
+    return ApiResponse.ok(toBiometricResponse(userId, result, true));
   }
 
   @PostMapping("/security/webauthn/authenticate/begin")
   @AuthLevel(RiskLevel.LEVEL_1)
   public ApiResponse<ChallengeResponse> beginAuthentication(
-      @RequestBody WebAuthnBeginRequest request) {
-    return ApiResponse.ok(
-        new ChallengeResponse(webAuthnUseCase.beginAuthentication(request.userId())));
+      @CurrentUserId String userId, @Valid @RequestBody WebAuthnBeginRequest request) {
+    return ApiResponse.ok(new ChallengeResponse(webAuthnUseCase.beginAuthentication(userId)));
   }
 
   @PostMapping("/security/webauthn/authenticate/finish")
   @AuthLevel(RiskLevel.LEVEL_1)
   public ApiResponse<BiometricAuthResponse> finishAuthentication(
-      @RequestBody WebAuthnFinishRequest request) {
+      @CurrentUserId String userId, @Valid @RequestBody WebAuthnFinishRequest request) {
     BiometricAuthResult result =
         webAuthnUseCase.finishAuthentication(
-            request.userId(), request.challengeId(), request.payload(), request.deviceToken());
-    return ApiResponse.ok(toBiometricResponse(request.userId(), result, false));
+            userId, request.challengeId(), request.payload(), request.deviceToken());
+    return ApiResponse.ok(toBiometricResponse(userId, result, false));
   }
 
   private BiometricAuthResponse toBiometricResponse(

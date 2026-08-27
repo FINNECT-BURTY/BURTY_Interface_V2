@@ -28,11 +28,13 @@ import com.burty.application.dto.family.FamilyConsentUpdateRequest;
 import com.burty.application.dto.family.FamilyDashboardResponse;
 import com.burty.application.dto.shared.FlagResultResponse;
 import com.burty.application.port.in.family.FamilyProtectionUseCase;
+import com.burty.core.annotation.CurrentUserId;
 import com.burty.core.controller.BaseController;
 import com.burty.core.dto.response.ApiResponse;
 import com.burty.security.AuthLevel;
 import com.burty.security.RiskLevel;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -55,21 +57,21 @@ public class FamilyProtectionController extends BaseController {
 
   @GetMapping("/family-alerts")
   @AuthLevel(RiskLevel.LEVEL_1)
-  public ApiResponse<List<FamilyAlertResponse>> familyAlerts(@RequestParam String userId) {
+  public ApiResponse<List<FamilyAlertResponse>> familyAlerts(@CurrentUserId String userId) {
     return ApiResponse.ok(
         webResponseMapper.toFamilyAlertResponses(familyProtectionUseCase.getFamilyAlerts(userId)));
   }
 
   @GetMapping("/family-alerts/stream")
   @AuthLevel(RiskLevel.LEVEL_1)
-  public SseEmitter familyAlertStream(@RequestParam String userId) {
+  public SseEmitter familyAlertStream(@CurrentUserId String userId) {
     return familyAlertSseBroker.subscribe(userId);
   }
 
   @PostMapping("/family/consents")
   @AuthLevel(RiskLevel.LEVEL_2)
   public ApiResponse<FlagResultResponse> registerFamilyConsent(
-      @RequestBody FamilyConsentRequest request) {
+      @Valid @RequestBody FamilyConsentRequest request) {
     familyProtectionUseCase.registerFamilyConsent(request.parentUserId(), request.childUserId());
     return ApiResponse.ok(FlagResultResponse.of("registered", true));
   }
@@ -77,7 +79,7 @@ public class FamilyProtectionController extends BaseController {
   @PatchMapping("/family/consents")
   @AuthLevel(RiskLevel.LEVEL_2)
   public ApiResponse<FlagResultResponse> updateFamilyConsent(
-      @RequestBody FamilyConsentUpdateRequest request) {
+      @Valid @RequestBody FamilyConsentUpdateRequest request) {
     boolean updated =
         familyProtectionUseCase.updateFamilyConsent(
             request.parentUserId(), request.childUserId(), request.consented());
@@ -103,7 +105,7 @@ public class FamilyProtectionController extends BaseController {
 
   @GetMapping("/family/dashboard")
   @AuthLevel(RiskLevel.LEVEL_1)
-  public ApiResponse<FamilyDashboardResponse> familyDashboard(@RequestParam String userId) {
+  public ApiResponse<FamilyDashboardResponse> familyDashboard(@CurrentUserId String userId) {
     return ApiResponse.ok(
         webResponseMapper.toResponse(familyProtectionUseCase.getFamilyDashboardSummary(userId)));
   }

@@ -6,12 +6,14 @@ import com.burty.application.dto.mydata.TransmissionRequestCreateRequest;
 import com.burty.application.dto.mydata.TransmissionRequestResponse;
 import com.burty.application.dto.shared.FlagResultResponse;
 import com.burty.application.port.in.mydata.MyDataTransmissionUseCase;
+import com.burty.core.annotation.CurrentUserId;
 import com.burty.core.controller.BaseController;
 import com.burty.core.dto.response.ApiResponse;
 import com.burty.security.AuthLevel;
 import com.burty.security.RiskLevel;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import java.util.List;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
@@ -35,17 +37,16 @@ public class MyDataTransmissionController extends BaseController {
   @AuthLevel(RiskLevel.LEVEL_2)
   @Operation(summary = "정보전송요구 생성")
   public ApiResponse<TransmissionRequestResponse> createRequest(
-      @RequestBody TransmissionRequestCreateRequest request) {
+      @CurrentUserId String userId, @Valid @RequestBody TransmissionRequestCreateRequest request) {
     return ApiResponse.ok(
         TransmissionRequestResponse.from(
-            transmissionUseCase.createRequest(
-                request.userId(), request.institutionCode(), request.scope())));
+            transmissionUseCase.createRequest(userId, request.institutionCode(), request.scope())));
   }
 
   @GetMapping("/requests")
   @AuthLevel(RiskLevel.LEVEL_1)
   @Operation(summary = "정보전송요구 목록")
-  public ApiResponse<List<TransmissionRequestResponse>> listRequests(@RequestParam String userId) {
+  public ApiResponse<List<TransmissionRequestResponse>> listRequests(@CurrentUserId String userId) {
     return ApiResponse.ok(
         transmissionUseCase.listRequests(userId).stream()
             .map(TransmissionRequestResponse::from)
@@ -57,7 +58,7 @@ public class MyDataTransmissionController extends BaseController {
   @Operation(summary = "정보전송요구 철회")
   public ApiResponse<FlagResultResponse> revokeRequest(
       @PathVariable Long requestId,
-      @RequestParam String userId,
+      @CurrentUserId String userId,
       @RequestParam(defaultValue = "사용자 철회") String reason) {
     boolean ok = transmissionUseCase.revokeRequest(userId, requestId, reason);
     return ApiResponse.ok(FlagResultResponse.of("revoked", ok));
@@ -66,7 +67,8 @@ public class MyDataTransmissionController extends BaseController {
   @GetMapping("/consents")
   @AuthLevel(RiskLevel.LEVEL_1)
   @Operation(summary = "마이데이터 동의 이력")
-  public ApiResponse<List<MyDataConsentHistoryResponse>> listConsents(@RequestParam String userId) {
+  public ApiResponse<List<MyDataConsentHistoryResponse>> listConsents(
+      @CurrentUserId String userId) {
     return ApiResponse.ok(
         transmissionUseCase.listConsents(userId).stream()
             .map(MyDataConsentHistoryResponse::from)
@@ -77,7 +79,7 @@ public class MyDataTransmissionController extends BaseController {
   @AuthLevel(RiskLevel.LEVEL_1)
   @Operation(summary = "전송 감사 로그")
   public ApiResponse<List<MyDataTransmissionLogResponse>> listLogs(
-      @RequestParam String userId, @RequestParam(defaultValue = "30") int days) {
+      @CurrentUserId String userId, @RequestParam(defaultValue = "30") int days) {
     return ApiResponse.ok(
         transmissionUseCase.listTransmissionLogs(userId, days).stream()
             .map(MyDataTransmissionLogResponse::from)
@@ -87,7 +89,7 @@ public class MyDataTransmissionController extends BaseController {
   @PostMapping("/accounts/sync")
   @AuthLevel(RiskLevel.LEVEL_2)
   @Operation(summary = "오픈뱅킹 계좌 동기화")
-  public ApiResponse<Map<String, Object>> syncAccounts(@RequestParam String userId) {
+  public ApiResponse<Map<String, Object>> syncAccounts(@CurrentUserId String userId) {
     int saved = transmissionUseCase.syncAccounts(userId);
     return ApiResponse.ok(Map.of("userId", userId, "savedAccounts", saved));
   }
