@@ -31,12 +31,12 @@ import com.burty.core.jenkins.exception.JenkinsException;
 import com.burty.core.jenkins.exception.JenkinsJobNotFoundException;
 import com.burty.util.LoginFailLogUtil;
 import jakarta.servlet.http.HttpServletRequest;
-import java.nio.file.AccessDeniedException;
 import java.util.List;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.validation.BindException;
@@ -120,6 +120,10 @@ public class GlobalExceptionHandler {
   @ExceptionHandler(AccessDeniedException.class)
   public ResponseEntity<ApiResponse<ErrorResponse>> handleAccessDeniedException(
       AccessDeniedException e, HttpServletRequest request) {
+    // 주의: 반드시 org.springframework.security.access.AccessDeniedException 이어야 한다.
+    // 예전에는 java.nio.file.AccessDeniedException 을 import 하고 있어서 이 핸들러가
+    // 권한 거부에는 한 번도 동작하지 않았고, 403 이 catch-all 로 떨어져 500 이 됐다.
+    log.warn("접근 거부 URI={} reason={}", request.getRequestURI(), e.getMessage());
 
     ErrorResponse errorResponse = ErrorResponse.of(ErrorCode.FORBIDDEN, request.getRequestURI());
 
@@ -351,8 +355,9 @@ public class GlobalExceptionHandler {
     log.error(
         "IllegalArgumentException: URI={}, message={}", request.getRequestURI(), e.getMessage());
 
+    // 예외 메시지는 내부 구현 정보를 담을 수 있으므로 로그에만 남기고 응답에는 싣지 않는다.
     ErrorResponse errorResponse =
-        ErrorResponse.of(ErrorCode.INVALID_INPUT_VALUE, request.getRequestURI(), e.getMessage());
+        ErrorResponse.of(ErrorCode.INVALID_INPUT_VALUE, request.getRequestURI());
 
     return ResponseEntity.status(HttpStatus.BAD_REQUEST)
         .body(
@@ -368,6 +373,16 @@ public class GlobalExceptionHandler {
         || e.getCause() instanceof org.apache.catalina.connector.ClientAbortException) {
       throw e;
     }
+
+    // 이 핸들러는 예상하지 못한 모든 예외의 종착지다. 여기서 로그를 남기지 않으면
+    // 500 응답만 남고 원인이 통째로 사라진다. (예전 구현에 로깅이 없었다.)
+    log.error(
+        "처리되지 않은 예외 URI={} method={} type={} message={}",
+        request.getRequestURI(),
+        request.getMethod(),
+        e.getClass().getName(),
+        e.getMessage(),
+        e);
 
     ErrorResponse errorResponse =
         ErrorResponse.of(ErrorCode.INTERNAL_SERVER_ERROR, request.getRequestURI());
