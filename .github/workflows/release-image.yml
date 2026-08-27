@@ -1,0 +1,122 @@
+name: Release Image
+
+# 릴리즈 태그가 붙으면 GHCR 에 불변 이미지를 발행한다.
+#
+# Jenkins 와 역할이 겹치지 않는다:
+#   Jenkins  — main/develop 커밋마다 배포용 이미지 (kaniko, 클러스터 안)
+#   이 워크플로 — v*.*.* 태그마다 릴리즈 이미지 (attestation·SBOM 포함)
+#
+# release-tag.yml 이 release 브랜치 push 에서 태그를 만들면 여기가 이어받는다.
+on:
+  push:
+    tags: ['v*.*.*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 재발행할 태그
+        required: true
+
+env:
+  REGISTRY: ghcr.io
+  # 패키지 네임스페이스는 레포 소유자와 같아야 GHCR 이 패키지를 레포에 연결한다.
+  IMAGE_NAME: ${{ github.repository_owner }}/burty-api
+
+jobs:
+  publish:
+    name: GHCR 발행
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      id-token: write      # provenance attestation 서명용
+      attestations: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+
+      - name: Setup Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: GHCR 로그인
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 메타데이터
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          # latest 는 붙이지 않는다. floating 태그를 클러스터가 참조하면
+          # ArgoCD 가 롤백할 대상을 잃는다.
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+          labels: |
+            org.opencontainers.image.title=BURTY API
+            org.opencontainers.image.description=BURTY 청년 자산관리 백엔드 API
+
+      - name: 빌드 및 푸시
+        id: push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            GIT_SHA=${{ github.sha }}
+            BUILD_DATE=${{ github.event.repository.updated_at }}
+            IMAGE_VERSION=${{ github.ref_name }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          provenance: mode=max
+          sbom: true
+
+      # 이 이미지가 정말 이 레포·이 커밋에서 나왔는지 증명 가능하게 만든다.
+      # 금융 서비스에서 공급망 출처 증명은 나중에 반드시 요구받는다.
+      - name: Provenance attestation
+        uses: actions/attest-build-provenance@v1
+        with:
+          subject-name: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          subject-digest: ${{ steps.push.outputs.digest }}
+          push-to-registry: true
+
+      - name: 릴리즈 이미지 취약점 스캔
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ steps.push.outputs.digest }}
+          format: sarif
+          output: trivy-results.sarif
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+
+      # 태그 발행 후에는 빌드를 막을 수 없다. 차단 대신 Security 탭에 기록한다.
+      - name: 스캔 결과 업로드
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: trivy-results.sarif
+
+      - name: 요약
+        run: |
+          {
+            echo "### 발행 완료"
+            echo ""
+            echo '```'
+            echo "${{ steps.meta.outputs.tags }}"
+            echo ""
+            echo "digest: ${{ steps.push.outputs.digest }}"
+            echo '```'
+            echo ""
+            echo "배포하려면 GitOps 레포에서:"
+            echo '```bash'
+            echo "cd k8s/overlays/prod"
+            echo "kustomize edit set image ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ steps.push.outputs.digest }}"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
