@@ -25,17 +25,18 @@ import com.burty.application.dto.consult.ConsultResponse;
 import com.burty.application.dto.consult.MonthlyReportResponse;
 import com.burty.application.port.in.consult.AiAdvisoryUseCase;
 import com.burty.application.port.in.consult.ConsultUseCase;
+import com.burty.core.annotation.CurrentUserId;
 import com.burty.core.controller.BaseController;
 import com.burty.core.dto.response.ApiResponse;
 import com.burty.security.AuthLevel;
 import com.burty.security.RiskLevel;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -49,23 +50,24 @@ public class ConsultController extends BaseController {
 
   @PostMapping("/consult")
   @AuthLevel(RiskLevel.LEVEL_1)
-  public ApiResponse<ConsultResponse> consult(@RequestBody ConsultRequest request) {
+  public ApiResponse<ConsultResponse> consult(
+      @CurrentUserId String userId, @Valid @RequestBody ConsultRequest request) {
     return ApiResponse.ok(
-        webResponseMapper.toResponse(consultUseCase.consult(request.userId(), request.question())));
+        webResponseMapper.toResponse(consultUseCase.consult(userId, request.question())));
   }
 
   @PostMapping("/ai/consult")
   @AuthLevel(RiskLevel.LEVEL_1)
   @Operation(summary = "AI 상담", description = "OpenAI 기반 자산 상담 결과를 쉬운 말로 제공합니다.")
-  public ApiResponse<ConsultResponse> aiConsult(@RequestBody ConsultRequest request) {
+  public ApiResponse<ConsultResponse> aiConsult(
+      @CurrentUserId String userId, @Valid @RequestBody ConsultRequest request) {
     return ApiResponse.ok(
-        webResponseMapper.toResponse(
-            aiAdvisoryUseCase.consultWithAi(request.userId(), request.question())));
+        webResponseMapper.toResponse(aiAdvisoryUseCase.consultWithAi(userId, request.question())));
   }
 
   @GetMapping("/reports/monthly")
   @AuthLevel(RiskLevel.LEVEL_1)
-  public ApiResponse<MonthlyReportResponse> monthlyReport(@RequestParam String userId) {
+  public ApiResponse<MonthlyReportResponse> monthlyReport(@CurrentUserId String userId) {
     return ApiResponse.ok(webResponseMapper.toResponse(consultUseCase.createMonthlyReport(userId)));
   }
 }

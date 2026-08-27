@@ -22,12 +22,14 @@ package com.burty.adapter.in.web.user;
 import com.burty.adapter.in.web.mapper.WebResponseMapper;
 import com.burty.application.dto.user.PersonaResponse;
 import com.burty.application.port.in.user.PersonaInferenceUseCase;
+import com.burty.core.annotation.CurrentUserId;
 import com.burty.core.controller.BaseController;
 import com.burty.core.dto.response.ApiResponse;
 import com.burty.security.AuthLevel;
 import com.burty.security.RiskLevel;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
@@ -37,13 +39,15 @@ import org.springframework.web.bind.annotation.*;
 @Tag(name = "BURTY Persona", description = "사용자 페르소나 (직업/거주/소득) 조회·수정 API")
 public class PersonaController extends BaseController {
 
+  // 참고: 경로의 {userId} 는 하위 호환을 위해 남겨둔다. 실제 대상은 항상 인증 주체다(@CurrentUserId).
+
   private final PersonaInferenceUseCase personaInferenceUseCase;
   private final WebResponseMapper webResponseMapper;
 
   @GetMapping("/{userId}")
   @AuthLevel(RiskLevel.LEVEL_1)
   @Operation(summary = "페르소나 조회/추론", description = "저장된 페르소나가 없으면 자동 추론 후 반환합니다.")
-  public ApiResponse<PersonaResponse> get(@PathVariable String userId) {
+  public ApiResponse<PersonaResponse> get(@CurrentUserId String userId) {
     return ApiResponse.ok(webResponseMapper.toResponse(personaInferenceUseCase.getOrInfer(userId)));
   }
 
@@ -51,7 +55,7 @@ public class PersonaController extends BaseController {
   @AuthLevel(RiskLevel.LEVEL_2)
   @Operation(summary = "페르소나 수정", description = "사용자가 직업/거주/세대/소득을 직접 지정합니다.")
   public ApiResponse<PersonaResponse> override(
-      @PathVariable String userId, @RequestBody OverrideRequest request) {
+      @CurrentUserId String userId, @Valid @RequestBody OverrideRequest request) {
     return ApiResponse.ok(
         webResponseMapper.toResponse(
             personaInferenceUseCase.overrideByUser(
@@ -65,7 +69,7 @@ public class PersonaController extends BaseController {
   @PostMapping("/{userId}/reinfer")
   @AuthLevel(RiskLevel.LEVEL_2)
   @Operation(summary = "페르소나 재추론", description = "현재 자산 스냅샷 기반으로 다시 추론합니다.")
-  public ApiResponse<PersonaResponse> reinfer(@PathVariable String userId) {
+  public ApiResponse<PersonaResponse> reinfer(@CurrentUserId String userId) {
     return ApiResponse.ok(webResponseMapper.toResponse(personaInferenceUseCase.reinfer(userId)));
   }
 

@@ -30,6 +30,7 @@ import com.burty.security.RiskLevel;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -52,7 +53,7 @@ public class UserOnboardingController extends BaseController {
       description = "휴대폰·실명·생년월일 등 추가 프로필 저장 (중복 시 alreadyRegistered).",
       security = {@SecurityRequirement(name = "bearerAuth")})
   public ApiResponse<OnboardingProfileResponse> completeProfile(
-      @RequestBody ProfileOnboardingRequest request) {
+      @Valid @RequestBody ProfileOnboardingRequest request) {
     String userId =
         String.valueOf(SecurityContextHolder.getContext().getAuthentication().getPrincipal());
     boolean terms = Boolean.TRUE.equals(request.termsAccepted());

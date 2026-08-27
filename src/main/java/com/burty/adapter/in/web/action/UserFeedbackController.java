@@ -28,6 +28,7 @@ import com.burty.security.AuthLevel;
 import com.burty.security.RiskLevel;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
@@ -44,7 +45,7 @@ public class UserFeedbackController extends BaseController {
   @Operation(
       summary = "사용자 피드백 저장",
       description = "추천 도움 여부, 실행 여부, 금액 정확도, 고정비 여부 등 일반 피드백을 저장합니다.")
-  public ApiResponse<SimpleResultResponse> submit(@RequestBody UserFeedbackRequest request) {
+  public ApiResponse<SimpleResultResponse> submit(@Valid @RequestBody UserFeedbackRequest request) {
     userFeedbackUseCase.submit(request);
     return ApiResponse.ok(new SimpleResultResponse(true, "피드백이 저장되었습니다."));
   }

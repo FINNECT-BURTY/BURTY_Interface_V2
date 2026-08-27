@@ -27,6 +27,7 @@ import com.burty.core.dto.response.ApiResponse;
 import com.burty.security.AuthLevel;
 import com.burty.security.RiskLevel;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
@@ -41,7 +42,7 @@ public class LoginRiskController extends BaseController {
   @PostMapping("/evaluate")
   @AuthLevel(RiskLevel.LEVEL_2)
   public ApiResponse<LoginRiskEvaluateResponse> evaluate(
-      @RequestBody LoginRiskEvaluateRequest request) {
+      @Valid @RequestBody LoginRiskEvaluateRequest request) {
     return ApiResponse.ok(loginRiskUseCase.evaluate(request));
   }
 }

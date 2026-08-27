@@ -23,12 +23,14 @@ import com.burty.application.dto.auth.AuthorizeUrlResponse;
 import com.burty.application.dto.mydata.MyDataCallbackRequest;
 import com.burty.application.dto.shared.FlagResultResponse;
 import com.burty.application.port.in.mydata.MyDataAuthUseCase;
+import com.burty.core.annotation.CurrentUserId;
 import com.burty.core.controller.BaseController;
 import com.burty.core.dto.response.ApiResponse;
 import com.burty.security.AuthLevel;
 import com.burty.security.RiskLevel;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -45,7 +47,7 @@ public class MyDataOAuthController extends BaseController {
 
   @GetMapping("/mydata/oauth/authorize")
   @AuthLevel(RiskLevel.LEVEL_1)
-  public ApiResponse<AuthorizeUrlResponse> authorizeMyData(@RequestParam String userId) {
+  public ApiResponse<AuthorizeUrlResponse> authorizeMyData(@CurrentUserId String userId) {
     String authorizeUrl = myDataAuthUseCase.createAuthorizeUrl(userId);
     return ApiResponse.ok(new AuthorizeUrlResponse(authorizeUrl));
   }
@@ -61,8 +63,8 @@ public class MyDataOAuthController extends BaseController {
   @PostMapping("/mydata/oauth/callback")
   @AuthLevel(RiskLevel.LEVEL_1)
   public ApiResponse<FlagResultResponse> myDataCallback(
-      @RequestBody MyDataCallbackRequest request) {
-    boolean linked = myDataAuthUseCase.exchangeAuthorizationCode(request.userId(), request.code());
+      @CurrentUserId String userId, @Valid @RequestBody MyDataCallbackRequest request) {
+    boolean linked = myDataAuthUseCase.exchangeAuthorizationCode(userId, request.code());
     return ApiResponse.ok(FlagResultResponse.of("linked", linked));
   }
 }
