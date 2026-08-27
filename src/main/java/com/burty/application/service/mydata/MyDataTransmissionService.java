@@ -23,6 +23,7 @@ public class MyDataTransmissionService implements MyDataTransmissionUseCase {
   private final MyDataConsentHistoryService consentHistoryService;
   private final MyDataTransmissionLogService transmissionLogService;
   private final MyDataAccountSyncService accountSyncService;
+  private final MyDataConsentEnforcementService consentEnforcementService;
   private final AuditLogger auditLogger;
 
   @Override
@@ -65,6 +66,10 @@ public class MyDataTransmissionService implements MyDataTransmissionUseCase {
               requestRepository.save(entity);
               consentHistoryService.revokeActiveConsents(
                   userId, entity.getInstitutionCode(), reason);
+              // 철회는 상태 변경으로 끝나지 않는다. 기관 토큰을 무효화하고 이미 수집한 데이터도
+              // 파기해야 실제로 철회된 것이다. 예전에는 여기가 비어 있어 서류상으로만 철회됐다.
+              consentEnforcementService.enforceRevocation(
+                  userId, entity.getInstitutionCode(), reason, true);
               transmissionLogService.logOutbound(
                   userId, entity.getInstitutionCode(), "TRANSMISSION_REVOKE", reason);
               auditLogger.logSuccess(
