@@ -35,6 +35,10 @@ dependencies {
     implementation 'io.opentelemetry:opentelemetry-exporter-otlp'
     implementation 'io.github.resilience4j:resilience4j-spring-boot3:2.2.0'
     implementation 'io.github.resilience4j:resilience4j-micrometer:2.2.0'
+    // Spring Boot 4 는 자동설정을 기술별 모듈로 분리했다.
+    // flyway-core 만 넣으면 FlywayAutoConfiguration 이 클래스패스에 없어 마이그레이션이
+    // 조용히 실행되지 않는다 (spring.flyway.* 설정이 전부 무시된다).
+    implementation 'org.springframework.boot:spring-boot-flyway'
     implementation 'org.flywaydb:flyway-core'
     implementation 'org.flywaydb:flyway-mysql'
     implementation 'net.javacrumbs.shedlock:shedlock-spring:6.2.0'
