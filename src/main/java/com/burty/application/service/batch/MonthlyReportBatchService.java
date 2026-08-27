@@ -19,8 +19,8 @@
  */
 package com.burty.application.service.batch;
 
-import static com.lowagie.text.pdf.PdfWriter.ALLOW_SCREENREADERS;
-import static com.lowagie.text.pdf.PdfWriter.ENCRYPTION_AES_128;
+import static org.openpdf.text.pdf.PdfWriter.ALLOW_SCREENREADERS;
+import static org.openpdf.text.pdf.PdfWriter.ENCRYPTION_AES_128;
 
 import com.burty.application.port.out.report.MonthlyReportDeliveryPort;
 import com.burty.application.port.out.report.MonthlyReportHistoryPort;
@@ -28,13 +28,13 @@ import com.burty.application.service.consult.ConsultService;
 import com.burty.core.constant.LogMessages;
 import com.burty.domain.consult.model.MonthlyReport;
 import com.burty.domain.user.repository.UserRepository;
-import com.lowagie.text.Document;
-import com.lowagie.text.Paragraph;
-import com.lowagie.text.pdf.PdfWriter;
 import java.io.ByteArrayOutputStream;
 import java.time.YearMonth;
 import java.util.List;
 import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
+import org.openpdf.text.Document;
+import org.openpdf.text.Paragraph;
+import org.openpdf.text.pdf.PdfWriter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
