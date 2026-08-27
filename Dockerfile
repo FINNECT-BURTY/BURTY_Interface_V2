@@ -12,7 +12,9 @@ RUN chmod +x gradlew && ./gradlew build --no-daemon
 FROM eclipse-temurin:21-jre-alpine
 WORKDIR /app
 
-RUN apk add --no-cache tzdata curl && \
+# 베이스 이미지에 남아 있는 OS 패키지 취약점(libcrypto3 등)을 빌드 시점에 올린다.
+RUN apk upgrade --no-cache && \
+    apk add --no-cache tzdata curl && \
     cp /usr/share/zoneinfo/Asia/Seoul /etc/localtime && \
     echo "Asia/Seoul" > /etc/timezone
 
