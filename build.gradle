@@ -3,6 +3,7 @@ plugins {
     id 'org.springframework.boot' version '4.1.0'
     id 'io.spring.dependency-management' version '1.1.7'
     id 'com.diffplug.spotless' version '8.7.0'
+    id 'jacoco'
 }
 
 group = 'com.burty'
@@ -39,6 +40,10 @@ dependencies {
     implementation 'io.opentelemetry:opentelemetry-exporter-otlp'
     implementation 'io.github.resilience4j:resilience4j-spring-boot3:2.2.0'
     implementation 'io.github.resilience4j:resilience4j-micrometer:2.2.0'
+    // Spring Boot 4 는 자동설정을 기술별 모듈로 분리했다.
+    // flyway-core 만 넣으면 FlywayAutoConfiguration 이 클래스패스에 없어 마이그레이션이
+    // 조용히 실행되지 않는다 (spring.flyway.* 설정이 전부 무시된다).
+    implementation 'org.springframework.boot:spring-boot-flyway'
     implementation 'org.flywaydb:flyway-core'
     implementation 'org.flywaydb:flyway-mysql'
     implementation 'net.javacrumbs.shedlock:shedlock-spring:7.7.0'
@@ -59,6 +64,9 @@ dependencies {
     testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testImplementation 'org.wiremock:wiremock-standalone:3.9.1'
+    testImplementation 'org.springframework.boot:spring-boot-testcontainers'
+    testImplementation 'org.testcontainers:testcontainers-junit-jupiter'
+    testImplementation 'org.testcontainers:testcontainers-mariadb'
     testRuntimeOnly 'com.h2database:h2'
     testCompileOnly 'org.projectlombok:lombok'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
@@ -66,7 +74,75 @@ dependencies {
 }
 
 tasks.named('test') {
-    useJUnitPlatform()
+    // schema-dump 는 베이스라인 재생성 전용 유틸리티다. 일반 테스트 실행에서는 제외한다.
+    // 재생성: ./gradlew schemaDump && python3 tools/generate_baseline.py
+    useJUnitPlatform {
+        excludeTags 'schema-dump'
+    }
+    // CI 로그만으로 원인을 파악할 수 있게 실패 시 전체 스택트레이스를 남긴다.
+    // 스키마 검증 실패는 원인 메시지가 예외 체인 깊숙이 있어 기본 출력으로는 보이지 않는다.
+    testLogging {
+        events 'failed'
+        exceptionFormat 'full'
+        showStackTraces = true
+        showCauses = true
+    }
+    finalizedBy tasks.named('jacocoTestReport')
+}
+
+tasks.register('schemaDump', Test) {
+    description = 'JPA 엔티티에서 MariaDB DDL 을 생성한다 (build/generated-schema.sql).'
+    group = 'documentation'
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    useJUnitPlatform {
+        includeTags 'schema-dump'
+    }
+    // 컨텍스트는 MariaDBDialect 로 뜨다가 실패하지만, 그 전에 스키마 파일은 기록된다.
+    ignoreFailures = true
+}
+
+// 테스트는 Testcontainers MariaDB + Flyway 로 실행된다 (Docker 필요).
+// 운영과 동일한 DB 엔진/스키마 위에서 ddl-auto=validate 를 돌려 엔티티↔마이그레이션 드리프트를 잡는다.
+jacoco {
+    toolVersion = '0.8.12'
+}
+
+tasks.named('jacocoTestReport') {
+    dependsOn tasks.named('test')
+    reports {
+        xml.required = true
+        html.required = true
+    }
+}
+
+// 커버리지 게이트 — 돈/보안 관련 패키지는 별도로 더 높은 기준을 적용한다.
+tasks.named('jacocoTestCoverageVerification') {
+    violationRules {
+        rule {
+            element = 'BUNDLE'
+            limit {
+                counter = 'INSTRUCTION'
+                minimum = 0.33
+            }
+        }
+        rule {
+            element = 'CLASS'
+            includes = [
+                'com.burty.application.service.finance.TransferService',
+                'com.burty.application.service.finance.TransferLimitGuard',
+                'com.burty.util.FieldEncryptor',
+            ]
+            limit {
+                counter = 'INSTRUCTION'
+                minimum = 0.70
+            }
+        }
+    }
+}
+
+tasks.named('check') {
+    dependsOn tasks.named('jacocoTestCoverageVerification')
 }
 
 // Spring Boot 3.x+ 는 bootJar 외에 plain jar 까지 생성하여 build/libs/ 안에 jar 가 2개 생김.
