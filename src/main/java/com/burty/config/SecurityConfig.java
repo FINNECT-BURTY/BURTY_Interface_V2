@@ -20,6 +20,7 @@
 package com.burty.config;
 
 import com.burty.core.constant.LogMessages;
+import com.burty.core.constants.ApiVersions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Bean;
@@ -42,16 +43,19 @@ public class SecurityConfig {
   private final AuthRateLimitFilter authRateLimitFilter;
   private final BurtySecurityProperties securityProperties;
   private final BurtyApiProperties apiProperties;
+  private final AdminProperties adminProperties;
 
   public SecurityConfig(
       com.burty.security.JwtAuthenticationFilter jwtAuthenticationFilter,
       AuthRateLimitFilter authRateLimitFilter,
       BurtySecurityProperties securityProperties,
-      BurtyApiProperties apiProperties) {
+      BurtyApiProperties apiProperties,
+      AdminProperties adminProperties) {
     this.jwtAuthenticationFilter = jwtAuthenticationFilter;
     this.authRateLimitFilter = authRateLimitFilter;
     this.securityProperties = securityProperties;
     this.apiProperties = apiProperties;
+    this.adminProperties = adminProperties;
   }
 
   @Bean
@@ -97,7 +101,16 @@ public class SecurityConfig {
               auth.requestMatchers("/api/v1/auth/*/callback").permitAll();
               auth.requestMatchers(HttpMethod.POST, "/api/v1/auth/*/login").permitAll();
               auth.requestMatchers("/api/v1/auth/demo/**").permitAll();
-              auth.requestMatchers("/api/v1/admin/auth/**").permitAll();
+              // 관리자 인증 경로 중 로그인만 공개한다. 예전에는 /admin/auth/** 전체가 permitAll 이라
+              // 관리자 계정 생성 엔드포인트(/admin/auth/register)까지 무인증으로 노출돼 있었다.
+              // (ADMIN_SETUP_KEY 로 한 겹 막혀 있었지만, 키가 유출되면 곧바로 관리자 계정이 생긴다.)
+              auth.requestMatchers(HttpMethod.POST, "/api/v1/admin/auth/login").permitAll();
+              auth.requestMatchers(HttpMethod.POST, "/api/v1/admin/auth/refresh").permitAll();
+              if (adminProperties.isBootstrapEnabled()) {
+                // 최초 관리자 생성 창구. 관리자가 한 명이라도 생기면 서비스 단에서 거절된다.
+                log.warn("관리자 부트스트랩 등록이 활성화되어 있습니다 — 운영 환경에서는 반드시 꺼야 합니다.");
+                auth.requestMatchers(HttpMethod.POST, "/api/v1/admin/auth/register").permitAll();
+              }
               auth.requestMatchers("/api/v1/sessions/refresh").permitAll();
               auth.requestMatchers(HttpMethod.GET, "/api/v1/external/openbanking/oauth/callback")
                   .permitAll();
@@ -106,7 +119,11 @@ public class SecurityConfig {
                   .permitAll();
               auth.requestMatchers("/api/v1/admin/**").hasRole("ADMIN");
               auth.requestMatchers("/api/v1/**").authenticated();
-              auth.anyRequest().permitAll();
+              auth.requestMatchers(ApiVersions.V2 + "/**").authenticated();
+              // 명시적으로 허용한 경로 외에는 전부 차단한다.
+              // 예전에는 permitAll() 이라 /api/v1 밖의 모든 경로(오타난 매핑, 새로 추가된
+              // 컨트롤러, 서블릿 기본 경로 등)가 인증 없이 열려 있었다. 기본값은 닫혀 있어야 한다.
+              auth.anyRequest().denyAll();
             });
 
     if (corsEnabled) {
