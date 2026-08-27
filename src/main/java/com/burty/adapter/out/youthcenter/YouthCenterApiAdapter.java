@@ -23,6 +23,7 @@ import com.burty.adapter.out.youthcenter.dto.YouthCenterApiResponse;
 import com.burty.adapter.out.youthcenter.dto.YouthCenterApiResponse.PolicyItem;
 import com.burty.application.port.out.policy.YouthPolicyPort;
 import com.burty.config.YouthCenterProperties;
+import com.burty.core.config.HttpClientFactory;
 import com.burty.domain.policy.entity.YouthPolicyEntity;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
@@ -38,8 +39,9 @@ public class YouthCenterApiAdapter implements YouthPolicyPort {
   private final RestTemplate restTemplate;
   private final YouthCenterProperties properties;
 
-  public YouthCenterApiAdapter(RestTemplate restTemplate, YouthCenterProperties properties) {
-    this.restTemplate = restTemplate;
+  public YouthCenterApiAdapter(
+      HttpClientFactory httpClientFactory, YouthCenterProperties properties) {
+    this.restTemplate = httpClientFactory.restTemplate("youth-center", properties.getTimeoutMs());
     this.properties = properties;
   }
 

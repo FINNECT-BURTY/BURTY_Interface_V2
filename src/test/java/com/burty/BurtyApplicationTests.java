@@ -19,11 +19,12 @@
  */
 package com.burty;
 
+import com.burty.support.IntegrationTestBase;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 
 @SpringBootTest
-class BurtyApplicationTests {
+class BurtyApplicationTests extends IntegrationTestBase {
 
   @Test
   void contextLoads() {}

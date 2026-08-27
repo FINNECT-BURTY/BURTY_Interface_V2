@@ -19,6 +19,7 @@
  */
 package com.burty.application.service.admin;
 
+import com.burty.application.service.transaction.CategoryRuleProvider;
 import com.burty.core.constant.LogMessages;
 import com.burty.domain.transaction.entity.CategoryRuleEntity;
 import com.burty.domain.transaction.repository.CategoryRuleRepository;
@@ -35,9 +36,12 @@ public class CategoryRuleSeeder {
   private static final Logger log = LoggerFactory.getLogger(CategoryRuleSeeder.class);
 
   private final CategoryRuleRepository repository;
+  private final CategoryRuleProvider categoryRuleProvider;
 
-  public CategoryRuleSeeder(CategoryRuleRepository repository) {
+  public CategoryRuleSeeder(
+      CategoryRuleRepository repository, CategoryRuleProvider categoryRuleProvider) {
     this.repository = repository;
+    this.categoryRuleProvider = categoryRuleProvider;
   }
 
   @PostConstruct
@@ -57,6 +61,10 @@ public class CategoryRuleSeeder {
     inserted += upsert("RULE_SUBWAY", "지하철", "CONTAINS", "TRANSPORT", 80);
     inserted += upsert("RULE_BUS", "버스", "CONTAINS", "TRANSPORT", 80);
     log.info(LogMessages.Admin.CATEGORY_RULE_SEEDER, inserted);
+    if (inserted > 0) {
+      // 규칙이 바뀌었으므로 캐시를 비운다. 안 비우면 TTL 만료까지 옛 규칙으로 분류된다.
+      categoryRuleProvider.invalidate();
+    }
   }
 
   private long upsert(

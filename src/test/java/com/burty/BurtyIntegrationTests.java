@@ -31,6 +31,7 @@ import com.burty.domain.consult.repository.MonthlyReportRepository;
 import com.burty.domain.user.entity.UserEntity;
 import com.burty.domain.user.repository.UserRepository;
 import com.burty.security.JwtTokenProvider;
+import com.burty.support.IntegrationTestBase;
 import java.time.LocalDateTime;
 import java.util.UUID;
 import org.junit.jupiter.api.Assertions;
@@ -40,7 +41,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 
 @SpringBootTest
-class BurtyIntegrationTests {
+class BurtyIntegrationTests extends IntegrationTestBase {
   @Autowired private JwtTokenProvider jwtTokenProvider;
   @Autowired private ExternalFinanceUseCase externalFinanceUseCase;
   @Autowired private FamilyAlertPort familyAlertPort;
