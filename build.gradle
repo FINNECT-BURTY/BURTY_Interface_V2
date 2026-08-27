@@ -70,6 +70,14 @@ tasks.named('test') {
     useJUnitPlatform {
         excludeTags 'schema-dump'
     }
+    // CI 로그만으로 원인을 파악할 수 있게 실패 시 전체 스택트레이스를 남긴다.
+    // 스키마 검증 실패는 원인 메시지가 예외 체인 깊숙이 있어 기본 출력으로는 보이지 않는다.
+    testLogging {
+        events 'failed'
+        exceptionFormat 'full'
+        showStackTraces = true
+        showCauses = true
+    }
     finalizedBy tasks.named('jacocoTestReport')
 }
 
