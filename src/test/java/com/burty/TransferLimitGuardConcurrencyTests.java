@@ -32,6 +32,14 @@ class TransferLimitGuardConcurrencyTests extends IntegrationTestBase {
   @Autowired private TransferLimitGuard limitGuard;
   @Autowired private UserSettingRepository userSettingRepository;
 
+  /**
+   * 애플리케이션과 <b>같은 시간대</b>로 날짜를 계산하기 위해 주입받는다.
+   *
+   * <p>한도 사용량은 (사용자, 날짜) 로 집계된다. 예약은 Asia/Seoul 기준 날짜를 쓰는데 테스트가 시스템 기본 시간대로 날짜를 만들면, UTC 러너에서 한국 시간
+   * 자정 직후에 돌 때 서로 다른 행을 가리켜 해제가 실패한다. 실제로 CI(UTC)에서만 재현됐다.
+   */
+  @Autowired private java.time.Clock clock;
+
   @Test
   @DisplayName("동시 예약 요청이 몰려도 일일 한도를 넘지 못한다")
   void concurrentReservationsNeverExceedDailyLimit() throws Exception {
@@ -90,7 +98,7 @@ class TransferLimitGuardConcurrencyTests extends IntegrationTestBase {
     limitGuard.reserve(userId, 5_000L);
     assertThrows(BusinessException.class, () -> limitGuard.reserve(userId, 1L));
 
-    limitGuard.release(userId, 5_000L, java.time.LocalDate.now());
+    limitGuard.release(userId, 5_000L, java.time.LocalDate.now(clock));
     assertEquals(0L, limitGuard.currentUsage(userId));
     limitGuard.reserve(userId, 5_000L);
     assertTrue(limitGuard.currentUsage(userId) == 5_000L);
@@ -132,7 +140,7 @@ class TransferLimitGuardConcurrencyTests extends IntegrationTestBase {
     setDailyLimit(userId, 10_000L);
     limitGuard.reserve(userId, 1_000L);
 
-    limitGuard.release(userId, 9_999L, java.time.LocalDate.now());
+    limitGuard.release(userId, 9_999L, java.time.LocalDate.now(clock));
 
     assertEquals(1_000L, limitGuard.currentUsage(userId), "사용량이 음수가 되면 안 된다");
   }
