@@ -28,8 +28,18 @@ jobs:
       - name: Spotless check
         run: ./gradlew spotlessCheck --no-daemon
 
-      - name: Run tests
+      # Docker 가 있는 러너이므로 Testcontainers MariaDB 로 실행된다.
+      # → Flyway 마이그레이션 + ddl-auto=validate 로 엔티티↔스키마 드리프트를 게이트한다.
+      - name: Run tests (Testcontainers MariaDB + Flyway)
         run: ./gradlew test --no-daemon
+
+      - name: Verify schema migrations ran against a real MariaDB
+        run: |
+          grep -q 'SchemaMigrationDriftTests' build/test-results/test/*.xml \
+            || { echo "::error::스키마 드리프트 테스트가 실행되지 않았습니다 (Docker 미검출)"; exit 1; }
+
+      - name: Coverage gate
+        run: ./gradlew jacocoTestCoverageVerification --no-daemon
 
       - name: Docker build (validation only)
         run: docker build -t burty:ci .
