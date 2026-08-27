@@ -37,7 +37,7 @@ class OpenBankingApiAdapterWireMockTests {
         new OpenBankingApiAdapter(
             new RestTemplate(),
             properties,
-            new InMemoryTokenStore(new FieldEncryptor("test-field-encryption-key-32bytes!!")),
+            new InMemoryTokenStore(new FieldEncryptor("test-field-encryption-key-32bytes!!", "")),
             new ResilientHttpExecutor(CircuitBreakerRegistry.ofDefaults()));
   }
 
