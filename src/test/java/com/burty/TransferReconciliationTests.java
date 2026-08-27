@@ -41,6 +41,14 @@ class TransferReconciliationTests extends IntegrationTestBase {
   @Autowired private TransferLimitGuard limitGuard;
   @Autowired private TransactionTemplate transactionTemplate;
 
+  /**
+   * 애플리케이션과 같은 시간대로 시각을 만들기 위해 주입받는다.
+   *
+   * <p>정산은 주문의 requestedAt 에서 한도 사용 날짜를 도출한다. 테스트가 시스템 기본 시간대로 requestedAt 을 쓰면 UTC 러너에서 예약된 행과 다른
+   * 날짜를 가리켜 해제가 실패한다.
+   */
+  @Autowired private java.time.Clock clock;
+
   @MockitoBean private OpenBankingPort openBankingPort;
 
   private String userId;
@@ -109,7 +117,7 @@ class TransferReconciliationTests extends IntegrationTestBase {
     assertEquals(Status.UNKNOWN, order.getStatus(), "판단 불가를 실패로 확정하면 안 된다");
     assertEquals(1, order.getReconcileAttempts());
     assertEquals(7_000L, limitGuard.currentUsage(userId), "출금 여부를 모르는데 한도를 풀면 이중 사용이 가능해진다");
-    assertTrue(order.getNextReconcileAt().isAfter(LocalDateTime.now().minusMinutes(1)));
+    assertTrue(order.getNextReconcileAt().isAfter(LocalDateTime.now(clock).minusMinutes(1)));
   }
 
   @Test
@@ -132,7 +140,7 @@ class TransferReconciliationTests extends IntegrationTestBase {
         givenOrder(
             Status.EXECUTING,
             4_000L,
-            LocalDateTime.now().minusHours(1), // 충분히 오래됨
+            LocalDateTime.now(clock).minusHours(1), // 충분히 오래됨
             null);
     Mockito.when(openBankingPort.getTransferStatus(Mockito.eq(userId), Mockito.anyString()))
         .thenReturn(TransferStatus.completed("bank-tx-stuck"));
@@ -145,7 +153,8 @@ class TransferReconciliationTests extends IntegrationTestBase {
   @Test
   @DisplayName("확정된 건은 다시 정산하지 않는다")
   void terminalOrdersAreNotReprocessed() {
-    long orderId = givenOrder(Status.EXECUTED, 1_000L, LocalDateTime.now().minusHours(2), null);
+    long orderId =
+        givenOrder(Status.EXECUTED, 1_000L, LocalDateTime.now(clock).minusHours(2), null);
 
     int candidates = reconciliationBatch.reconcileOnce();
 
@@ -166,15 +175,15 @@ class TransferReconciliationTests extends IntegrationTestBase {
           user.setCi("ci-" + nonce);
           user.setPhoneHash(nonce);
           user.setPhone("010-0000-0000");
-          user.setCreatedAt(LocalDateTime.now());
-          user.setUpdatedAt(LocalDateTime.now());
+          user.setCreatedAt(LocalDateTime.now(clock));
+          user.setUpdatedAt(LocalDateTime.now(clock));
           return userRepository.save(user);
         });
   }
 
   private long givenUnknownOrder(long amount) {
     return givenOrder(
-        Status.UNKNOWN, amount, LocalDateTime.now(), LocalDateTime.now().minusMinutes(1));
+        Status.UNKNOWN, amount, LocalDateTime.now(clock), LocalDateTime.now(clock).minusMinutes(1));
   }
 
   private long givenOrder(
@@ -203,6 +212,6 @@ class TransferReconciliationTests extends IntegrationTestBase {
 
   @SuppressWarnings("unused")
   private LocalDate today() {
-    return LocalDate.now();
+    return LocalDate.now(clock);
   }
 }
