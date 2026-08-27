@@ -15,7 +15,7 @@ COPY src ./src
 RUN ./gradlew bootJar --no-daemon -x test
 
 # ── Runtime ────────────────────────────────────────────────────────────────────
-FROM eclipse-temurin:21-jre-alpine
+FROM eclipse-temurin:25-jre-alpine
 WORKDIR /app
 
 # 베이스 이미지에 남아 있는 OS 패키지 취약점(libcrypto3 등)을 빌드 시점에 올린다.
