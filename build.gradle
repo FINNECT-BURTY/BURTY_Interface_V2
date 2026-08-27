@@ -54,7 +54,7 @@ dependencies {
     runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.13.0'
     runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.13.0'
     implementation 'com.github.librepdf:openpdf:3.0.5'
-    implementation 'com.webauthn4j:webauthn4j-core:0.31.7.RELEASE'
+    implementation 'com.webauthn4j:webauthn4j-core:0.31.9.RELEASE'
     compileOnly 'org.projectlombok:lombok'
     developmentOnly 'org.springframework.boot:spring-boot-devtools'
     runtimeOnly 'org.mariadb.jdbc:mariadb-java-client'
