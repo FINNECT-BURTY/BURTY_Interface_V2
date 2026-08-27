@@ -28,7 +28,16 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 @Entity
-@Table(name = "tbl_transfer_order")
+@Table(
+    name = "tbl_transfer_order",
+    uniqueConstraints =
+        @UniqueConstraint(
+            name = "uk_transfer_order_idempotency",
+            columnNames = {"user_id", "idempotency_key"}),
+    indexes = {
+      @Index(name = "idx_transfer_order_user", columnList = "user_id, order_id"),
+      @Index(name = "idx_transfer_order_reconcile", columnList = "status, next_reconcile_at")
+    })
 @Getter
 @Setter
 @NoArgsConstructor
@@ -91,6 +100,17 @@ public class TransferOrderEntity {
   @Column(name = "failed_reason")
   private String failedReason;
 
+  /** 요청 시각. 정산 배치가 오래된 미결 건을 식별할 때 쓴다. */
+  @Column(name = "requested_at", nullable = false)
+  private LocalDateTime requestedAt;
+
+  /** UNKNOWN 건의 다음 정산 조회 예정 시각. */
+  @Column(name = "next_reconcile_at")
+  private LocalDateTime nextReconcileAt;
+
+  @Column(name = "reconcile_attempts", nullable = false)
+  private Integer reconcileAttempts = 0;
+
   public enum Purpose {
     SELF,
     TRANSFER,
@@ -99,12 +119,41 @@ public class TransferOrderEntity {
   }
 
   public enum Status {
+    /** 멱등키 선점 완료. 아직 아무것도 하지 않음. */
     PENDING,
+    /** 보호자 사전 승인 대기. 이 상태에서는 은행 호출이 일어나지 않는다. */
+    AWAITING_APPROVAL,
     AUTH_REQUESTED,
     AUTHORIZED,
+    /** 은행에 요청을 보냈고 응답 대기 중. 이 상태로 남아 있으면 프로세스가 죽은 것이므로 정산 대상이다. */
     EXECUTING,
     EXECUTED,
     FAILED,
-    CANCELLED
+    CANCELLED,
+    /**
+     * 은행 응답을 확인하지 못함 — <b>출금됐을 수도 있다.</b> 절대 FAILED 로 뭉뚱그리면 안 되는 상태다. 정산 배치가 은행에 조회해 EXECUTED /
+     * FAILED 로 확정한다.
+     */
+    UNKNOWN,
+    /** 실행 후 취소·반환 처리됨. */
+    REVERSED;
+
+    /** 정산 배치가 결과를 확정해야 하는 상태인가. */
+    public boolean needsReconciliation() {
+      return this == UNKNOWN || this == EXECUTING;
+    }
+
+    /** 사용자가 취소할 수 있는 상태인가. 이미 은행에 요청이 나간 뒤에는 취소가 아니라 반환 절차다. */
+    public boolean isCancellable() {
+      return this == PENDING
+          || this == AWAITING_APPROVAL
+          || this == AUTH_REQUESTED
+          || this == AUTHORIZED;
+    }
+
+    /** 더 이상 상태가 바뀌지 않는가. */
+    public boolean isTerminal() {
+      return this == EXECUTED || this == FAILED || this == CANCELLED || this == REVERSED;
+    }
   }
 }

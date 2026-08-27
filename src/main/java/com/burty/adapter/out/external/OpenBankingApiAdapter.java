@@ -22,9 +22,15 @@ package com.burty.adapter.out.external;
 import com.burty.adapter.out.http.ResilientHttpExecutor;
 import com.burty.adapter.out.store.TokenStore;
 import com.burty.application.port.out.bank.OpenBankingPort;
+import com.burty.application.port.out.bank.TransferStatus;
 import com.burty.config.ExternalFinanceProperties;
 import com.burty.core.error.enums.ErrorCode;
 import com.burty.core.exception.BusinessException;
+import com.burty.core.exception.ExternalCallUnresolvedException;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -38,6 +44,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestClientResponseException;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.web.util.UriComponentsBuilder;
 
 @Component
 public class OpenBankingApiAdapter implements OpenBankingPort {
@@ -71,7 +78,10 @@ public class OpenBankingApiAdapter implements OpenBankingPort {
             token ->
                 restTemplate
                     .exchange(
-                        properties.getOpenBankingAccountsUrl() + "?userId=" + userId,
+                        UriComponentsBuilder.fromUriString(properties.getOpenBankingAccountsUrl())
+                            .queryParam("userId", userId)
+                            .build(true)
+                            .toUriString(),
                         HttpMethod.GET,
                         new HttpEntity<>(buildHeaders(userId, token)),
                         new ParameterizedTypeReference<Map<String, Object>>() {})
@@ -90,7 +100,10 @@ public class OpenBankingApiAdapter implements OpenBankingPort {
             token ->
                 restTemplate
                     .exchange(
-                        properties.getOpenBankingBalanceUrl() + "?fintechUseNum=" + fintechUseNum,
+                        UriComponentsBuilder.fromUriString(properties.getOpenBankingBalanceUrl())
+                            .queryParam("fintechUseNum", fintechUseNum)
+                            .build(true)
+                            .toUriString(),
                         HttpMethod.GET,
                         new HttpEntity<>(buildHeaders(userId, token)),
                         new ParameterizedTypeReference<Map<String, Object>>() {})
@@ -109,9 +122,11 @@ public class OpenBankingApiAdapter implements OpenBankingPort {
             token ->
                 restTemplate
                     .exchange(
-                        properties.getOpenBankingTransactionsUrl()
-                            + "?fintechUseNum="
-                            + fintechUseNum,
+                        UriComponentsBuilder.fromUriString(
+                                properties.getOpenBankingTransactionsUrl())
+                            .queryParam("fintechUseNum", fintechUseNum)
+                            .build(true)
+                            .toUriString(),
                         HttpMethod.GET,
                         new HttpEntity<>(buildHeaders(userId, token)),
                         new ParameterizedTypeReference<Map<String, Object>>() {})
@@ -125,8 +140,12 @@ public class OpenBankingApiAdapter implements OpenBankingPort {
     if (properties.isStubMode()) {
       return stubTransfer(userId, fromAccount, toAccount, amount, idempotencyKey);
     }
+    // 이체는 멱등하지 않은 쓰기다. 재시도는 은행이 같은 거래번호를 중복 거래로 인식할 때만 안전하므로
+    // bankTranId 를 멱등키에서 결정론적으로 도출한다. (기존에는 시도마다 랜덤 UUID 라 은행이 중복을 못 잡았다.)
+    String bankTranId = deterministicBankTranId(userId, idempotencyKey);
     return requireResponse(
-        executeWithRetry(
+        executeMutating(
+            "transfer",
             userId,
             token -> {
               HttpHeaders headers = buildHeaders(userId, token);
@@ -139,7 +158,7 @@ public class OpenBankingApiAdapter implements OpenBankingPort {
                       "fromAccount", fromAccount,
                       "toAccount", toAccount,
                       "amount", amount,
-                      "bankTranId", UUID.randomUUID().toString());
+                      "bankTranId", bankTranId);
               return restTemplate
                   .exchange(
                       properties.getOpenBankingTransferUrl(),
@@ -149,6 +168,111 @@ public class OpenBankingApiAdapter implements OpenBankingPort {
                   .getBody();
             }),
         "transfer");
+  }
+
+  @Override
+  public TransferStatus getTransferStatus(String userId, String idempotencyKey) {
+    String bankTranId = deterministicBankTranId(userId, idempotencyKey);
+    if (properties.isStubMode()) {
+      return TransferStatus.completed(bankTranId);
+    }
+    try {
+      Map<String, Object> response =
+          executeWithRetry(
+              userId,
+              token ->
+                  restTemplate
+                      .exchange(
+                          UriComponentsBuilder.fromUriString(
+                                  properties.getOpenBankingTransferStatusUrl())
+                              .queryParam("bank_tran_id", bankTranId)
+                              .build(true)
+                              .toUriString(),
+                          HttpMethod.GET,
+                          new HttpEntity<>(buildHeaders(userId, token)),
+                          new ParameterizedTypeReference<Map<String, Object>>() {})
+                      .getBody());
+      return mapTransferStatus(response, bankTranId);
+    } catch (RestClientResponseException e) {
+      if (e.getStatusCode().value() == 404) {
+        return TransferStatus.notFound();
+      }
+      return TransferStatus.unresolved("HTTP " + e.getStatusCode().value());
+    } catch (RuntimeException e) {
+      return TransferStatus.unresolved(e.getMessage());
+    }
+  }
+
+  private static TransferStatus mapTransferStatus(Map<String, Object> response, String bankTranId) {
+    if (response == null) {
+      return TransferStatus.unresolved("빈 응답");
+    }
+    String code = String.valueOf(response.getOrDefault("rsp_code", ""));
+    String status = String.valueOf(response.getOrDefault("status", "")).toUpperCase();
+    if ("A0000".equals(code) || "COMPLETED".equals(status) || "SUCCESS".equals(status)) {
+      Object txnId = response.get("bank_tran_id");
+      return TransferStatus.completed(txnId != null ? String.valueOf(txnId) : bankTranId);
+    }
+    if ("PENDING".equals(status) || "PROCESSING".equals(status)) {
+      return TransferStatus.pending();
+    }
+    if ("NOT_FOUND".equals(status)) {
+      return TransferStatus.notFound();
+    }
+    if (!status.isBlank() || !code.isBlank()) {
+      return TransferStatus.rejected(("".equals(code) ? status : code));
+    }
+    return TransferStatus.unresolved("판단 불가 응답");
+  }
+
+  /** 멱등키에서 은행 거래고유번호를 결정론적으로 도출한다. 같은 이체 요청은 몇 번을 재시도해도 같은 번호를 쓰므로, 은행 측 중복 방지가 실제로 동작한다. */
+  private static String deterministicBankTranId(String userId, String idempotencyKey) {
+    String seed = userId + "|" + (idempotencyKey == null ? "" : idempotencyKey);
+    try {
+      MessageDigest digest = MessageDigest.getInstance("SHA-256");
+      byte[] hash = digest.digest(seed.getBytes(StandardCharsets.UTF_8));
+      return "B" + HexFormat.of().formatHex(hash).substring(0, 19).toUpperCase();
+    } catch (NoSuchAlgorithmException e) {
+      throw new IllegalStateException("SHA-256 미지원", e);
+    }
+  }
+
+  /**
+   * 상태를 바꾸는 호출 전용 실행기.
+   *
+   * <p>조회와 달리 <b>재시도하지 않는다.</b> 그리고 응답을 받지 못한 경우 실패가 아니라 {@link ExternalCallUnresolvedException} 을
+   * 던져, 호출자가 "출금됐을 수도 있는 건"으로 다루게 한다.
+   */
+  private Map<String, Object> executeMutating(
+      String operation, String userId, Function<String, Map<String, Object>> call) {
+    return resilientHttpExecutor.execute(
+        "openbanking",
+        () -> {
+          String token = resolveAccessToken(userId);
+          try {
+            return call.apply(token);
+          } catch (RestClientResponseException e) {
+            int status = e.getStatusCode().value();
+            if (status == 401) {
+              String refreshed = refreshAccessToken(userId);
+              if (refreshed == null || refreshed.isBlank()) {
+                throw new BusinessException(ErrorCode.EXTERNAL_API_ERROR, "OpenBanking 인증 실패", e);
+              }
+              // 401 은 요청이 거절된 것이므로 출금이 발생하지 않았다. 재시도가 안전하다.
+              return call.apply(refreshed);
+            }
+            if (status >= 500) {
+              throw new ExternalCallUnresolvedException(
+                  operation, "OpenBanking 서버 오류: HTTP " + status, e);
+            }
+            throw new BusinessException(
+                ErrorCode.EXTERNAL_API_ERROR, "OpenBanking API 오류: HTTP " + status, e);
+          } catch (RestClientException e) {
+            // 타임아웃/IO 오류 — 은행에 도달했는지 알 수 없다.
+            throw new ExternalCallUnresolvedException(
+                operation, "OpenBanking 응답 확인 불가: " + e.getMessage(), e);
+          }
+        });
   }
 
   private Map<String, Object> requireResponse(Map<String, Object> response, String operation) {
