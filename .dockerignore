@@ -13,3 +13,12 @@
 **/.DS_Store
 secrets/
 !secrets/.gitkeep
+
+# 배포 매니페스트·인프라 정의는 이미지에 들어갈 이유가 없다.
+# 빌드 컨텍스트에 남겨 두면 매니페스트만 바꾼 커밋에서도 레이어 캐시가 깨진다.
+/k8s
+/infra
+/docs
+/db
+Jenkinsfile*
+docker-compose*.yml
