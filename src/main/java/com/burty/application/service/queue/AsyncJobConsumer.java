@@ -90,7 +90,8 @@ public class AsyncJobConsumer {
           handleJob(job);
         } catch (RuntimeException e) {
           // 인메모리 큐는 개발 편의용이라 재시도 큐가 없다. 최소한 유실 사실은 남긴다.
-          log.error("인메모리 비동기 작업 처리 실패 — 유실됨 payload={} reason={}", job, e.getMessage(), e);
+          log.error(
+              "인메모리 비동기 작업 처리 실패 — 유실됨 type={} reason={}", job.get("type"), e.getMessage(), e);
         }
       }
       return;
@@ -257,7 +258,8 @@ public class AsyncJobConsumer {
       switch (AsyncJobType.valueOf(type)) {
         case NOTIFICATION -> handleNotification(payload);
         case TRANSACTION_SYNC, TRANSFER ->
-            log.debug("Async job queued type={} payload={}", type, payload);
+            // 페이로드에는 알림 제목·본문(금액·계좌 포함)이 들어 있어 타입만 남긴다.
+            log.debug("비동기 작업 수신 type={}", type);
         default -> log.warn("Unknown async job type={}", type);
       }
     } catch (IllegalArgumentException e) {

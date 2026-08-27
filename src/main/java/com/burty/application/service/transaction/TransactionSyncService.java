@@ -26,6 +26,7 @@ import com.burty.application.service.cashflow.BudgetService;
 import com.burty.core.constant.LogMessages;
 import com.burty.domain.transaction.entity.TransactionEntity;
 import com.burty.domain.transaction.repository.TransactionRepository;
+import com.burty.util.PiiMasker;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
@@ -149,7 +150,8 @@ public class TransactionSyncService implements TransactionSyncUseCase {
       newTransactions.add(tx);
       saved++;
     }
-    log.info(LogMessages.Transaction.SYNC, userId, fintechUseNum, saved);
+    // 핀테크이용번호는 계좌를 식별하는 값이므로 뒤 4자리만 남긴다.
+    log.info(LogMessages.Transaction.SYNC, userId, PiiMasker.account(fintechUseNum), saved);
 
     if (saved > 0) {
       // 신규 거래가 들어왔으면 실시간 알림 + 예산 재평가를 같은 트랜잭션에서 아웃박스로 예약한다.

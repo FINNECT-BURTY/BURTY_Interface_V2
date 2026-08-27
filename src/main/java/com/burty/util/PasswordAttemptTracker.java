@@ -140,7 +140,7 @@ public class PasswordAttemptTracker {
       redisTemplate
           .opsForValue()
           .set(LOCKOUT_KEY_PREFIX + token, "locked", Duration.ofMinutes(LOCKOUT_DURATION_MINUTES));
-      log.warn("Token {} locked out for {} minutes", token, LOCKOUT_DURATION_MINUTES);
+      log.warn("인증 토큰 잠금 token={} duration={}분", PiiMasker.secret(token), LOCKOUT_DURATION_MINUTES);
     }
   }
 
@@ -151,7 +151,8 @@ public class PasswordAttemptTracker {
       localLockouts.put(
           token,
           System.currentTimeMillis() + Duration.ofMinutes(LOCKOUT_DURATION_MINUTES).toMillis());
-      log.warn("Token {} locked out locally for {} minutes", token, LOCKOUT_DURATION_MINUTES);
+      log.warn(
+          "인증 토큰 로컬 잠금 token={} duration={}분", PiiMasker.secret(token), LOCKOUT_DURATION_MINUTES);
     }
   }
 }
