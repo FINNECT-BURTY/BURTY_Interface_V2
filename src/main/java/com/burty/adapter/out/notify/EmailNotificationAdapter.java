@@ -38,7 +38,7 @@ public class EmailNotificationAdapter implements NotificationChannelPort {
   @Override
   public boolean send(String userId, String title, String body) {
     if (notifyProperties.getEmail().isStubMode()) {
-      log.info(LogMessages.Notify.STUB_CHANNEL, "EMAIL", userId, title, body);
+      log.info(LogMessages.Notify.STUB_CHANNEL, "EMAIL", userId, title);
       return true;
     }
     JavaMailSender sender = mailSender.getIfAvailable();
