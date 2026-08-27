@@ -33,11 +33,20 @@ public interface TransferUseCase {
       String assertionToken,
       String idempotencyKey);
 
+  /** 아직 실행되지 않은 이체를 취소한다. 이미 은행에 나간 건은 취소가 아니라 반환 절차 대상이다. */
+  void cancelTransfer(String userId, String idempotencyKey, String reason);
+
   void updateLimit(String userId, long newLimit);
 
   long getLimit(String userId);
 
-  TransferResult getTransfer(String transferId);
+  /**
+   * 이체 상세 조회.
+   *
+   * <p>{@code userId} 를 반드시 받는다. 예전에는 {@code transferId} 만으로 조회할 수 있어서, 인증만 된 사용자라면 남의 이체 내역을 ID
+   * 추측만으로 읽을 수 있었다.
+   */
+  TransferResult getTransfer(String userId, String transferId);
 
   List<TransferResult> getTransfers(String userId);
 }

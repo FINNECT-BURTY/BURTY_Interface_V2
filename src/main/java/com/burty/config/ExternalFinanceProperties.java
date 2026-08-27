@@ -43,6 +43,11 @@ public class ExternalFinanceProperties {
       "https://testapi.openbanking.or.kr/v2.0/account/transaction_list/fin_num";
   private String openBankingTransferUrl =
       "https://testapi.openbanking.or.kr/v2.0/transfer/withdraw/fin_num";
+
+  /** 이체 결과 조회 — 정산(reconciliation) 배치가 UNKNOWN 건의 실제 처리 여부를 확인할 때 사용한다. */
+  private String openBankingTransferStatusUrl =
+      "https://testapi.openbanking.or.kr/v2.0/transfer/result";
+
   private String openBankingClientId = "openbanking-client-id";
   private String openBankingClientSecret = "openbanking-client-secret";
   private String openBankingAccessToken = "openbanking-access-token";
@@ -175,6 +180,14 @@ public class ExternalFinanceProperties {
 
   public void setOpenBankingTransferUrl(String openBankingTransferUrl) {
     this.openBankingTransferUrl = openBankingTransferUrl;
+  }
+
+  public String getOpenBankingTransferStatusUrl() {
+    return openBankingTransferStatusUrl;
+  }
+
+  public void setOpenBankingTransferStatusUrl(String openBankingTransferStatusUrl) {
+    this.openBankingTransferStatusUrl = openBankingTransferStatusUrl;
   }
 
   public String getOpenBankingClientId() {

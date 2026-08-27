@@ -83,7 +83,15 @@ public enum ErrorCode {
   // 요청 제한 관련 에러 (8000번대)
   TOO_MANY_REQUESTS(8000, "요청이 너무 많습니다"),
   TOO_MANY_ATTEMPTS(8001, "시도 횟수를 초과했습니다"),
-  RESOURCE_NOT_FOUND(8002, "리소스를 찾을 수 없습니다");
+  RESOURCE_NOT_FOUND(8002, "리소스를 찾을 수 없습니다"),
+
+  // 이체 관련 에러 (9000번대)
+  TRANSFER_RESULT_UNKNOWN(9000, "이체 결과를 확인 중입니다. 잠시 후 내역에서 확인해주세요"),
+  TRANSFER_IN_PROGRESS(9001, "동일한 요청이 처리 중입니다"),
+  TRANSFER_LIMIT_EXCEEDED(9002, "이체 한도를 초과했습니다"),
+  TRANSFER_NOT_FOUND(9003, "이체 내역을 찾을 수 없습니다"),
+  TRANSFER_NOT_CANCELLABLE(9004, "취소할 수 없는 상태의 이체입니다"),
+  TRANSFER_APPROVAL_REQUIRED(9005, "보호자 승인이 필요한 이체입니다");
 
   private final int code;
   private final String message;
