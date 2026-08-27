@@ -27,19 +27,20 @@ import com.burty.application.dto.finance.TransferDetailResponse;
 import com.burty.application.dto.finance.TransferRequest;
 import com.burty.application.dto.finance.TransferResponse;
 import com.burty.application.port.in.finance.TransferUseCase;
+import com.burty.core.annotation.CurrentUserId;
 import com.burty.core.controller.BaseController;
 import com.burty.core.dto.response.ApiResponse;
 import com.burty.domain.finance.model.TransferResult;
 import com.burty.security.AuthLevel;
 import com.burty.security.RiskLevel;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -52,23 +53,25 @@ public class FinanceTransferController extends BaseController {
 
   @PostMapping("/settings/limits")
   @AuthLevel(RiskLevel.LEVEL_2)
-  public ApiResponse<LimitUpdateResponse> updateLimit(@RequestBody LimitUpdateRequest request) {
-    transferUseCase.updateLimit(request.userId(), request.limit());
+  public ApiResponse<LimitUpdateResponse> updateLimit(
+      @CurrentUserId String userId, @Valid @RequestBody LimitUpdateRequest request) {
+    transferUseCase.updateLimit(userId, request.limit());
     return ApiResponse.ok(new LimitUpdateResponse(true, request.limit()));
   }
 
   @GetMapping("/settings/limits")
   @AuthLevel(RiskLevel.LEVEL_1)
-  public ApiResponse<LimitResponse> getLimit(@RequestParam String userId) {
+  public ApiResponse<LimitResponse> getLimit(@CurrentUserId String userId) {
     return ApiResponse.ok(new LimitResponse(userId, transferUseCase.getLimit(userId)));
   }
 
   @PostMapping("/transfers")
   @AuthLevel(RiskLevel.LEVEL_3)
-  public ApiResponse<TransferResponse> transfer(@RequestBody TransferRequest request) {
+  public ApiResponse<TransferResponse> transfer(
+      @CurrentUserId String userId, @Valid @RequestBody TransferRequest request) {
     TransferResult result =
         transferUseCase.transfer(
-            request.userId(),
+            userId,
             request.fromAccount(),
             request.toAccount(),
             request.amount(),
@@ -80,8 +83,9 @@ public class FinanceTransferController extends BaseController {
 
   @GetMapping("/transfers/{transferId}")
   @AuthLevel(RiskLevel.LEVEL_1)
-  public ApiResponse<TransferDetailResponse> getTransfer(@PathVariable String transferId) {
-    TransferResult result = transferUseCase.getTransfer(transferId);
+  public ApiResponse<TransferDetailResponse> getTransfer(
+      @CurrentUserId String userId, @PathVariable String transferId) {
+    TransferResult result = transferUseCase.getTransfer(userId, transferId);
     if (result == null) {
       return ApiResponse.ok(TransferDetailResponse.notFound(transferId));
     }
@@ -90,9 +94,29 @@ public class FinanceTransferController extends BaseController {
             result.transferId(), result.status(), result.familyNotified()));
   }
 
+  /**
+   * 이체 취소.
+   *
+   * <p>아직 은행에 요청이 나가지 않은 건만 취소할 수 있다. 이미 실행된 이체는 취소가 아니라 반환 절차 대상이므로 별도 거부한다.
+   */
+  @PostMapping("/transfers/{idempotencyKey}/cancel")
+  @AuthLevel(RiskLevel.LEVEL_2)
+  public ApiResponse<Boolean> cancel(
+      @CurrentUserId String userId,
+      @PathVariable String idempotencyKey,
+      @Valid @RequestBody CancelRequest request) {
+    transferUseCase.cancelTransfer(
+        userId, idempotencyKey, request.reason() == null ? "사용자 요청" : request.reason());
+    return ApiResponse.ok(true);
+  }
+
+  public record CancelRequest(
+      @jakarta.validation.constraints.Size(max = 200, message = "사유는 200자를 넘을 수 없습니다")
+          String reason) {}
+
   @GetMapping("/transfers")
   @AuthLevel(RiskLevel.LEVEL_1)
-  public ApiResponse<List<TransferResponse>> transfers(@RequestParam String userId) {
+  public ApiResponse<List<TransferResponse>> transfers(@CurrentUserId String userId) {
     return ApiResponse.ok(
         webResponseMapper.toTransferResponses(transferUseCase.getTransfers(userId)));
   }

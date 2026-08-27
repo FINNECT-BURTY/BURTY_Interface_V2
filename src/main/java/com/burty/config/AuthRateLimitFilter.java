@@ -29,6 +29,7 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
+import java.util.List;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
@@ -36,13 +37,40 @@ import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
-/** 인증 관련 경로에 IP 기반 rate limit 을 적용합니다. */
+/**
+ * 요청 제한 필터.
+ *
+ * <p>예전에는 {@code /auth}, {@code /admin/auth}, {@code /sessions} 세 경로에만, 그것도 IP 당 분당 60회 고정으로 걸려
+ * 있었다. 문제는 두 가지였다.
+ *
+ * <ul>
+ *   <li>비용이 큰 엔드포인트(이체, 마이데이터 동기화, AI 상담)가 아예 무제한이었다. 인증만 통과하면 은행 API 를 무한정 호출할 수 있었다.
+ *   <li>IP 단위라서 같은 회사·통신사 NAT 뒤의 정상 사용자들이 서로를 막았고, 반대로 IP 를 바꾸는 공격자는 그냥 통과했다.
+ * </ul>
+ *
+ * <p>지금은 규칙 테이블로 경로별 한도를 정의하고, 인증된 요청은 <b>사용자 단위</b>로, 미인증 요청은 IP 단위로 계산한다.
+ */
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE + 1)
 public class AuthRateLimitFilter extends OncePerRequestFilter {
 
-  private static final int MAX_REQUESTS_PER_WINDOW = 60;
-  private static final long WINDOW_MILLIS = 60_000L;
+  /** 경로 접두사별 한도. 첫 매칭 규칙이 적용되므로 더 구체적인 경로를 앞에 둔다. */
+  private static final List<Rule> RULES =
+      List.of(
+          // 인증 — 크리덴셜 스터핑 대상. 미인증 트래픽이라 IP 단위.
+          new Rule("/api/v1/auth", 60, 60_000L),
+          new Rule("/api/v1/admin/auth", 20, 60_000L),
+          new Rule("/api/v1/sessions", 60, 60_000L),
+          // 돈이 움직이는 경로 — 가장 좁게.
+          new Rule("/api/v1/finance/transfer", 10, 60_000L),
+          new Rule("/api/v1/transactions/sync", 6, 60_000L),
+          // 외부 API 비용이 큰 경로.
+          new Rule("/api/v1/mydata", 30, 60_000L),
+          new Rule("/api/v1/external", 30, 60_000L),
+          new Rule("/api/v1/consult", 20, 60_000L),
+          new Rule("/api/v1/voice", 20, 60_000L),
+          // 그 외 API 전반의 안전망.
+          new Rule("/api/v1", 300, 60_000L));
 
   private final ObjectMapper objectMapper;
   private final BurtyApiProperties apiProperties;
@@ -61,20 +89,24 @@ public class AuthRateLimitFilter extends OncePerRequestFilter {
       return true;
     }
     String uri = request.getRequestURI();
-    return uri == null
-        || (!uri.startsWith("/api/v1/auth")
-            && !uri.startsWith("/api/v1/admin/auth")
-            && !uri.startsWith("/api/v1/sessions"));
+    return uri == null || matchingRule(uri) == null;
   }
 
   @Override
   protected void doFilterInternal(
       HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
       throws ServletException, IOException {
-    String key = IpUtil.getClientIp(request) + ":" + request.getMethod();
-    if (!rateLimitStore.tryConsume(key, MAX_REQUESTS_PER_WINDOW, WINDOW_MILLIS)) {
+    Rule rule = matchingRule(request.getRequestURI());
+    if (rule == null) {
+      filterChain.doFilter(request, response);
+      return;
+    }
+
+    String key = rule.prefix() + "|" + request.getMethod() + "|" + subject(request);
+    if (!rateLimitStore.tryConsume(key, rule.maxRequests(), rule.windowMillis())) {
       response.setStatus(HttpStatus.TOO_MANY_REQUESTS.value());
       response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+      response.setHeader("Retry-After", String.valueOf(rule.windowMillis() / 1000));
       objectMapper.writeValue(
           response.getWriter(),
           ApiResponse.error(
@@ -84,4 +116,29 @@ public class AuthRateLimitFilter extends OncePerRequestFilter {
     }
     filterChain.doFilter(request, response);
   }
+
+  /**
+   * 제한 주체. 인증된 요청은 사용자 단위여야 한다. IP 단위로만 세면 NAT 뒤의 정상 사용자끼리 서로를 막고, IP 를 바꾸는 쪽은 못 막는다.
+   *
+   * <p>주의: 이 필터는 JWT 필터보다 앞에서 돌기 때문에 SecurityContext 가 아직 비어 있다. 그래서 토큰에서 직접 subject 를 읽지 않고, 있으면
+   * 토큰 자체를 주체 식별자로 쓴다 (해시해서 로그·키에 원문이 남지 않게 한다).
+   */
+  private static String subject(HttpServletRequest request) {
+    String header = request.getHeader("Authorization");
+    if (header != null && header.startsWith("Bearer ") && header.length() > 7) {
+      return "t:" + Integer.toHexString(header.substring(7).hashCode());
+    }
+    return "ip:" + IpUtil.getClientIp(request);
+  }
+
+  private static Rule matchingRule(String uri) {
+    for (Rule rule : RULES) {
+      if (uri.startsWith(rule.prefix())) {
+        return rule;
+      }
+    }
+    return null;
+  }
+
+  private record Rule(String prefix, int maxRequests, long windowMillis) {}
 }

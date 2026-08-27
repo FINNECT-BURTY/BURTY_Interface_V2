@@ -23,6 +23,7 @@ import com.burty.adapter.in.web.mapper.WebResponseMapper;
 import com.burty.application.dto.policy.PolicyApplyResponse;
 import com.burty.application.dto.policy.PolicyMatchResponse;
 import com.burty.application.port.in.policy.PolicyMatchUseCase;
+import com.burty.core.annotation.CurrentUserId;
 import com.burty.core.controller.BaseController;
 import com.burty.core.dto.response.ApiResponse;
 import com.burty.security.AuthLevel;
@@ -34,7 +35,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -48,7 +48,7 @@ public class PolicyMatchController extends BaseController {
   @GetMapping("/policy/match")
   @AuthLevel(RiskLevel.LEVEL_1)
   @Operation(summary = "청년 정책 매칭", description = "사용자 속성과 정책 조건을 매칭해 상위 정책을 추천합니다.")
-  public ApiResponse<List<PolicyMatchResponse>> policyMatch(@RequestParam String userId) {
+  public ApiResponse<List<PolicyMatchResponse>> policyMatch(@CurrentUserId String userId) {
     return ApiResponse.ok(
         webResponseMapper.toPolicyMatchResponses(policyMatchUseCase.matchForUser(userId)));
   }
@@ -57,7 +57,7 @@ public class PolicyMatchController extends BaseController {
   @AuthLevel(RiskLevel.LEVEL_2)
   @Operation(summary = "정책 신청 표시", description = "사용자가 정책을 신청했음을 기록합니다. 신청률 KPI에 반영됩니다.")
   public ApiResponse<PolicyApplyResponse> applyPolicy(
-      @RequestParam String userId, @PathVariable String policyCode) {
+      @CurrentUserId String userId, @PathVariable String policyCode) {
     policyMatchUseCase.applyPolicy(userId, policyCode);
     return ApiResponse.ok(new PolicyApplyResponse(true, policyCode, userId));
   }

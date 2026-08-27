@@ -3,6 +3,7 @@ package com.burty.adapter.in.web.finance;
 import com.burty.application.dto.finance.OpenBankingAuthorizeResponse;
 import com.burty.application.dto.shared.FlagResultResponse;
 import com.burty.application.port.in.finance.ExternalFinanceUseCase;
+import com.burty.core.annotation.CurrentUserId;
 import com.burty.core.controller.BaseController;
 import com.burty.core.dto.response.ApiResponse;
 import com.burty.security.AuthLevel;
@@ -27,7 +28,7 @@ public class OpenBankingOAuthController extends BaseController {
   @GetMapping("/authorize")
   @AuthLevel(RiskLevel.LEVEL_1)
   @Operation(summary = "오픈뱅킹 인가 URL")
-  public ApiResponse<OpenBankingAuthorizeResponse> authorize(@RequestParam String userId) {
+  public ApiResponse<OpenBankingAuthorizeResponse> authorize(@CurrentUserId String userId) {
     return ApiResponse.ok(externalFinanceUseCase.createOpenBankingAuthorize(userId));
   }
 
@@ -43,7 +44,7 @@ public class OpenBankingOAuthController extends BaseController {
   @AuthLevel(RiskLevel.LEVEL_1)
   @Operation(summary = "오픈뱅킹 OAuth 콜백 (API)")
   public ApiResponse<FlagResultResponse> callbackPost(
-      @RequestParam String userId, @RequestParam String code) {
+      @CurrentUserId String userId, @RequestParam String code) {
     boolean ok = externalFinanceUseCase.exchangeOpenBankingAuthorizationCode(userId, code);
     return ApiResponse.ok(FlagResultResponse.of("linked", ok));
   }
