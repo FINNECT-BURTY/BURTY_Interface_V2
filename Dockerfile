@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 
 # ── Build ──────────────────────────────────────────────────────────────────────
-FROM gradle:9.4.1-jdk21-alpine AS build
+FROM gradle:9.7.1-jdk21-alpine AS build
 WORKDIR /app
 
 # 의존성 레이어를 소스와 분리한다.
@@ -15,7 +15,7 @@ COPY src ./src
 RUN ./gradlew bootJar --no-daemon -x test
 
 # ── Runtime ────────────────────────────────────────────────────────────────────
-FROM eclipse-temurin:21-jre-alpine
+FROM eclipse-temurin:25-jre-alpine
 WORKDIR /app
 
 # 베이스 이미지에 남아 있는 OS 패키지 취약점(libcrypto3 등)을 빌드 시점에 올린다.
