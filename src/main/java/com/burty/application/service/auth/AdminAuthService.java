@@ -89,6 +89,11 @@ public class AdminAuthService implements AdminAuthUseCase {
       throw new BusinessException(
           ErrorCode.FORBIDDEN, "관리자 등록이 비활성화되어 있습니다. (burty.admin.setup-key 미설정)");
     }
+    // 최초 부트스트랩 창구는 관리자가 한 명이라도 생기면 닫힌다.
+    // 셋업 키만으로 언제든 관리자를 만들 수 있으면, 키 유출이 곧바로 권한 상승이 된다.
+    if (adminProperties.isBootstrapEnabled() && adminUserRepository.count() > 0) {
+      throw new BusinessException(ErrorCode.FORBIDDEN, "이미 관리자가 존재합니다. 부트스트랩 등록은 사용할 수 없습니다.");
+    }
     if (!configuredKey.equals(setupKey)) {
       throw new BusinessException(ErrorCode.FORBIDDEN, "셋업 키가 올바르지 않습니다.");
     }
