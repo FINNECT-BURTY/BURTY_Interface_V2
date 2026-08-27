@@ -2,6 +2,10 @@ global:
   scrape_interval: 15s
   evaluation_interval: 15s
 
+# 알람 룰. 대시보드만 있고 알람이 없으면 사람이 화면을 보고 있을 때만 장애를 발견한다.
+rule_files:
+  - /etc/prometheus/alert-rules.yml
+
 scrape_configs:
   - job_name: burty
     metrics_path: /actuator/prometheus

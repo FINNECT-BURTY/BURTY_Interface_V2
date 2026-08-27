@@ -50,12 +50,23 @@ public class MyDataTokenRefreshBatch {
   private final AuditLogger auditLogger;
   private final long refreshAheadHours;
 
+  /**
+   * 마지막 성공 시각 (epoch seconds).
+   *
+   * <p>이 배치가 조용히 멈추면 마이데이터 연동이 며칠 뒤에야 끊긴 것을 알게 된다. "실패 카운터" 만으로는 <b>아예 돌지 않는 상태</b>를 탐지할 수 없어서, 마지막
+   * 성공 시각을 게이지로 노출하고 알람에서 경과 시간을 본다.
+   */
+  private final java.util.concurrent.atomic.AtomicLong lastSuccessEpochSeconds =
+      new java.util.concurrent.atomic.AtomicLong(0);
+
   public MyDataTokenRefreshBatch(
       MyDataLinkStatusRepository linkStatusRepository,
       MyDataOAuthPort myDataOAuthPort,
       LinkedInstitutionPersistenceService linkedInstitutionPersistence,
       MyDataTokenHydrationService tokenHydrationService,
       AuditLogger auditLogger,
+      org.springframework.beans.factory.ObjectProvider<io.micrometer.core.instrument.MeterRegistry>
+          meterRegistry,
       @Value("${burty.mydata.token-refresh-ahead-hours:6}") long refreshAheadHours) {
     this.linkStatusRepository = linkStatusRepository;
     this.myDataOAuthPort = myDataOAuthPort;
@@ -63,6 +74,17 @@ public class MyDataTokenRefreshBatch {
     this.tokenHydrationService = tokenHydrationService;
     this.auditLogger = auditLogger;
     this.refreshAheadHours = refreshAheadHours;
+
+    io.micrometer.core.instrument.MeterRegistry registry = meterRegistry.getIfAvailable();
+    if (registry != null) {
+      io.micrometer.core.instrument.Gauge.builder(
+              "burty.mydata.token.refresh.last.success.timestamp",
+              lastSuccessEpochSeconds,
+              java.util.concurrent.atomic.AtomicLong::get)
+          .description("마이데이터 토큰 갱신 배치가 마지막으로 성공한 시각 (epoch seconds)")
+          .baseUnit("seconds")
+          .register(registry);
+    }
   }
 
   @Scheduled(cron = "${burty.mydata.token-refresh-cron:0 */15 * * * *}")
@@ -110,6 +132,7 @@ public class MyDataTokenRefreshBatch {
         failed++;
       }
     }
+    lastSuccessEpochSeconds.set(java.time.Instant.now().getEpochSecond());
     log.info(LogMessages.Batch.MYDATA_TOKEN_REFRESH, refreshed, failed, refreshAheadHours);
     if (refreshed + failed > 0) {
       auditLogger.log(
