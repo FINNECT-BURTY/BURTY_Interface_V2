@@ -13,15 +13,34 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.annotation.Lazy;
+import org.springframework.data.domain.Range;
 import org.springframework.data.redis.connection.stream.Consumer;
 import org.springframework.data.redis.connection.stream.MapRecord;
+import org.springframework.data.redis.connection.stream.PendingMessage;
+import org.springframework.data.redis.connection.stream.PendingMessages;
 import org.springframework.data.redis.connection.stream.ReadOffset;
+import org.springframework.data.redis.connection.stream.RecordId;
 import org.springframework.data.redis.connection.stream.StreamOffset;
 import org.springframework.data.redis.connection.stream.StreamReadOptions;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
+/**
+ * Redis Stream / 인메모리 큐 컨슈머.
+ *
+ * <p>예전 구현의 결정적 문제는 <b>처리 결과와 무관하게 항상 ACK</b> 했다는 점이다. {@code handleJob} 이 내부에서 모든 예외를 삼켰고 그 직후
+ * {@code acknowledge()} 를 불렀다. 결과적으로 전송에 실패한 알림은 재시도도 DLQ 도 없이 영구 유실됐다. Redis Stream 을 쓰는 이유의 절반을
+ * 버리고 있었던 셈이다.
+ *
+ * <p>지금은
+ *
+ * <ul>
+ *   <li>처리에 <b>성공했을 때만</b> ACK 한다. 실패하면 pending 으로 남아 재전달된다.
+ *   <li>전달 횟수가 임계치를 넘으면 DLQ 스트림으로 옮기고 ACK 한다 (무한 재시도 방지).
+ *   <li>죽은 컨슈머가 물고 있던 pending 메시지를 {@code XAUTOCLAIM} 으로 회수한다.
+ * </ul>
+ */
 @Component
 public class AsyncJobConsumer {
   private static final Logger log = LoggerFactory.getLogger(AsyncJobConsumer.class);
@@ -67,11 +86,66 @@ public class AsyncJobConsumer {
     if (memory != null) {
       Map<String, String> job;
       while ((job = memory.poll()) != null) {
-        handleJob(job);
+        try {
+          handleJob(job);
+        } catch (RuntimeException e) {
+          // 인메모리 큐는 개발 편의용이라 재시도 큐가 없다. 최소한 유실 사실은 남긴다.
+          log.error("인메모리 비동기 작업 처리 실패 — 유실됨 payload={} reason={}", job, e.getMessage(), e);
+        }
       }
       return;
     }
+    reclaimStalledMessages();
     pollRedisJobs();
+  }
+
+  /**
+   * 컨슈머가 죽어 pending 으로 남은 메시지를 회수한다.
+   *
+   * <p>이게 없으면 배포나 크래시 때 처리 중이던 메시지가 원래 컨슈머 이름에 영원히 묶인 채 아무도 처리하지 않는다. 그룹 전체의 pending 을 보고 충분히 오래 유휴
+   * 상태인 것만 이 컨슈머로 가져온다.
+   */
+  private void reclaimStalledMessages() {
+    StringRedisTemplate template = redisTemplate.getIfAvailable();
+    if (template == null) {
+      return;
+    }
+    Duration minIdle = Duration.ofMillis(queueProperties.getClaimMinIdleMs());
+    for (AsyncJobType type : AsyncJobType.values()) {
+      String streamKey = queueProperties.streamKey(type.name());
+      try {
+        PendingMessages pending =
+            template
+                .opsForStream()
+                .pending(streamKey, queueProperties.getConsumerGroup(), Range.unbounded(), 10L);
+        if (pending == null || pending.isEmpty()) {
+          continue;
+        }
+        RecordId[] stale =
+            pending.stream()
+                .filter(m -> m.getElapsedTimeSinceLastDelivery().compareTo(minIdle) >= 0)
+                .map(PendingMessage::getId)
+                .toArray(RecordId[]::new);
+        if (stale.length == 0) {
+          continue;
+        }
+        List<MapRecord<String, Object, Object>> claimed =
+            template
+                .opsForStream()
+                .claim(
+                    streamKey,
+                    queueProperties.getConsumerGroup(),
+                    queueProperties.getConsumerName(),
+                    minIdle,
+                    stale);
+        if (claimed != null && !claimed.isEmpty()) {
+          log.info("정체된 메시지 회수 stream={} count={}", streamKey, claimed.size());
+          processRecords(template, streamKey, claimed);
+        }
+      } catch (RuntimeException e) {
+        log.warn("pending 메시지 회수 실패 stream={} reason={}", streamKey, e.getMessage());
+      }
+    }
   }
 
   private void pollRedisJobs() {
@@ -92,14 +166,88 @@ public class AsyncJobConsumer {
       if (records == null) {
         continue;
       }
-      for (MapRecord<String, Object, Object> record : records) {
-        Map<String, String> payload = toStringMap(record.getValue());
+      processRecords(template, streamKey, records);
+    }
+  }
+
+  /** 성공했을 때만 ACK 한다. 실패하면 pending 으로 남겨 재전달되게 하고, 전달 횟수가 임계치를 넘으면 DLQ 로 격리한다. */
+  private void processRecords(
+      StringRedisTemplate template,
+      String streamKey,
+      List<MapRecord<String, Object, Object>> records) {
+    for (MapRecord<String, Object, Object> record : records) {
+      Map<String, String> payload = toStringMap(record.getValue());
+      try {
         handleJob(payload);
         template.opsForStream().acknowledge(streamKey, record);
+      } catch (RuntimeException e) {
+        long deliveries = deliveryCount(template, streamKey, record.getId().getValue());
+        if (deliveries >= queueProperties.getMaxDeliveries()) {
+          moveToDeadLetter(template, streamKey, record, payload, e);
+        } else {
+          log.warn(
+              "비동기 작업 처리 실패 — 재전달 예정 stream={} id={} deliveries={}/{} reason={}",
+              streamKey,
+              record.getId(),
+              deliveries,
+              queueProperties.getMaxDeliveries(),
+              e.getMessage(),
+              e);
+        }
       }
     }
   }
 
+  private long deliveryCount(StringRedisTemplate template, String streamKey, String id) {
+    try {
+      PendingMessages pending =
+          template
+              .opsForStream()
+              .pending(streamKey, queueProperties.getConsumerGroup(), Range.closed(id, id), 1L);
+      return pending == null || pending.isEmpty() ? 1L : pending.get(0).getTotalDeliveryCount();
+    } catch (RuntimeException e) {
+      // 전달 횟수를 못 읽으면 보수적으로 1 로 본다 (성급한 DLQ 격리 방지).
+      return 1L;
+    }
+  }
+
+  private void moveToDeadLetter(
+      StringRedisTemplate template,
+      String streamKey,
+      MapRecord<String, Object, Object> record,
+      Map<String, String> payload,
+      RuntimeException cause) {
+    String dlq = queueProperties.deadLetterKey(typeOf(payload));
+    Map<String, String> entry = new java.util.HashMap<>(payload);
+    entry.put("_originalStream", streamKey);
+    entry.put("_originalId", record.getId().getValue());
+    entry.put("_error", cause.getClass().getSimpleName() + ": " + cause.getMessage());
+    try {
+      template.opsForStream().add(dlq, entry);
+      template.opsForStream().acknowledge(streamKey, record);
+      log.error(
+          "비동기 작업 DLQ 격리 — 수동 확인 필요 stream={} id={} dlq={} reason={}",
+          streamKey,
+          record.getId(),
+          dlq,
+          cause.getMessage(),
+          cause);
+    } catch (RuntimeException e) {
+      // DLQ 적재조차 실패하면 ACK 하지 않는다. 유실보다 중복이 낫다.
+      log.error("DLQ 적재 실패 — 메시지를 pending 으로 유지 stream={} id={}", streamKey, record.getId(), e);
+    }
+  }
+
+  private static String typeOf(Map<String, String> payload) {
+    String type = payload.get("type");
+    return type == null ? "unknown" : type;
+  }
+
+  /**
+   * 작업을 처리한다.
+   *
+   * <p><b>실패하면 예외를 던진다.</b> 예전에는 여기서 모든 예외를 삼켜서, 호출부가 실패를 알 수 없었고 그대로 ACK 되어 메시지가 사라졌다.
+   */
   private void handleJob(Map<String, String> payload) {
     String type = payload.get("type");
     if (type == null) {
@@ -113,9 +261,8 @@ public class AsyncJobConsumer {
         default -> log.warn("Unknown async job type={}", type);
       }
     } catch (IllegalArgumentException e) {
-      log.warn("Invalid async job type={}", type);
-    } catch (Exception e) {
-      log.error("Async job failed type={} error={}", type, e.getMessage(), e);
+      // 알 수 없는 타입은 재시도해도 소용없다. 여기서만 삼키고 ACK 되게 둔다.
+      log.warn("알 수 없는 비동기 작업 타입 — 폐기 type={}", type);
     }
   }
 
