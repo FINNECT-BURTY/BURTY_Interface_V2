@@ -482,3 +482,52 @@ gunzip -c burty_*.sql.gz | mariadb -h <RDS> -u <user> -p burty
 4. enum 상수를 추가했다면 `EnumColumnWidthTests` 가 컬럼 길이를 확인한다. 초과하면 마이그레이션으로 넓힌다.
 
 베이스라인(`V3`)을 재생성해야 하는 경우는 **아직 어디에도 적용되지 않았을 때뿐**이다.
+
+---
+
+# 로그 개인정보 정책
+
+로그는 Loki 에 수집되어 보존된다. 계좌번호·전화번호가 평문으로 쌓이면 **로그 자체가 개인정보
+처리 대상**이 되므로, 두 계층으로 막는다.
+
+## 1. 호출부 명시 마스킹 (원칙)
+
+```java
+log.info("이체 완료 account={}", PiiMasker.account(accountNo));
+```
+
+| 대상 | 메서드 | 결과 |
+|---|---|---|
+| 계좌번호·핀테크이용번호 | `PiiMasker.account()` | `***7890` |
+| 전화번호 | `PiiMasker.phone()` | `***5678` |
+| 이름 | `PiiMasker.name()` | `홍***` |
+| 이메일 | `PiiMasker.email()` | `ro***@example.com` |
+| 토큰·비밀값 | `PiiMasker.secret()` | `***(len=124)` |
+
+## 2. logback 스크럽 (안전망)
+
+`%maskedMsg` / `%maskedEx` 변환기가 출력 직전에 한 번 더 훑는다.
+주민번호·전화번호·계좌번호·JWT·`token=...` 형태를 정규식으로 가린다.
+
+이 계층이 필요한 이유는 **예외 메시지를 우리가 통제할 수 없기 때문**이다.
+DB 제약 위반 메시지에는 위반한 컬럼 값이, 외부 API 오류에는 응답 본문이 그대로 들어온다.
+
+> 정규식은 완벽하지 않다. 1번을 대체하지 않는다.
+
+## 로그를 추가할 때
+
+- **값을 찍기 전에 "이게 유출되면 곤란한가" 를 먼저 물을 것.** 곤란하면 `PiiMasker` 를 쓴다.
+- 요청 객체·엔티티·`Map` 을 통째로 찍지 말 것. 필요한 필드만 골라 찍는다.
+- 알림 본문(`body`)에는 금액·계좌가 들어간다. 제목까지만 남긴다.
+- `LoggingAspect` 는 인자 **값** 이 아니라 **타입** 만 남긴다. 값이 필요하면 호출부에서 직접 남긴다.
+
+## 점검
+
+```bash
+# 마스킹 없이 민감 파라미터를 찍는 로그 찾기
+grep -rn "log\.\(info\|warn\|error\|debug\)" src/main \
+  | grep -iE "\b(fromAccount|toAccount|accountNo|fintechUseNum|phone|ci|birthdate|token)\b" \
+  | grep -v PiiMasker
+```
+
+`PiiMaskerTests` 와 `LogbackPiiMaskingTests` 가 마스킹 로직과 배선을 각각 검증한다.

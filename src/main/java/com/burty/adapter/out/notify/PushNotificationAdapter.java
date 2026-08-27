@@ -4,6 +4,7 @@ import com.burty.application.port.out.notify.NotificationChannelPort;
 import com.burty.application.service.notification.NotificationRecipientResolver;
 import com.burty.config.NotifyProperties;
 import com.burty.core.constant.LogMessages;
+import com.burty.util.PiiMasker;
 import java.util.List;
 import java.util.Map;
 import org.slf4j.Logger;
@@ -43,7 +44,7 @@ public class PushNotificationAdapter implements NotificationChannelPort {
   @Override
   public boolean send(String userId, String title, String body) {
     if (notifyProperties.getPush().isStubMode()) {
-      log.info(LogMessages.Notify.STUB_CHANNEL, "PUSH", userId, title, body);
+      log.info(LogMessages.Notify.STUB_CHANNEL, "PUSH", userId, title);
       return true;
     }
     if (!notifyProperties.getPush().isConfigured()) {
@@ -88,7 +89,7 @@ public class PushNotificationAdapter implements NotificationChannelPort {
       restTemplate.postForEntity(url, new HttpEntity<>(payload, headers), Map.class);
       return true;
     } catch (Exception e) {
-      log.error("[PUSH] FCM send failed token={} error={}", token, e.getMessage());
+      log.error("[PUSH] FCM 발송 실패 token={} error={}", PiiMasker.secret(token), e.getMessage());
       return false;
     }
   }

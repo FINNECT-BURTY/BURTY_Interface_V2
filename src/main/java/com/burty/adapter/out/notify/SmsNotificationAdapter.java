@@ -39,7 +39,7 @@ public class SmsNotificationAdapter implements NotificationChannelPort {
   @Override
   public boolean send(String userId, String title, String body) {
     if (notifyProperties.getSms().isStubMode()) {
-      log.info(LogMessages.Notify.STUB_CHANNEL, "SMS", userId, title, body);
+      log.info(LogMessages.Notify.STUB_CHANNEL, "SMS", userId, title);
       return true;
     }
     if (!notifyProperties.getSms().isConfigured()) {

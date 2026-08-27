@@ -22,7 +22,6 @@ package com.burty.core.aspect;
 import com.burty.core.annotation.LogExecutionTime;
 import com.burty.core.annotation.LogMethod;
 import java.lang.reflect.Method;
-import java.util.Arrays;
 import lombok.extern.slf4j.Slf4j;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
@@ -93,6 +92,18 @@ public class LoggingAspect {
     }
   }
 
+  /** 인자 값 대신 타입만 나열한다. 개인정보를 남기지 않으면서 시그니처 추적은 가능하게 한다. */
+  private static String describeTypes(Object[] args) {
+    StringBuilder sb = new StringBuilder("[");
+    for (int i = 0; i < args.length; i++) {
+      if (i > 0) {
+        sb.append(", ");
+      }
+      sb.append(args[i] == null ? "null" : args[i].getClass().getSimpleName());
+    }
+    return sb.append(']').toString();
+  }
+
   /** 메서드 실행 로그를 출력합니다. */
   private void logMethodExecution(
       String methodName, long executionTime, LogExecutionTime annotation, Exception exception) {
@@ -120,9 +131,12 @@ public class LoggingAspect {
     message.append("Starting ").append(methodName);
 
     if (annotation.logParameters()) {
+      // 메서드 인자에는 계좌번호·CI·전화번호·토큰이 그대로 들어올 수 있다.
+      // 인자 값을 통째로 찍으면 그 순간 로그가 개인정보 저장소가 된다.
+      // 값 대신 타입만 남긴다. 값이 필요하면 호출부에서 PiiMasker 로 가려서 직접 남길 것.
       Object[] args = joinPoint.getArgs();
       if (args.length > 0) {
-        message.append(" with parameters: ").append(Arrays.toString(args));
+        message.append(" with parameter types: ").append(describeTypes(args));
       }
     }
 
@@ -136,7 +150,8 @@ public class LoggingAspect {
     message.append("Completed ").append(methodName);
 
     if (annotation.logReturnValue() && result != null) {
-      message.append(" with result: ").append(result);
+      // 반환값도 마찬가지다. 엔티티나 DTO 를 그대로 찍으면 개인정보가 통째로 흘러간다.
+      message.append(" with result type: ").append(result.getClass().getSimpleName());
     }
 
     if (annotation.logExecutionTime()) {

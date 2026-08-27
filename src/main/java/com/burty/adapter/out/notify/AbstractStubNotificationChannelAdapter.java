@@ -38,7 +38,7 @@ abstract class AbstractStubNotificationChannelAdapter implements NotificationCha
   @Override
   public boolean send(String userId, String title, String body) {
     if (stubMode) {
-      log.info(LogMessages.Notify.STUB_CHANNEL, channelLabel, userId, title, body);
+      log.info(LogMessages.Notify.STUB_CHANNEL, channelLabel, userId, title);
       return true;
     }
     log.warn(
