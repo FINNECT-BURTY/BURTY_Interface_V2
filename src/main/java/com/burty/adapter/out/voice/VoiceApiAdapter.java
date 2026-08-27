@@ -21,6 +21,7 @@ package com.burty.adapter.out.voice;
 
 import com.burty.application.port.out.ai.VoicePort;
 import com.burty.config.VoiceProperties;
+import com.burty.core.config.HttpClientFactory;
 import java.util.Map;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
@@ -33,8 +34,8 @@ public class VoiceApiAdapter implements VoicePort {
   private final RestTemplate restTemplate;
   private final VoiceProperties properties;
 
-  public VoiceApiAdapter(RestTemplate restTemplate, VoiceProperties properties) {
-    this.restTemplate = restTemplate;
+  public VoiceApiAdapter(HttpClientFactory httpClientFactory, VoiceProperties properties) {
+    this.restTemplate = httpClientFactory.restTemplate("voice", properties.getTimeoutMs());
     this.properties = properties;
   }
 

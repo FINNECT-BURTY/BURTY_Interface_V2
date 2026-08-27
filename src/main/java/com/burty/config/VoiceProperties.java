@@ -30,6 +30,9 @@ public class VoiceProperties {
   private String sttUrl = "https://api.voice.local/stt";
   private String apiKey = "voice-api-key";
 
+  /** 음성 API 응답 타임아웃. TTS/STT 는 응답이 느릴 수 있어 금융 API 와 같은 값을 쓰면 안 된다. */
+  private int timeoutMs = 15000;
+
   public boolean isStubMode() {
     return stubMode;
   }
@@ -60,5 +63,13 @@ public class VoiceProperties {
 
   public void setApiKey(String apiKey) {
     this.apiKey = apiKey;
+  }
+
+  public int getTimeoutMs() {
+    return timeoutMs;
+  }
+
+  public void setTimeoutMs(int timeoutMs) {
+    this.timeoutMs = timeoutMs;
   }
 }

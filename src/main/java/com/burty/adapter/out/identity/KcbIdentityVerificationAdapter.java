@@ -2,6 +2,7 @@ package com.burty.adapter.out.identity;
 
 import com.burty.application.port.out.identity.IdentityVerificationPort;
 import com.burty.config.IdentityProperties;
+import com.burty.core.config.HttpClientFactory;
 import com.burty.core.constant.AppMessages;
 import com.burty.core.error.enums.ErrorCode;
 import com.burty.core.exception.BusinessException;
@@ -26,9 +27,10 @@ public class KcbIdentityVerificationAdapter implements IdentityVerificationPort 
   private final IdentityProperties properties;
   private final RestTemplate restTemplate;
 
-  public KcbIdentityVerificationAdapter(IdentityProperties properties, RestTemplate restTemplate) {
+  public KcbIdentityVerificationAdapter(
+      IdentityProperties properties, HttpClientFactory httpClientFactory) {
     this.properties = properties;
-    this.restTemplate = restTemplate;
+    this.restTemplate = httpClientFactory.restTemplate("identity-kcb", properties.getTimeoutMs());
   }
 
   @Override

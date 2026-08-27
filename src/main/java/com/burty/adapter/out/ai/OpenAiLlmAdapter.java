@@ -21,6 +21,7 @@ package com.burty.adapter.out.ai;
 
 import com.burty.application.port.out.ai.LlmPort;
 import com.burty.config.AiProperties;
+import com.burty.core.config.HttpClientFactory;
 import com.burty.domain.admin.entity.AiFallbackTemplateEntity;
 import com.burty.domain.admin.repository.AiFallbackTemplateRepository;
 import java.util.List;
@@ -42,10 +43,10 @@ public class OpenAiLlmAdapter implements LlmPort {
   private final AiFallbackTemplateRepository templateRepository;
 
   public OpenAiLlmAdapter(
-      RestTemplate restTemplate,
+      HttpClientFactory httpClientFactory,
       AiProperties properties,
       AiFallbackTemplateRepository templateRepository) {
-    this.restTemplate = restTemplate;
+    this.restTemplate = httpClientFactory.restTemplate("openai", properties.getTimeoutMs());
     this.properties = properties;
     this.templateRepository = templateRepository;
   }
