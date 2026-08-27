@@ -86,6 +86,23 @@ public class AuditLogEntity {
   @Column(name = "error_message")
   private String errorMessage;
 
+  /**
+   * 직전 감사 로그의 entryHash. 체인의 연결 고리다.
+   *
+   * <p>감사 로그는 "무슨 일이 있었는지" 를 사후에 증명하는 기록인데, 단순 INSERT 만으로는 DB 접근 권한이 있는 사람이 조용히 지우거나 고칠 수 있다. 각 행이
+   * 직전 행의 해시를 품게 하면, 중간의 한 행만 손대도 그 이후 체인이 전부 어긋나 검증에서 드러난다.
+   */
+  @Column(name = "prev_hash", length = 64)
+  private String prevHash;
+
+  /** 이 행의 내용 + prevHash 로 계산한 SHA-256. */
+  @Column(name = "entry_hash", length = 64)
+  private String entryHash;
+
+  /** 체인 내 순번. 행 삭제를 탐지한다 (해시만으로는 맨 끝을 통째로 잘라내는 것을 못 잡는다). */
+  @Column(name = "chain_seq")
+  private Long chainSeq;
+
   public enum ActorType {
     USER,
     GUARDIAN,

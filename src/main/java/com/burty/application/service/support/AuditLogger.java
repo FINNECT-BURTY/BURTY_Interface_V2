@@ -40,6 +40,10 @@ public class AuditLogger {
     log(actorId, action, target, "SUCCESS", detail);
   }
 
+  public void logFailure(String actorId, String action, String target, String detail) {
+    log(actorId, action, target, "FAILURE", detail);
+  }
+
   public void log(String actorId, String action, String target, String result, String detail) {
     try {
       auditLogPort.save(
