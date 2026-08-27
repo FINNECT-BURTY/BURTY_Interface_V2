@@ -22,9 +22,15 @@ package com.burty.domain.family.entity;
 import com.burty.domain.user.entity.UserEntity;
 import jakarta.persistence.*;
 import java.time.LocalDateTime;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 @Entity
 @Table(name = "tbl_guardian_link")
+@Getter
+@Setter
+@NoArgsConstructor
 public class GuardianLinkEntity {
   @Id
   @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -44,7 +50,9 @@ public class GuardianLinkEntity {
   private Relation relation;
 
   @Enumerated(EnumType.STRING)
-  @Column(name = "permission", nullable = false)
+  // VIEW_ALERT_AND_APPROVE 는 22자다. 길이를 명시하지 않으면 Hibernate 가 상수 길이에 맞춰 컬럼을
+  // 잡는데, 마이그레이션과 어긋나면 validate 가 실패하거나 값이 잘린다. V9 와 같은 30 으로 고정한다.
+  @Column(name = "permission", nullable = false, length = 30)
   private Permission permission = Permission.VIEW_ONLY;
 
   @Column(name = "senior_consent_id", nullable = false)
@@ -77,7 +85,19 @@ public class GuardianLinkEntity {
 
   public enum Permission {
     VIEW_ONLY,
-    VIEW_AND_ALERT
+    VIEW_AND_ALERT,
+    /**
+     * 조회 + 알림 + <b>고액 이체 사전 승인</b>.
+     *
+     * <p>기존 두 단계는 모두 사후 통지였다. 알림이 갔을 때는 이미 돈이 나간 뒤라 보이스피싱 피해를 막지 못한다. 이 권한은 설정 금액 이상의 이체를 보류시키고 보호자
+     * 승인을 받게 한다.
+     */
+    VIEW_ALERT_AND_APPROVE
+  }
+
+  /** 이 연결이 이체 사전 승인 권한을 갖는가. */
+  public boolean canApproveTransfers() {
+    return permission == Permission.VIEW_ALERT_AND_APPROVE && status == LinkStatus.ACTIVE;
   }
 
   public enum LinkStatus {
