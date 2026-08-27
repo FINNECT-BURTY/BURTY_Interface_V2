@@ -79,7 +79,9 @@ public final class LogMessages {
   }
 
   public static final class Notify {
-    public static final String STUB_CHANNEL = "[{} 스텁] userId={} title={} body={}";
+    // 본문(body)에는 금액·계좌 등 민감정보가 들어간다. 스텁 로그에도 남기지 않는다.
+    // 개발 중 본문 확인이 필요하면 로컬에서 DEBUG 로 임시 추가할 것.
+    public static final String STUB_CHANNEL = "[{} 스텁] userId={} title={}";
 
     private Notify() {}
   }
