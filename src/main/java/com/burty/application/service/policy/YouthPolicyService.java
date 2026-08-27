@@ -48,6 +48,12 @@ public class YouthPolicyService implements YouthPolicyUseCase {
 
   @Override
   @Transactional
+  @org.springframework.cache.annotation.CacheEvict(
+      value = {
+        com.burty.core.config.CacheConfig.YOUTH_POLICIES,
+        com.burty.core.config.CacheConfig.POLICY_DETAIL
+      },
+      allEntries = true)
   public int syncPolicies(String zipCd, String lclsfNm, String keyword) {
     int pageNum = 1;
     int totalSaved = 0;
