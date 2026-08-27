@@ -81,7 +81,7 @@ jobs:
       # 이 이미지가 정말 이 레포·이 커밋에서 나왔는지 증명 가능하게 만든다.
       # 금융 서비스에서 공급망 출처 증명은 나중에 반드시 요구받는다.
       - name: Provenance attestation
-        uses: actions/attest-build-provenance@v1
+        uses: actions/attest-build-provenance@v4
         with:
           subject-name: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           subject-digest: ${{ steps.push.outputs.digest }}
