@@ -4,6 +4,7 @@ import com.burty.domain.user.entity.UserEntity;
 import com.burty.domain.user.repository.UserRepository;
 import com.burty.security.RiskLevel;
 import com.burty.security.RiskProofService;
+import com.burty.support.IntegrationTestBase;
 import java.time.LocalDateTime;
 import java.util.UUID;
 import org.junit.jupiter.api.Assertions;
@@ -20,7 +21,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.client.RestTemplate;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-class MyDataOpenBankingE2ETests {
+class MyDataOpenBankingE2ETests extends IntegrationTestBase {
 
   @LocalServerPort private int port;
   @Autowired private UserRepository userRepository;

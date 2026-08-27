@@ -23,6 +23,7 @@ import com.burty.domain.auth.repository.SocialAccountRepository;
 import com.burty.domain.user.entity.UserEntity;
 import com.burty.domain.user.repository.ConsentRecordRepository;
 import com.burty.domain.user.repository.UserRepository;
+import com.burty.support.IntegrationTestBase;
 import java.time.LocalDateTime;
 import java.util.UUID;
 import org.junit.jupiter.api.Assertions;
@@ -40,7 +41,7 @@ import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-class BurtyE2ETests {
+class BurtyE2ETests extends IntegrationTestBase {
   @LocalServerPort private int port;
   @Autowired private UserRepository userRepository;
   @Autowired private SocialAccountRepository socialAccountRepository;
