@@ -49,7 +49,7 @@ jobs:
 
       - name: 메타데이터
         id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           # latest 는 붙이지 않는다. floating 태그를 클러스터가 참조하면
