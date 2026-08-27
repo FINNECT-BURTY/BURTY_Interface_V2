@@ -77,6 +77,11 @@ public class ProdStartupValidator {
       throw new IllegalStateException(
           "PROD startup blocked: burty.external.stub-mode must be false.");
     }
+    if (environment.getProperty("burty.admin.bootstrap-enabled", Boolean.class, Boolean.FALSE)) {
+      throw new IllegalStateException(
+          "PROD startup blocked: burty.admin.bootstrap-enabled must be false "
+              + "(무인증 관리자 등록 창구는 운영에서 열려 있으면 안 됩니다).");
+    }
     if (apiProperties.isSwaggerEnabled()) {
       throw new IllegalStateException(
           "PROD startup blocked: burty.api.swagger-enabled must be false.");
