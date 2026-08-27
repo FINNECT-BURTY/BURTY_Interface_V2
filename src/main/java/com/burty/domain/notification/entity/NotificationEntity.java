@@ -80,6 +80,15 @@ public class NotificationEntity {
   @Column(name = "failed_reason")
   private String failedReason;
 
+  /** 발송 시도 횟수. 재시도 이력이 남지 않으면 "왜 안 왔는지" 를 사후에 알 수 없다. */
+  @Column(name = "attempts", nullable = false)
+  private Integer attempts = 0;
+
+  /** 실제로 발송을 시도한 채널 (사용자 설정에 따라 IN_APP 과 다를 수 있다). */
+  @Enumerated(EnumType.STRING)
+  @Column(name = "delivery_channel", length = 20)
+  private Channel deliveryChannel;
+
   public enum NotificationType {
     TRANSFER_ALERT,
     REPORT_READY,

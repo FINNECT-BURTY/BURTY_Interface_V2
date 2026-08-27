@@ -20,6 +20,8 @@
 package com.burty.adapter.out.alert;
 
 import com.burty.application.port.out.notify.FamilyAlertPort;
+import com.burty.application.port.out.outbox.OutboxPublisher;
+import com.burty.application.service.notification.NotificationOutboxHandler;
 import com.burty.domain.family.model.FamilyAlert;
 import com.burty.domain.notification.entity.NotificationEntity;
 import com.burty.domain.notification.repository.NotificationRepository;
@@ -27,8 +29,10 @@ import com.burty.domain.user.entity.UserEntity;
 import com.burty.domain.user.repository.UserRepository;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 @Primary
 @Component
@@ -36,17 +40,27 @@ public class JpaFamilyAlertAdapter implements FamilyAlertPort {
   private final NotificationRepository notificationRepository;
   private final UserRepository userRepository;
   private final FamilyAlertSseBroker sseBroker;
+  private final OutboxPublisher outboxPublisher;
 
   public JpaFamilyAlertAdapter(
       NotificationRepository notificationRepository,
       UserRepository userRepository,
-      FamilyAlertSseBroker sseBroker) {
+      FamilyAlertSseBroker sseBroker,
+      OutboxPublisher outboxPublisher) {
     this.notificationRepository = notificationRepository;
     this.userRepository = userRepository;
     this.sseBroker = sseBroker;
+    this.outboxPublisher = outboxPublisher;
   }
 
+  /**
+   * 알림 이력을 남기고 실제 발송은 아웃박스에 위임한다.
+   *
+   * <p>이력 저장과 발송 요청이 같은 트랜잭션에서 커밋되므로, "이력은 있는데 안 갔다" 나 "갔는데 이력이 없다" 가 생기지 않는다. 채널 발송 실패는 아웃박스가
+   * 재시도한다.
+   */
   @Override
+  @Transactional
   public void send(String userId, String message) {
     Long userKey = parseUserKey(userId);
     if (userKey == null) return;
@@ -61,8 +75,17 @@ public class JpaFamilyAlertAdapter implements FamilyAlertPort {
     entity.setBody(message);
     entity.setStatus(NotificationEntity.Status.QUEUED);
     entity.setSentAt(LocalDateTime.now());
-    notificationRepository.save(entity);
-    sseBroker.publish(new FamilyAlert(userId, message, entity.getSentAt()));
+    entity.setSentAt(null);
+    entity.setAttempts(0);
+    notificationRepository.saveAndFlush(entity);
+
+    outboxPublisher.publish(
+        "Notification",
+        String.valueOf(entity.getNotificationId()),
+        NotificationOutboxHandler.EVENT_TYPE,
+        Map.of("userId", userId, "notificationId", entity.getNotificationId()));
+
+    sseBroker.publish(new FamilyAlert(userId, message, LocalDateTime.now()));
   }
 
   @Override

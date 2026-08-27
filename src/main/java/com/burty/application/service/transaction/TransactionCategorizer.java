@@ -24,7 +24,6 @@ import com.burty.core.code.CodeGroups;
 import com.burty.domain.admin.entity.BaseCodeEntity;
 import com.burty.domain.transaction.entity.CategoryRuleEntity;
 import com.burty.domain.transaction.entity.TransactionEntity;
-import com.burty.domain.transaction.repository.CategoryRuleRepository;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -36,12 +35,12 @@ import org.springframework.stereotype.Service;
 public class TransactionCategorizer {
   private static final Logger log = LoggerFactory.getLogger(TransactionCategorizer.class);
 
-  private final CategoryRuleRepository ruleRepository;
+  private final CategoryRuleProvider categoryRuleProvider;
   private final BaseCodeUseCase baseCodeUseCase;
 
   public TransactionCategorizer(
-      CategoryRuleRepository ruleRepository, BaseCodeUseCase baseCodeUseCase) {
-    this.ruleRepository = ruleRepository;
+      CategoryRuleProvider categoryRuleProvider, BaseCodeUseCase baseCodeUseCase) {
+    this.categoryRuleProvider = categoryRuleProvider;
     this.baseCodeUseCase = baseCodeUseCase;
   }
 
@@ -50,7 +49,7 @@ public class TransactionCategorizer {
     if (text.isBlank()) return;
 
     List<MatchResult> matches = new ArrayList<>();
-    for (CategoryRuleEntity rule : ruleRepository.findByActiveTrueOrderByPriorityDesc()) {
+    for (CategoryRuleEntity rule : categoryRuleProvider.activeRules()) {
       if (matchesRule(text, rule)) {
         matches.add(new MatchResult(rule, rule.getPriority()));
       }
