@@ -1,11 +1,26 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <configuration scan="true" scanPeriod="30 seconds">
+
+    <!--
+      개인정보 마스킹 변환기.
+
+      호출부에서 PiiMasker 로 명시적으로 가리는 것이 원칙이지만, 예외 메시지는 우리가
+      문장을 통제할 수 없다. DB 제약 위반 메시지에는 위반한 컬럼 값이, 외부 API 오류에는
+      응답 본문이 그대로 들어온다. 최종 출력 직전에 한 번 더 훑는 안전망이다.
+
+      %maskedMsg / %maskedEx 를 %msg / %ex 대신 사용한다.
+    -->
+    <conversionRule conversionWord="maskedMsg"
+                    class="com.burty.core.logging.PiiMaskingConverter"/>
+    <conversionRule conversionWord="maskedEx"
+                    class="com.burty.core.logging.PiiMaskingThrowableConverter"/>
+
     <property name="LOG_PATH" value="${LOG_PATH:-./logs}"/>
     <property name="LOG_FILE" value="${LOG_FILE:-${LOG_PATH}/application.log}"/>
 
     <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
         <encoder>
-            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level [%X{requestId}] %logger{36} - %msg%n</pattern>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level [%X{requestId}] %logger{36} - %maskedMsg%n%maskedEx</pattern>
         </encoder>
     </appender>
 
@@ -18,7 +33,7 @@
             <totalSizeCap>1GB</totalSizeCap>
         </rollingPolicy>
         <encoder>
-            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level [%X{requestId}] %logger{36} - %msg%n</pattern>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level [%X{requestId}] %logger{36} - %maskedMsg%n%maskedEx</pattern>
         </encoder>
     </appender>
 
@@ -34,7 +49,7 @@
             <totalSizeCap>1GB</totalSizeCap>
         </rollingPolicy>
         <encoder>
-            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level [%X{requestId}] %logger{36} - %msg%n</pattern>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level [%X{requestId}] %logger{36} - %maskedMsg%n%maskedEx</pattern>
         </encoder>
     </appender>
 
