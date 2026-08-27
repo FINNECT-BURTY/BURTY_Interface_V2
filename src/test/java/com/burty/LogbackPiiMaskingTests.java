@@ -12,7 +12,6 @@ import ch.qos.logback.core.read.ListAppender;
 import java.nio.charset.StandardCharsets;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.slf4j.LoggerFactory;
 
 /**
  * logback 마스킹 계층이 실제로 동작하는지 검증한다.
@@ -70,26 +69,35 @@ class LogbackPiiMaskingTests {
     return renderWithMaskingPattern(message, null);
   }
 
-  /** 운영 설정과 동일한 conversionRule 로 로거를 구성해 실제 렌더링 결과를 얻는다. */
+  /**
+   * 운영 설정과 동일한 conversionRule 로 로거를 구성해 실제 렌더링 결과를 얻는다.
+   *
+   * <p><b>전역 LoggerContext 를 건드리지 않는다.</b> 전역 컨텍스트의 패턴 규칙을 바꾸면 같은 JVM 에서 도는 다른 테스트는 물론 Gradle 테스트
+   * 워커의 자체 로깅까지 영향을 받아 워커가 죽는다(EOFException). 격리된 컨텍스트를 새로 만든다.
+   */
   private String renderWithMaskingPattern(String message, Throwable throwable) {
-    LoggerContext context = (LoggerContext) LoggerFactory.getILoggerFactory();
-    context.putObject(
-        ch.qos.logback.core.CoreConstants.PATTERN_RULE_REGISTRY, patternRuleRegistry(context));
-
-    PatternLayoutEncoder encoder = new PatternLayoutEncoder();
-    encoder.setContext(context);
-    encoder.setPattern(PATTERN);
-    encoder.start();
-
-    ListAppender<ILoggingEvent> appender = new ListAppender<>();
-    appender.setContext(context);
-    appender.start();
-
-    Logger logger = context.getLogger("com.burty.test.masking");
-    logger.setLevel(Level.INFO);
-    logger.setAdditive(false);
-    logger.addAppender(appender);
+    LoggerContext context = new LoggerContext();
+    context.start();
     try {
+      java.util.Map<String, String> rules = new java.util.HashMap<>();
+      rules.put("maskedMsg", "com.burty.core.logging.PiiMaskingConverter");
+      rules.put("maskedEx", "com.burty.core.logging.PiiMaskingThrowableConverter");
+      context.putObject(ch.qos.logback.core.CoreConstants.PATTERN_RULE_REGISTRY, rules);
+
+      PatternLayoutEncoder encoder = new PatternLayoutEncoder();
+      encoder.setContext(context);
+      encoder.setPattern(PATTERN);
+      encoder.start();
+
+      ListAppender<ILoggingEvent> appender = new ListAppender<>();
+      appender.setContext(context);
+      appender.start();
+
+      Logger logger = context.getLogger("com.burty.test.masking");
+      logger.setLevel(Level.INFO);
+      logger.setAdditive(false);
+      logger.addAppender(appender);
+
       if (throwable == null) {
         logger.info(message);
       } else {
@@ -97,21 +105,7 @@ class LogbackPiiMaskingTests {
       }
       return new String(encoder.encode(appender.list.get(0)), StandardCharsets.UTF_8);
     } finally {
-      logger.detachAppender(appender);
-      appender.stop();
-      encoder.stop();
+      context.stop();
     }
-  }
-
-  private java.util.Map<String, String> patternRuleRegistry(LoggerContext context) {
-    @SuppressWarnings("unchecked")
-    java.util.Map<String, String> registry =
-        (java.util.Map<String, String>)
-            context.getObject(ch.qos.logback.core.CoreConstants.PATTERN_RULE_REGISTRY);
-    java.util.Map<String, String> result =
-        registry == null ? new java.util.HashMap<>() : new java.util.HashMap<>(registry);
-    result.put("maskedMsg", "com.burty.core.logging.PiiMaskingConverter");
-    result.put("maskedEx", "com.burty.core.logging.PiiMaskingThrowableConverter");
-    return result;
   }
 }
