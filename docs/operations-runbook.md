@@ -72,6 +72,69 @@ GET /api/v1/admin/observability/embed/panel?uid=burty-logs&panelId=5
 
 
 
+# 백업과 복구
+
+> **복구되지 않는 백업은 백업이 아니다.** 백업이 도는 것과 복구가 되는 것은 다른 문제다.
+
+## 스크립트
+
+| 스크립트 | 역할 |
+|---|---|
+| `backup-mariadb.sh` | 논리 백업 + 무결성 검증 + 메타(체크섬·binlog 위치) 기록 |
+| `restore-mariadb.sh` | 복구 + 복구 결과 검증 |
+| `backup-restore-rehearsal.sh` | 백업→복구→검증을 한 번에 (리허설 자동화) |
+
+## 정기 리허설
+
+월 1회 이상 실행한다. 사람이 기억해서 하는 절차는 결국 하지 않게 되므로 cron 에 건다.
+
+```bash
+DB_HOST=... DB_NAME=burty DB_USER=... DB_PASSWORD=... \
+  ./infra/scripts/backup-restore-rehearsal.sh
+```
+
+운영 DB 는 읽기만 한다. 복구는 `burty_rehearsal` 로 하고 끝나면 지운다.
+출력의 **복구 소요 시간이 RTO 추정치**다. RPO 는 백업 cron 주기로 결정된다.
+
+리허설이 실패하면 그 자체가 장애다. 백업이 쓸모없는 상태라는 뜻이므로 즉시 원인을 찾는다.
+
+## 실제 복구
+
+```bash
+# 1. 별도 DB 로 먼저 복구해 내용을 확인한다
+DB_HOST=... DB_USER=... DB_PASSWORD=... \
+  ./infra/scripts/restore-mariadb.sh ./backups/burty_burty_20260828_030000.sql.gz burty_restore
+
+# 2. 애플리케이션을 복구본으로 띄워 ddl-auto=validate 통과를 확인한다
+# 3. 감사 체인 검증을 수동 실행한다
+# 4. 문제 없으면 서비스를 복구본으로 전환하거나 운영 DB 에 반영한다
+```
+
+운영 DB 를 직접 덮어쓰려면 대상 이름을 명시하고 `CONFIRM=yes` 를 줘야 한다.
+사고로 일어나기 쉬운 조작이라 일부러 번거롭게 만들었다.
+
+## 복구 후 반드시 확인할 것
+
+- **Flyway 이력** — `flyway_schema_history` 가 비어 있으면 애플리케이션이 마이그레이션을
+  다시 적용하려 든다. 복구 스크립트가 이를 검사한다.
+- **감사 로그 해시 체인** — 부분 복구나 행 유실이 있으면 체인이 끊긴다. 복구 스크립트가
+  순번 불연속을 세고, 감사 검증 배치로 전체를 확인한다.
+- **미결 이체** — 복구 시점 이후 실제로는 은행에서 처리된 건이 있을 수 있다.
+  `GET /api/v1/admin/ops/transfers/pending-reconciliation` 로 확인하고 원장과 대조한다.
+
+## 백업 스크립트가 검증하는 것
+
+단순히 덤프를 뜨고 끝내지 않는다. 검증 없는 백업은 복구를 시도하기 전까지 문제를 알 수 없다.
+
+- gzip 스트림 무결성
+- 최소 크기 (빈 덤프 방지)
+- 핵심 테이블 존재 (`tbl_user`, `tbl_transfer_order`, `flyway_schema_history`)
+- SHA-256 체크섬을 메타 파일에 기록 → 복구 시 대조
+- 바이너리 로그 위치 기록 → 시점 복구(PITR) 기준점
+
+정리는 **새 백업이 검증을 통과한 뒤에만** 수행한다. 백업이 며칠 멈춰 있었는데 정리만
+돌면 전부 사라진다.
+
 ## DB 백업
 
 
