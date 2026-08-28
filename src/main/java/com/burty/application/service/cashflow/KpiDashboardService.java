@@ -34,6 +34,7 @@ import com.burty.domain.cashflow.repository.RiskAssessmentHistoryRepository;
 import com.burty.domain.policy.entity.PolicyEntity;
 import com.burty.domain.policy.repository.PolicyMatchLogRepository;
 import com.burty.domain.policy.repository.PolicyRepository;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -116,11 +117,19 @@ public class KpiDashboardService implements KpiDashboardUseCase {
     long forecasts = forecastHistoryRepository.count();
     long assessments = riskHistoryRepository.count();
 
+    // 정책마다 count 쿼리를 두 번씩 돌리면 활성 정책 수만큼 왕복이 늘어난다. 한 번에 집계한다.
+    Map<String, long[]> aggregates = new HashMap<>();
+    for (Object[] row : policyMatchLogRepository.aggregateByPolicyCode()) {
+      long matched = row[1] == null ? 0L : ((Number) row[1]).longValue();
+      long applied = row[2] == null ? 0L : ((Number) row[2]).longValue();
+      aggregates.put((String) row[0], new long[] {matched, applied});
+    }
+
     Map<String, PolicyApplyRateResponse> policyApplyRates = new LinkedHashMap<>();
     for (PolicyEntity policy : policyRepository.findByActiveTrue()) {
-      long matched = policyMatchLogRepository.countByPolicyCode(policy.getPolicyCode());
-      long applied =
-          policyMatchLogRepository.countByPolicyCodeAndAppliedTrue(policy.getPolicyCode());
+      long[] counts = aggregates.getOrDefault(policy.getPolicyCode(), new long[] {0L, 0L});
+      long matched = counts[0];
+      long applied = counts[1];
       double rate = matched == 0 ? 0.0 : Math.round(applied * 1000.0 / matched) / 10.0;
       policyApplyRates.put(
           policy.getPolicyCode(),

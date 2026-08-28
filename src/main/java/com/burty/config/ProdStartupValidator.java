@@ -1,7 +1,6 @@
 package com.burty.config;
 
-import org.springframework.boot.context.event.ApplicationReadyEvent;
-import org.springframework.context.event.EventListener;
+import jakarta.annotation.PostConstruct;
 import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Component;
 
@@ -42,7 +41,16 @@ public class ProdStartupValidator {
     this.securityProperties = securityProperties;
   }
 
-  @EventListener(ApplicationReadyEvent.class)
+  /**
+   * 위험한 설정으로 뜨는 것을 막는다.
+   *
+   * <p>예전에는 {@code ApplicationReadyEvent} 에서 돌았다. 그 이벤트는 <b>웹 서버가 이미 리스닝을 시작한 뒤</b>에 발행되므로 "기동 차단"
+   * 이 아니라 "잠깐 서비스한 뒤 크래시" 였다. 막으려는 대상이 서명 검증을 건너뛰는 스텁, 무인증 관리자 등록 창구, 기본 시크릿 같은 것들이라 짧더라도 그 설정이 요청을
+   * 받는 창이 생긴다.
+   *
+   * <p>빈 초기화는 웹 서버가 커넥터를 여는 {@code finishRefresh()} 보다 앞이다. 여기서 던지면 포트가 열리기 전에 멈춘다.
+   */
+  @PostConstruct
   public void validate() {
     if (!isProdProfile()) {
       return;
