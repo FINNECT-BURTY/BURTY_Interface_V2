@@ -146,7 +146,11 @@ public class OperationsService {
       // 출금됐으므로 한도는 그대로 소비된 상태로 둔다.
     } else {
       orderWriter.markFailed(orderId, "수동 확정: 미출금 (" + evidence + ")");
-      limitGuard.release(userId, order.getAmount(), order.getRequestedAt().toLocalDate());
+      // 차감한 적이 있을 때만, 차감한 그 날짜로 되돌린다. 날짜를 재계산하면 자정을 걸친
+      // 이체에서 다른 행을 가리킨다.
+      if (order.getLimitUsageDate() != null) {
+        limitGuard.release(userId, order.getAmount(), order.getLimitUsageDate());
+      }
     }
 
     auditLogger.logSuccess(

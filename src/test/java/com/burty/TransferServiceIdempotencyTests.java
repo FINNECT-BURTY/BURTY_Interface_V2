@@ -85,6 +85,8 @@ class TransferServiceIdempotencyTests {
             Optional.of(
                 new MyDataTokenBundle("access", "refresh", LocalDateTime.now().plusHours(1))));
     Mockito.when(biometricAuthPort.verifyAssertion(anyString(), any())).thenReturn(true);
+    // reserve 는 실제로 차감한 날짜를 돌려준다. 해제는 이 값을 그대로 써야 한다.
+    Mockito.when(limitGuard.reserve(anyString(), anyLong())).thenReturn(LocalDate.now(FIXED));
 
     transferService =
         new TransferService(
@@ -278,6 +280,7 @@ class TransferServiceIdempotencyTests {
   void cancellableTransferIsCancelledAndLimitReleased() {
     TransferOrderEntity order = order(TransferOrderEntity.Status.AUTHORIZED, null);
     order.setRequestedAt(LocalDateTime.now(FIXED));
+    order.setLimitUsageDate(LocalDate.now(FIXED));
     Mockito.when(transferOrderRepository.findByUser_UserIdAndIdempotencyKey(1L, "key-c"))
         .thenReturn(Optional.of(order));
 
@@ -292,6 +295,7 @@ class TransferServiceIdempotencyTests {
   void cancellingBeforeReservationDoesNotReleaseLimit() {
     TransferOrderEntity order = order(TransferOrderEntity.Status.AWAITING_APPROVAL, null);
     order.setRequestedAt(LocalDateTime.now(FIXED));
+    order.setLimitUsageDate(null); // 예약 전 단계 — 해제할 것이 없다
     Mockito.when(transferOrderRepository.findByUser_UserIdAndIdempotencyKey(1L, "key-d"))
         .thenReturn(Optional.of(order));
 
@@ -344,6 +348,45 @@ class TransferServiceIdempotencyTests {
         .thenReturn(Optional.of(othersOrder));
 
     assertNull(transferService.getTransfer(USER_ID, "ob-x"));
+  }
+
+  // ── 자정 경계 ──────────────────────────────────────────────────────────────
+
+  @Test
+  @DisplayName("자정을 걸쳐도 한도는 예약한 그 날짜로 해제된다")
+  void limitIsReleasedOnTheDateItWasReserved() {
+    givenFreshClaim(100L);
+    // 주문은 어제 만들어졌지만 한도 차감은 자정을 넘겨 오늘 행에 들어간 상황.
+    LocalDate reservedOn = LocalDate.now(FIXED);
+    LocalDate orderCreatedOn = reservedOn.minusDays(1);
+    Mockito.when(limitGuard.reserve(anyString(), anyLong())).thenReturn(reservedOn);
+    Mockito.when(openBankingPort.transfer(eq(USER_ID), anyString(), anyString(), anyLong(), any()))
+        .thenThrow(new BusinessException(ErrorCode.EXTERNAL_API_ERROR, "잔액 부족"));
+
+    assertThrows(
+        BusinessException.class,
+        () -> transferService.transfer(USER_ID, "111", "222", 1000L, "t", "assertion", "key-mn"));
+
+    // 차감한 날짜를 주문에 기록해 두고
+    Mockito.verify(orderWriter).markLimitReserved(100L, reservedOn);
+    // 해제도 그 날짜로 한다. 주문 생성일(어제)로 해제하면 엉뚱한 행을 건드려 실패한다.
+    Mockito.verify(limitGuard).release(USER_ID, 1000L, reservedOn);
+    Mockito.verify(limitGuard, Mockito.never()).release(USER_ID, 1000L, orderCreatedOn);
+  }
+
+  @Test
+  @DisplayName("한도를 차감한 적 없는 주문은 취소 시 해제를 시도하지 않는다")
+  void cancellingOrderWithoutReservationSkipsRelease() {
+    TransferOrderEntity order = order(TransferOrderEntity.Status.AWAITING_APPROVAL, null);
+    order.setRequestedAt(LocalDateTime.now(FIXED));
+    order.setLimitUsageDate(null); // 예약 전 단계
+    Mockito.when(transferOrderRepository.findByUser_UserIdAndIdempotencyKey(1L, "key-na"))
+        .thenReturn(Optional.of(order));
+
+    transferService.cancelTransfer(USER_ID, "key-na", "보호자 거절");
+
+    Mockito.verify(orderWriter).markCancelled(100L, "보호자 거절");
+    Mockito.verify(limitGuard, Mockito.never()).release(anyString(), anyLong(), any());
   }
 
   // ── 입력 검증 ──────────────────────────────────────────────────────────────
