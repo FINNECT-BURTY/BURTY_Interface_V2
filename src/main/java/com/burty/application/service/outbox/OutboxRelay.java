@@ -45,14 +45,24 @@ public class OutboxRelay {
   private final Clock clock;
   private final ObjectProvider<MeterRegistry> meterRegistry;
 
+  /**
+   * 자기 자신의 프록시.
+   *
+   * <p>{@link #relay()} 에서 {@code this.relayOnce()} 로 부르면 프록시를 우회해 {@code @Transactional} 이 걸리지
+   * 않는다. 생성자로 직접 주입하면 순환 참조가 되므로 지연 조회한다.
+   */
+  private final ObjectProvider<OutboxRelay> self;
+
   public OutboxRelay(
       OutboxEventRepository repository,
       List<OutboxEventHandler> handlerList,
       ObjectMapper objectMapper,
       OutboxProperties properties,
       Clock clock,
-      ObjectProvider<MeterRegistry> meterRegistry) {
+      ObjectProvider<MeterRegistry> meterRegistry,
+      ObjectProvider<OutboxRelay> self) {
     this.repository = repository;
+    this.self = self;
     this.objectMapper = objectMapper;
     this.properties = properties;
     this.clock = clock;
@@ -70,11 +80,14 @@ public class OutboxRelay {
    *
    * <p>락과 스케줄링 관심사만 담당하고 실제 처리는 {@link #relayOnce()} 에 위임한다. 이렇게 나누면 테스트가 락 인프라 없이 릴레이 로직만 직접 검증할 수
    * 있다.
+   *
+   * <p>반드시 프록시를 거쳐 호출한다. {@code this.relayOnce()} 로 부르면 {@code @Transactional} 이 적용되지 않아 {@code
+   * lockPendingBatch} 의 비관적 락 쿼리가 {@code TransactionRequiredException} 으로 매 폴링마다 실패한다.
    */
   @Scheduled(fixedDelayString = "${burty.outbox.poll-interval-ms:1000}")
   @SchedulerLock(name = "outboxRelay", lockAtMostFor = "PT2M", lockAtLeastFor = "PT1S")
   public void relay() {
-    relayOnce();
+    self.getObject().relayOnce();
   }
 
   /**
