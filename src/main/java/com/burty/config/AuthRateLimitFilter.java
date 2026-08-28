@@ -22,6 +22,7 @@ package com.burty.config;
 import com.burty.adapter.out.store.RateLimitStore;
 import com.burty.core.dto.response.ApiResponse;
 import com.burty.core.error.enums.ErrorCode;
+import com.burty.security.JwtTokenProvider;
 import com.burty.util.IpUtil;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.FilterChain;
@@ -75,12 +76,17 @@ public class AuthRateLimitFilter extends OncePerRequestFilter {
   private final ObjectMapper objectMapper;
   private final BurtyApiProperties apiProperties;
   private final RateLimitStore rateLimitStore;
+  private final JwtTokenProvider jwtTokenProvider;
 
   public AuthRateLimitFilter(
-      ObjectMapper objectMapper, BurtyApiProperties apiProperties, RateLimitStore rateLimitStore) {
+      ObjectMapper objectMapper,
+      BurtyApiProperties apiProperties,
+      RateLimitStore rateLimitStore,
+      JwtTokenProvider jwtTokenProvider) {
     this.objectMapper = objectMapper;
     this.apiProperties = apiProperties;
     this.rateLimitStore = rateLimitStore;
+    this.jwtTokenProvider = jwtTokenProvider;
   }
 
   @Override
@@ -118,15 +124,30 @@ public class AuthRateLimitFilter extends OncePerRequestFilter {
   }
 
   /**
-   * 제한 주체. 인증된 요청은 사용자 단위여야 한다. IP 단위로만 세면 NAT 뒤의 정상 사용자끼리 서로를 막고, IP 를 바꾸는 쪽은 못 막는다.
+   * 제한 주체.
    *
-   * <p>주의: 이 필터는 JWT 필터보다 앞에서 돌기 때문에 SecurityContext 가 아직 비어 있다. 그래서 토큰에서 직접 subject 를 읽지 않고, 있으면
-   * 토큰 자체를 주체 식별자로 쓴다 (해시해서 로그·키에 원문이 남지 않게 한다).
+   * <p>인증된 요청은 사용자 단위여야 한다. IP 단위로만 세면 NAT 뒤의 정상 사용자끼리 서로를 막고, IP 를 바꾸는 쪽은 못 막는다.
+   *
+   * <p><b>토큰은 반드시 검증하고 쓴다.</b> 예전에는 이 필터가 JWT 필터보다 앞에서 돈다는 이유로 토큰 문자열을 그대로 주체로 삼았다. 그래서 아무 문자열이나
+   * {@code Authorization: Bearer} 로 붙이면 매번 새 버킷이 생겼고, 로그인 엔드포인트는 토큰이 필요 없으니 크리덴셜 스터핑 방어(분당 60건)가
+   * 사실상 없는 것과 같았다.
+   *
+   * <p>서명이 맞지 않으면 익명으로 보고 IP 로 센다. 서명 검증은 HMAC 한 번이라 앞단에서 돌려도 부담이 없고, 어차피 뒤의 JWT 필터가 같은 일을 한다.
    */
-  private static String subject(HttpServletRequest request) {
+  private String subject(HttpServletRequest request) {
     String header = request.getHeader("Authorization");
     if (header != null && header.startsWith("Bearer ") && header.length() > 7) {
-      return "t:" + Integer.toHexString(header.substring(7).hashCode());
+      String token = header.substring(7);
+      if (jwtTokenProvider.validateToken(token)) {
+        try {
+          String userId = jwtTokenProvider.getUserId(token);
+          if (userId != null && !userId.isBlank()) {
+            return "u:" + userId;
+          }
+        } catch (RuntimeException ignored) {
+          // 서명은 맞는데 클레임을 못 읽는 경우. 익명으로 떨어뜨린다.
+        }
+      }
     }
     return "ip:" + IpUtil.getClientIp(request);
   }
