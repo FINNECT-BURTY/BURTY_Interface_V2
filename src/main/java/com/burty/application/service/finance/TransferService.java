@@ -36,6 +36,7 @@ import com.burty.domain.finance.model.TransferResult;
 import com.burty.domain.finance.repository.TransferOrderRepository;
 import com.burty.domain.user.entity.UserSettingEntity;
 import com.burty.domain.user.repository.UserSettingRepository;
+import com.burty.util.PiiMasker;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -186,7 +187,10 @@ public class TransferService implements TransferUseCase {
       orderWriter.markFailed(orderId, AppMessages.Transfer.WEBAUTHN_VERIFY_FAILED);
       transferLimitGuard.release(userId, amount, reservedDate);
       auditLogger.logFailure(
-          userId, "TRANSFER", toAccount, AppMessages.Transfer.WEBAUTHN_VERIFY_FAILED);
+          userId,
+          "TRANSFER",
+          PiiMasker.account(toAccount),
+          AppMessages.Transfer.WEBAUTHN_VERIFY_FAILED);
       throw new BusinessException(ErrorCode.FORBIDDEN, AppMessages.Transfer.WEBAUTHN_VERIFY_FAILED);
     }
     orderWriter.markStatus(orderId, TransferOrderEntity.Status.AUTHORIZED);
@@ -199,8 +203,12 @@ public class TransferService implements TransferUseCase {
           openBankingPort.transfer(userId, fromAccount, toAccount, amount, effectiveKey);
       String bankTxnId = extractTransactionId(response);
       orderWriter.markExecuted(orderId, bankTxnId);
+      // description 은 사용자 자유 입력이라 수취인명·메모가 들어온다. 금액과 주문 식별자만 남긴다.
       auditLogger.logSuccess(
-          userId, "TRANSFER", toAccount, "amount=" + amount + ", description=" + description);
+          userId,
+          "TRANSFER",
+          PiiMasker.account(toAccount),
+          "amount=" + amount + ", orderId=" + orderId);
       return new TransferResult(bankTxnId, "COMPLETED", false);
 
     } catch (ExternalCallUnresolvedException e) {
@@ -208,7 +216,8 @@ public class TransferService implements TransferUseCase {
       LocalDateTime nextCheck =
           LocalDateTime.now(clock).plusSeconds(policy.getReconcileInitialDelaySeconds());
       orderWriter.markUnknown(orderId, e.getMessage(), nextCheck);
-      auditLogger.logFailure(userId, "TRANSFER", toAccount, "결과 확인 불가: " + e.getMessage());
+      auditLogger.logFailure(
+          userId, "TRANSFER", PiiMasker.account(toAccount), "결과 확인 불가: " + e.getMessage());
       log.error(
           "이체 결과 확인 불가 — 정산 대상 등록 orderId={} userId={} amount={} reason={}",
           orderId,
@@ -223,7 +232,7 @@ public class TransferService implements TransferUseCase {
       // 은행이 명확히 거절한 경우 — 출금이 없었으므로 한도를 되돌린다.
       orderWriter.markFailed(orderId, AppMessages.Transfer.ORDER_FAILED_PREFIX + e.getMessage());
       transferLimitGuard.release(userId, amount, reservedDate);
-      auditLogger.logFailure(userId, "TRANSFER", toAccount, e.getMessage());
+      auditLogger.logFailure(userId, "TRANSFER", PiiMasker.account(toAccount), e.getMessage());
       throw e;
     }
   }

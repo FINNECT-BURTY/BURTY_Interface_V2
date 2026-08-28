@@ -15,7 +15,10 @@ COPY src ./src
 RUN ./gradlew bootJar --no-daemon -x test
 
 # ── Runtime ────────────────────────────────────────────────────────────────────
-FROM eclipse-temurin:25-jre-alpine
+# 런타임은 빌드·CI 와 같은 21 이어야 한다. 예전에는 25-jre 였는데, 그러면 운영이 쓰는
+# 런타임에서 테스트가 한 번도 돌지 않는다 (빌드 jdk21 / CI 21 / 운영 25).
+# 바이트코드 호환과는 별개로 GC 기본값·JIT·라이브러리 동작이 달라질 수 있는 조합이다.
+FROM eclipse-temurin:21-jre-alpine
 WORKDIR /app
 
 # 베이스 이미지에 남아 있는 OS 패키지 취약점(libcrypto3 등)을 빌드 시점에 올린다.
