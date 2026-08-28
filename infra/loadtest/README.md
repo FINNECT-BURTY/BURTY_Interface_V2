@@ -12,19 +12,50 @@
 | 비동기 풀 | 8~32 | 기본값 |
 | 외부 API 타임아웃 | 연동별 5~15초 | 상대 SLA 추정 |
 
+## 프로파일
+
+| 프로파일 | 용도 | 조회 | 이체 | 소요 |
+|---|---|---|---|---|
+| `full` (기본) | 스테이징 용량 산정 | 30 VU → 80 VU | 5 TPS | 8분 |
+| `smoke` | CI 회귀 감지 | 20 VU | 2 TPS | 70초 |
+
+`smoke` 는 **용량을 재지 않는다.** CI 러너는 2 vCPU 에 DB·앱·부하 생성기가 한 머신에
+같이 뜨므로, 나오는 숫자는 애플리케이션이 아니라 러너의 성능이다. 시나리오와 시딩이
+엔드포인트·스키마 변경으로 깨졌는지, 그리고 커넥션 풀이 고갈되는지만 본다.
+용량 산정은 스테이징에서 `full` 로 해야 한다.
+
 ## 실행
 
 ```bash
-# 1. 토큰 발급 (dev 프로파일)
-TOKEN=$(curl -s -XPOST localhost:8080/api/v1/auth/token \
-  -H 'Content-Type: application/json' -d '{"userId":"1"}' | jq -r .data.token)
+# 1. 표본 데이터 시딩 (빈 DB 를 상대로 한 측정은 아무 의미가 없다)
+mariadb -u root -p burty < infra/loadtest/seed.sql
 
-# 2. 시험 실행
+# 2. 레이트리밋을 끄고 애플리케이션 기동
+BURTY_API_RATELIMIT_ENABLED=false SPRING_PROFILES_ACTIVE=dev ./gradlew bootRun
+
+# 3. 토큰 발급
+TOKEN=$(curl -s -XPOST localhost:8080/api/v1/auth/token \
+  -H 'Content-Type: application/json' -d '{"userId":"1"}' | jq -r .data.accessToken)
+
+# 4. 시험 실행
 k6 run -e BASE_URL=http://localhost:8080 -e TOKEN="$TOKEN" infra/loadtest/burty-load.js
 ```
 
+> **레이트리밋을 반드시 끌 것.** `/api/v1` 전반에 분당 300건 안전망이 걸려 있다.
+> 켜둔 채로 돌리면 처리량이 아니라 레이트리밋 설정을 재게 된다.
+> 레이트리밋 자체가 타당한 값인지는 별도로 검증할 문제다.
+
 > **stub-mode 가 켜진 환경에서만 실행할 것.** 이체 시나리오는 실제 이체 경로를 탄다.
 > 운영을 대상으로 돌리지 말 것.
+
+이체 시나리오(`-e TRANSFERS=off` 로 끌 수 있다)는 계좌·연동기관 시딩과 `LEVEL_3`
+단계 인증이 필요하다. `seed.sql` 은 조회 경로까지만 채우므로, 이체까지 측정하려면
+해당 환경의 계좌 데이터를 별도로 준비해야 한다.
+
+## CI
+
+`.github/workflows/load-test.yml` 이 `smoke` 프로파일을 PR(`infra/loadtest/**` 변경 시)과
+주 1회 스케줄로 돌린다. 실행 후 `hikaricp_connections_*` 지표를 로그에 남긴다.
 
 ## 시나리오
 
@@ -56,3 +87,21 @@ k6 결과만 보면 원인을 알 수 없다. Grafana 에서 아래를 동시에
 
 측정한 값은 이 문서의 표에 근거와 함께 갱신한다. **"기본값"이 아니라 "실측 후 이 값"이
 되어야 한다.**
+
+### 현재 상태
+
+위 표의 값은 아직 **전부 미실측이다.** 표를 채우려면 운영에 준하는 데이터량과 별도
+부하 생성기를 갖춘 스테이징에서 `full` 프로파일을 돌려야 한다.
+
+지금까지 CI 스모크에서 관측한 것은 다음이 전부다 (거래 5만 건, 20 VU, 70초, 2 vCPU 러너).
+
+| | 값 |
+|---|---|
+| 조회 p95 | 33 ms |
+| HTTP 실패율 | 0 % |
+| 최대 사용 커넥션 | 3 / 20 |
+| 최대 커넥션 대기 | 0 |
+
+**이 부하에서는 커넥션 풀이 병목이 아니다.** 최소 유휴(5)조차 다 쓰지 않았다.
+다만 20 VU 는 풀 크기(20)를 시험하는 부하가 아니므로, 이것으로 "20 이 적절하다"고
+말할 수는 없다. 풀이 병목이 되는 지점을 찾으려면 `full` 을 돌려야 한다.
