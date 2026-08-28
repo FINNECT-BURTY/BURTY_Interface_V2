@@ -22,6 +22,7 @@ package com.burty.adapter.in.web.action;
 import com.burty.application.dto.shared.SimpleResultResponse;
 import com.burty.application.dto.user.UserFeedbackRequest;
 import com.burty.application.port.in.action.UserFeedbackUseCase;
+import com.burty.core.annotation.CurrentUserId;
 import com.burty.core.controller.BaseController;
 import com.burty.core.dto.response.ApiResponse;
 import com.burty.security.AuthLevel;
@@ -45,8 +46,9 @@ public class UserFeedbackController extends BaseController {
   @Operation(
       summary = "사용자 피드백 저장",
       description = "추천 도움 여부, 실행 여부, 금액 정확도, 고정비 여부 등 일반 피드백을 저장합니다.")
-  public ApiResponse<SimpleResultResponse> submit(@Valid @RequestBody UserFeedbackRequest request) {
-    userFeedbackUseCase.submit(request);
+  public ApiResponse<SimpleResultResponse> submit(
+      @CurrentUserId String userId, @Valid @RequestBody UserFeedbackRequest request) {
+    userFeedbackUseCase.submit(userId, request);
     return ApiResponse.ok(new SimpleResultResponse(true, "피드백이 저장되었습니다."));
   }
 }

@@ -24,5 +24,8 @@ import com.burty.application.dto.auth.LoginRiskEvaluateResponse;
 
 public interface LoginRiskUseCase {
 
-  LoginRiskEvaluateResponse evaluate(LoginRiskEvaluateRequest request);
+  /**
+   * @param userId 인증 토큰에서 꺼낸 사용자. 요청 본문의 userId 는 신뢰하지 않는다.
+   */
+  LoginRiskEvaluateResponse evaluate(String userId, LoginRiskEvaluateRequest request);
 }

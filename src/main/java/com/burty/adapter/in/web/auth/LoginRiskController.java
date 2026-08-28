@@ -22,6 +22,7 @@ package com.burty.adapter.in.web.auth;
 import com.burty.application.dto.auth.LoginRiskEvaluateRequest;
 import com.burty.application.dto.auth.LoginRiskEvaluateResponse;
 import com.burty.application.port.in.auth.LoginRiskUseCase;
+import com.burty.core.annotation.CurrentUserId;
 import com.burty.core.controller.BaseController;
 import com.burty.core.dto.response.ApiResponse;
 import com.burty.security.AuthLevel;
@@ -42,7 +43,7 @@ public class LoginRiskController extends BaseController {
   @PostMapping("/evaluate")
   @AuthLevel(RiskLevel.LEVEL_2)
   public ApiResponse<LoginRiskEvaluateResponse> evaluate(
-      @Valid @RequestBody LoginRiskEvaluateRequest request) {
-    return ApiResponse.ok(loginRiskUseCase.evaluate(request));
+      @CurrentUserId String userId, @Valid @RequestBody LoginRiskEvaluateRequest request) {
+    return ApiResponse.ok(loginRiskUseCase.evaluate(userId, request));
   }
 }

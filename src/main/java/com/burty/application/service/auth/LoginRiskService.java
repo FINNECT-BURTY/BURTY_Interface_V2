@@ -46,8 +46,10 @@ public class LoginRiskService implements LoginRiskUseCase {
   private final AuditLogger auditLogger;
 
   @Override
-  public LoginRiskEvaluateResponse evaluate(LoginRiskEvaluateRequest request) {
-    Long userKey = Long.parseLong(request.userId());
+  public LoginRiskEvaluateResponse evaluate(String userId, LoginRiskEvaluateRequest request) {
+    // 본문의 userId 는 쓰지 않는다. 예전에는 그것을 그대로 써서, 인증된 사용자가
+    // 남의 userId 를 보내 기기 등록 여부를 캐내고 상대의 알림함에 경고를 쌓을 수 있었다.
+    Long userKey = Long.parseLong(userId);
     List<String> reasons = new ArrayList<>();
     if (request.deviceFingerprint() != null
         && deviceRepository
@@ -67,7 +69,7 @@ public class LoginRiskService implements LoginRiskUseCase {
     if (!reasons.isEmpty()) {
       notify(userKey, risk, reasons);
       auditLogger.log(
-          request.userId(),
+          userId,
           "LOGIN_RISK_EVALUATED",
           request.deviceFingerprint(),
           risk,

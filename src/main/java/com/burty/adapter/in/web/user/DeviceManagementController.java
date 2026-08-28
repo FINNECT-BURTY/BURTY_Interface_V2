@@ -54,8 +54,10 @@ public class DeviceManagementController extends BaseController {
   @AuthLevel(RiskLevel.LEVEL_2)
   @Operation(summary = "기기명 변경", description = "등록된 기기의 표시 이름을 변경합니다.")
   public ApiResponse<DeviceResponse> updateName(
-      @PathVariable String deviceId, @Valid @RequestBody DeviceNameUpdateRequest request) {
-    return ApiResponse.ok(deviceManagementUseCase.updateDeviceName(deviceId, request));
+      @PathVariable String deviceId,
+      @CurrentUserId String userId,
+      @Valid @RequestBody DeviceNameUpdateRequest request) {
+    return ApiResponse.ok(deviceManagementUseCase.updateDeviceName(deviceId, userId, request));
   }
 
   @DeleteMapping("/{deviceId}")

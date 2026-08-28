@@ -62,8 +62,8 @@ public class CashflowManagementController extends BaseController {
   @AuthLevel(RiskLevel.LEVEL_2)
   @Operation(summary = "고정 수입/지출 등록", description = "월세, 관리비, 통신비, 구독료, 대출 상환일 등을 직접 등록합니다.")
   public ApiResponse<CashflowScheduleResponse> upsertSchedule(
-      @Valid @RequestBody CashflowScheduleRequest request) {
-    return ApiResponse.ok(cashflowManagementUseCase.upsertSchedule(request));
+      @CurrentUserId String userId, @Valid @RequestBody CashflowScheduleRequest request) {
+    return ApiResponse.ok(cashflowManagementUseCase.upsertSchedule(userId, request));
   }
 
   @DeleteMapping("/schedules/{scheduleId}")
