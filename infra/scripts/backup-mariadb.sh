@@ -27,6 +27,15 @@ MIN_BACKUP_KB="${MIN_BACKUP_KB:-16}"
 DB_NAME="${DB_NAME:-burty}"
 TIMESTAMP="$(date +%Y%m%d_%H%M%S)"
 BASENAME="burty_${DB_NAME}_${TIMESTAMP}"
+# sha256 도구 이름이 플랫폼마다 다르다 (Linux: sha256sum, macOS: shasum).
+sha256_of() {
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum "$1" | awk '{print $1}'
+  else
+    shasum -a 256 "$1" | awk '{print $1}'
+  fi
+}
+
 DUMP_PATH="${BACKUP_DIR}/${BASENAME}.sql.gz"
 META_PATH="${BACKUP_DIR}/${BASENAME}.meta"
 
@@ -40,14 +49,38 @@ export MYSQL_PWD="${DB_PASSWORD}"
 mkdir -p "${BACKUP_DIR}"
 echo "[backup] ${DB_NAME} @ ${DB_HOST:-localhost}:${DB_PORT:-3306} → ${DUMP_PATH}"
 
-# --source-data=2: 바이너리 로그 위치를 주석으로 기록한다(복구 후 PITR 기준점).
+# 바이너리 로그 위치를 덤프에 주석으로 남기면 복구 후 PITR 기준점이 된다.
+# 다만 이 옵션은 환경을 많이 탄다.
+#   - 이름이 다르다: MySQL 8 / MariaDB 11.4+ 는 --source-data, 그 이전은 --master-data
+#   - 서버에 바이너리 로그가 꺼져 있으면 옵션 자체가 에러다
+# 백업은 PITR 기준점이 없더라도 떠야 한다. 그래서 지원 여부를 확인해 있을 때만 붙인다.
+BINLOG_OPT=""
+if [ "${BINLOG_POS:-auto}" != "no" ]; then
+  CLIENT_BIN="$(command -v mariadb || command -v mysql || true)"
+  LOG_BIN="OFF"
+  if [ -n "${CLIENT_BIN}" ]; then
+    LOG_BIN=$("${CLIENT_BIN}" -h "${DB_HOST:-localhost}" -P "${DB_PORT:-3306}" \
+      -u "${DB_USER:-root}" -N -B -e "SELECT @@log_bin;" 2>/dev/null || echo 0)
+  fi
+  if [ "${LOG_BIN}" = "1" ] || [ "${LOG_BIN}" = "ON" ]; then
+    if "${DUMP_BIN}" --help 2>/dev/null | grep -q -- '--source-data'; then
+      BINLOG_OPT="--source-data=2"
+    elif "${DUMP_BIN}" --help 2>/dev/null | grep -q -- '--master-data'; then
+      BINLOG_OPT="--master-data=2"
+    fi
+  fi
+fi
+if [ -z "${BINLOG_OPT}" ]; then
+  echo "[backup] 주의 — 바이너리 로그 위치를 기록하지 않는다. 이 백업으로는 PITR 이 불가능하다." >&2
+fi
+
 # --single-transaction: InnoDB 를 잠그지 않고 일관된 스냅샷을 뜬다.
 "${DUMP_BIN}" \
   -h "${DB_HOST:-localhost}" \
   -P "${DB_PORT:-3306}" \
   -u "${DB_USER:-root}" \
   --single-transaction \
-  --source-data=2 \
+  ${BINLOG_OPT} \
   --routines \
   --triggers \
   --events \
@@ -84,7 +117,7 @@ done
   echo "database=${DB_NAME}"
   echo "source=${DB_HOST:-localhost}:${DB_PORT:-3306}"
   echo "size_kb=${SIZE_KB}"
-  echo "sha256=$(shasum -a 256 "${DUMP_PATH}" | awk '{print $1}')"
+  echo "sha256=$(sha256_of "${DUMP_PATH}")"
   # 덤프에 기록된 바이너리 로그 위치 (PITR 기준점)
   gzip -dc "${DUMP_PATH}" | grep -m1 'CHANGE MASTER TO\|CHANGE REPLICATION SOURCE TO' || echo "binlog_position=unavailable"
 } > "${META_PATH}"
