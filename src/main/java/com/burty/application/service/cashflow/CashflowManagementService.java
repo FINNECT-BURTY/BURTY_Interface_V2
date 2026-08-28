@@ -76,9 +76,11 @@ public class CashflowManagementService implements CashflowManagementUseCase {
   }
 
   @Override
-  public CashflowScheduleResponse upsertSchedule(CashflowScheduleRequest request) {
+  public CashflowScheduleResponse upsertSchedule(String userId, CashflowScheduleRequest request) {
     CashflowScheduleEntity entity = new CashflowScheduleEntity();
-    entity.setUserId(Long.parseLong(request.userId()));
+    // 본문이 아니라 토큰의 사용자로 저장한다. 예전에는 남의 userId 를 보내
+    // 상대의 고정 지출 일정을 만들거나 바꿀 수 있었고, 그것이 곧 상대의 예측을 바꿨다.
+    entity.setUserId(Long.parseLong(userId));
     entity.setScheduleTypeCode(defaultString(request.scheduleTypeCode(), "CUSTOM"));
     entity.setLabel(defaultString(request.label(), "직접 입력 일정"));
     entity.setAmount(Math.max(0L, request.amount() == null ? 0L : request.amount()));

@@ -55,12 +55,15 @@ public class DeviceManagementService implements DeviceManagementUseCase {
 
   @Override
   @Transactional
-  public DeviceResponse updateDeviceName(String deviceId, DeviceNameUpdateRequest request) {
+  public DeviceResponse updateDeviceName(
+      String deviceId, String userId, DeviceNameUpdateRequest request) {
     DeviceEntity device =
         deviceRepository
             .findById(Long.parseLong(deviceId))
             .orElseThrow(() -> new BusinessException(ErrorCode.ENTITY_NOT_FOUND, "기기를 찾을 수 없습니다."));
-    assertOwner(device, request.userId());
+    // 소유권 검사를 요청 본문의 userId 로 하면 검사가 아니다 — 공격자가 그 값을
+    // 정하므로 항상 통과한다. 토큰의 사용자로 검사한다.
+    assertOwner(device, userId);
     device.setDeviceName(request.deviceName());
     device.setUpdatedAt(LocalDateTime.now());
     return webResponseMapper.toResponse(deviceRepository.save(device));

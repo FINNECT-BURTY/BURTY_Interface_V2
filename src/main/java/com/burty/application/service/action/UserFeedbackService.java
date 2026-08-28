@@ -34,9 +34,10 @@ public class UserFeedbackService implements UserFeedbackUseCase {
   private final ActionFeedbackRepository actionFeedbackRepository;
 
   @Override
-  public void submit(UserFeedbackRequest request) {
+  public void submit(String userId, UserFeedbackRequest request) {
     ActionFeedbackEntity entity = new ActionFeedbackEntity();
-    entity.setUserId(request.userId());
+    // 본문이 아니라 토큰의 사용자로 기록한다.
+    entity.setUserId(userId);
     entity.setActionType(
         defaultString(request.targetType(), "GENERAL")
             + ":"
