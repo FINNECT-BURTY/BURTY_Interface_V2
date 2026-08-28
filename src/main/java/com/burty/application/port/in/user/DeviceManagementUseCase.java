@@ -27,7 +27,10 @@ public interface DeviceManagementUseCase {
 
   List<DeviceResponse> listDevices(String userId);
 
-  DeviceResponse updateDeviceName(String deviceId, DeviceNameUpdateRequest request);
+  /**
+   * @param userId 인증 토큰에서 꺼낸 사용자. 요청 본문의 userId 는 신뢰하지 않는다.
+   */
+  DeviceResponse updateDeviceName(String deviceId, String userId, DeviceNameUpdateRequest request);
 
   void revokeDevice(String deviceId, String userId);
 }
