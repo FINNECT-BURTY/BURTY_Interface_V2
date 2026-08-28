@@ -25,6 +25,15 @@ run_sql() {
 }
 
 # 운영 DB 를 덮어쓰는 것은 사고로 일어나기 쉽다. 명시적 확인을 요구한다.
+# sha256 도구 이름이 플랫폼마다 다르다 (Linux: sha256sum, macOS: shasum).
+sha256_of() {
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum "$1" | awk '{print $1}'
+  else
+    shasum -a 256 "$1" | awk '{print $1}'
+  fi
+}
+
 if [ "${TARGET_DB}" = "${DB_NAME:-burty}" ] && [ "${CONFIRM:-no}" != "yes" ]; then
   echo "거부: 대상이 운영 DB(${TARGET_DB}) 입니다. 의도한 것이라면 CONFIRM=yes 를 설정하세요." >&2
   exit 1
@@ -37,7 +46,7 @@ gzip -t "${DUMP_FILE}" || { echo "[restore] FAILED — 손상된 덤프" >&2; ex
 META_FILE="${DUMP_FILE%.sql.gz}.meta"
 if [ -f "${META_FILE}" ]; then
   EXPECTED=$(grep '^sha256=' "${META_FILE}" | cut -d= -f2)
-  ACTUAL=$(shasum -a 256 "${DUMP_FILE}" | awk '{print $1}')
+  ACTUAL=$(sha256_of "${DUMP_FILE}")
   if [ -n "${EXPECTED}" ] && [ "${EXPECTED}" != "${ACTUAL}" ]; then
     echo "[restore] FAILED — 체크섬 불일치" >&2
     exit 1

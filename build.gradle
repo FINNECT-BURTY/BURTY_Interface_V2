@@ -81,7 +81,7 @@ tasks.named('test') {
     // schema-dump 는 베이스라인 재생성 전용 유틸리티다. 일반 테스트 실행에서는 제외한다.
     // 재생성: ./gradlew schemaDump && python3 tools/generate_baseline.py
     useJUnitPlatform {
-        excludeTags 'schema-dump'
+        excludeTags 'schema-dump', 'ci-schema'
     }
     // CI 로그만으로 원인을 파악할 수 있게 실패 시 전체 스택트레이스를 남긴다.
     // 스키마 검증 실패는 원인 메시지가 예외 체인 깊숙이 있어 기본 출력으로는 보이지 않는다.
@@ -92,6 +92,24 @@ tasks.named('test') {
         showCauses = true
     }
     finalizedBy tasks.named('jacocoTestReport')
+}
+
+// CI 백업·복구 검증 전용. 애플리케이션의 Flyway 설정과 validate 를 그대로 쓴다.
+// 대상 DB 는 -Dburty.ci.db.* 로 넘긴다.
+tasks.register('ciSchema', Test) {
+    description = '지정한 DB 에 Flyway 마이그레이션을 적용하고 스키마를 검증한다 (CI 전용).'
+    group = 'verification'
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    useJUnitPlatform {
+        includeTags 'ci-schema'
+    }
+    ['burty.ci.db.url', 'burty.ci.db.user', 'burty.ci.db.password', 'burty.ci.flyway'].each { k ->
+        if (System.getProperty(k) != null) {
+            systemProperty k, System.getProperty(k)
+        }
+    }
+    outputs.upToDateWhen { false }
 }
 
 tasks.register('schemaDump', Test) {
