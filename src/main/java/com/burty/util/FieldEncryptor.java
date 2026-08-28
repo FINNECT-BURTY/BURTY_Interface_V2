@@ -55,24 +55,36 @@ public class FieldEncryptor {
   /** 현재 포맷 — Base64 32바이트 키 또는 PBKDF2 유도. */
   private static final byte VERSION_KDF = 0x02;
 
-  private final byte writeVersion = VERSION_KDF;
+  private final byte writeVersion;
   private final Map<Byte, SecretKeySpec> keysByVersion = new LinkedHashMap<>();
 
   public FieldEncryptor(
       @Value("${burty.security.field-encryption-key:change-me-burty-field-encryption-key-32}")
           String currentKey,
-      @Value("${burty.security.field-encryption-previous-key:}") String previousKey) {
+      @Value("${burty.security.field-encryption-key-version:2}") int currentVersion,
+      @Value("${burty.security.field-encryption-previous-key:}") String previousKey,
+      @Value("${burty.security.field-encryption-previous-key-version:0}") int previousVersion) {
 
-    // v2 (현재) — 새로 쓰는 값은 모두 이 키로 암호화된다.
-    this.keysByVersion.put(VERSION_KDF, deriveKey(currentKey));
+    if (currentVersion < VERSION_KDF || currentVersion > 127) {
+      throw new IllegalArgumentException(
+          "필드 암호화 키 버전은 " + VERSION_KDF + "~127 이어야 합니다 (1 은 레거시 예약)");
+    }
+    this.writeVersion = (byte) currentVersion;
+    this.keysByVersion.put(this.writeVersion, deriveKey(currentKey));
 
     // v1 (레거시) — 기존에 저장된 값을 계속 읽기 위해 예전 유도 방식을 그대로 보존한다.
-    // 이게 없으면 이번 배포로 기존 마이데이터 토큰이 전부 복호화 불가가 된다.
-    this.keysByVersion.put(VERSION_LEGACY, deriveLegacyKey(currentKey));
+    // 이게 없으면 배포 즉시 기존 마이데이터 토큰이 전부 복호화 불가가 된다.
+    this.keysByVersion.putIfAbsent(VERSION_LEGACY, deriveLegacyKey(currentKey));
 
+    // 이전 키 — 로테이션 진행 중 구키로 암호화된 값을 읽기 위해 필요하다.
+    // 버전 바이트로 구분하므로 어느 키로 쓴 값인지 암호문만 보고 알 수 있다.
     if (previousKey != null && !previousKey.isBlank()) {
-      // 진짜 키 로테이션 시 사용. 구키로 암호화된 v2 데이터는 이 키가 있어야 읽힌다.
-      log.info("필드 암호화 이전 키가 설정됨 — 로테이션 진행 중으로 간주합니다");
+      if (previousVersion < VERSION_LEGACY || previousVersion == currentVersion) {
+        throw new IllegalArgumentException(
+            "이전 키 버전은 1 이상이고 현재 버전과 달라야 합니다 (현재=" + currentVersion + ")");
+      }
+      this.keysByVersion.put((byte) previousVersion, deriveKey(previousKey));
+      log.info("필드 암호화 키 로테이션 활성 — 쓰기 v{}, 복호화 호환 {}", currentVersion, keysByVersion.keySet());
     }
   }
 
