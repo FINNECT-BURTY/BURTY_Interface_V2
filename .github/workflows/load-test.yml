@@ -83,11 +83,16 @@ jobs:
 
       # dev 프로파일은 SQL 을 DEBUG 로 남긴다. 부하 중에는 로그 I/O 자체가 병목이 되어
       # 애플리케이션이 아니라 로깅 성능을 재게 되므로 WARN 으로 낮춘다.
+      #
+      # 이 환경에는 Redis 가 없다(dev 는 in-memory fallback 을 쓴다). 그대로 두면
+      # 헬스 집계가 DOWN 이 되어 503 이 나오고, 기동은 됐는데 대기가 끝나지 않는다.
       - name: 애플리케이션 기동
         run: |
           nohup java -jar build/libs/*-SNAPSHOT.jar \
             --logging.level.root=WARN \
             --logging.level.com.burty=INFO \
+            --management.health.redis.enabled=false \
+            --management.health.mail.enabled=false \
             > app.log 2>&1 &
           echo $! > app.pid
           for i in $(seq 1 180); do
@@ -97,7 +102,9 @@ jobs:
             fi
             sleep 1
           done
-          echo "기동 실패 — 로그:" >&2
+          echo "기동 실패 — 헬스 응답:" >&2
+          curl -s -w '\nHTTP %{http_code}\n' http://localhost:8080/actuator/health >&2 || true
+          echo "--- 로그 ---" >&2
           tail -100 app.log >&2
           exit 1
 
