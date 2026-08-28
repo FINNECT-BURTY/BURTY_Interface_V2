@@ -19,7 +19,20 @@ import org.testcontainers.containers.wait.strategy.Wait;
  */
 public final class RedisTestContainer {
 
-  private static final boolean DOCKER_AVAILABLE = detectDocker();
+  /**
+   * 외부 Redis 주소. {@code host:port} 형식이며, 지정하면 컨테이너를 띄우지 않고 이 서버를 쓴다.
+   *
+   * <p>Docker 가 없는 환경에서도 Redis 계약 테스트를 돌릴 수 있게 하기 위한 탈출구다. 이 경로들은 운영에서만 살아나므로, 로컬에서 한 번도 못 돌리면 CI
+   * 로그만 보고 고쳐야 한다.
+   *
+   * <pre>
+   *   redis-server --port 6380 &amp;
+   *   BURTY_TEST_REDIS=localhost:6380 ./gradlew test
+   * </pre>
+   */
+  private static final String EXTERNAL = System.getenv("BURTY_TEST_REDIS");
+
+  private static final boolean DOCKER_AVAILABLE = EXTERNAL == null && detectDocker();
   private static final GenericContainer<?> INSTANCE = DOCKER_AVAILABLE ? start() : null;
   private static StringRedisTemplate template;
 
@@ -43,18 +56,22 @@ public final class RedisTestContainer {
   }
 
   public static boolean isAvailable() {
-    return INSTANCE != null;
+    return INSTANCE != null || EXTERNAL != null;
   }
 
   /** 컨테이너에 연결된 템플릿. Docker 가 없으면 {@code null}. */
   public static synchronized StringRedisTemplate template() {
-    if (INSTANCE == null) {
+    if (INSTANCE == null && EXTERNAL == null) {
       return null;
     }
     if (template == null) {
+      String host = INSTANCE != null ? INSTANCE.getHost() : EXTERNAL.split(":")[0];
+      int port =
+          INSTANCE != null
+              ? INSTANCE.getMappedPort(6379)
+              : Integer.parseInt(EXTERNAL.split(":")[1]);
       LettuceConnectionFactory factory =
-          new LettuceConnectionFactory(
-              new RedisStandaloneConfiguration(INSTANCE.getHost(), INSTANCE.getMappedPort(6379)));
+          new LettuceConnectionFactory(new RedisStandaloneConfiguration(host, port));
       factory.afterPropertiesSet();
       StringRedisTemplate created = new StringRedisTemplate(factory);
       created.afterPropertiesSet();
