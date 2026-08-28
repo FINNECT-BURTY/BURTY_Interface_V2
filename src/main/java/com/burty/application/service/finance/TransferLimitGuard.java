@@ -64,7 +64,7 @@ public class TransferLimitGuard {
    * <p><b>이 메서드에는 {@code @Transactional} 이 없다.</b> 낙관적 잠금 충돌이 나면 그 트랜잭션은 롤백되므로, 재시도는 반드시 트랜잭션 밖에서
    * 돌아야 한다. 실제 증감은 {@link DailyTransferUsageWriter} 가 독립 트랜잭션으로 수행한다.
    */
-  public void reserve(String userId, long amount) {
+  public LocalDate reserve(String userId, long amount) {
     Long numericUserId = parseUserId(userId);
     long perTxLimit = resolvePerTransactionLimit(userId);
     if (amount > perTxLimit) {
@@ -82,7 +82,9 @@ public class TransferLimitGuard {
     for (int attempt = 0; attempt < MAX_CONFLICT_RETRIES; attempt++) {
       try {
         if (usageWriter.tryReserve(numericUserId, today, amount, dailyLimit, now)) {
-          return;
+          // 실제로 차감한 날짜를 돌려준다. 호출자는 이 값을 주문에 기록해 두었다가 해제 시
+          // 그대로 쓴다. 나중에 날짜를 다시 계산하면 자정을 걸친 이체에서 다른 행을 가리킨다.
+          return today;
         }
         throw new BusinessException(
             ErrorCode.TRANSFER_LIMIT_EXCEEDED, AppMessages.Transfer.DAILY_LIMIT_EXCEEDED);
