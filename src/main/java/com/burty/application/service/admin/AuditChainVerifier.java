@@ -8,6 +8,7 @@ import java.util.List;
 import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -31,8 +32,13 @@ public class AuditChainVerifier {
 
   private final AuditLogRepository auditLogRepository;
 
-  public AuditChainVerifier(AuditLogRepository auditLogRepository) {
+  /** 자기 자신의 프록시. 생성자로 직접 주입하면 순환 참조라 지연 조회한다. */
+  private final ObjectProvider<AuditChainVerifier> self;
+
+  public AuditChainVerifier(
+      AuditLogRepository auditLogRepository, ObjectProvider<AuditChainVerifier> self) {
     this.auditLogRepository = auditLogRepository;
+    this.self = self;
   }
 
   /** 검증 결과. */
@@ -45,7 +51,10 @@ public class AuditChainVerifier {
   @Scheduled(cron = "${burty.audit.verify-cron:0 30 4 * * *}")
   @SchedulerLock(name = "auditChainVerify", lockAtMostFor = "PT30M", lockAtLeastFor = "PT1M")
   public void scheduledVerify() {
-    VerificationResult result = verify();
+    // 프록시를 거쳐야 verify() 의 @Transactional 이 적용된다. this.verify() 로 부르면
+    // 트랜잭션 없이 돌아 청크마다 별도 트랜잭션이 열리고, 체인 검증이 일관된 스냅샷 위에서
+    // 이뤄지지 않는다. (아웃박스 릴레이에서 같은 실수가 실제 장애로 이어졌다 — #82)
+    VerificationResult result = self.getObject().verify();
     if (result.intact()) {
       log.info("감사 로그 체인 검증 통과 — {}건", result.verified());
       return;
