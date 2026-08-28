@@ -201,6 +201,8 @@ class TransferReconciliationTests extends IntegrationTestBase {
           order.setRequestedAt(requestedAt);
           order.setNextReconcileAt(nextReconcileAt);
           order.setReconcileAttempts(0);
+          // 한도를 차감한 날짜. 해제는 이 값을 그대로 쓴다(자정 경계 대비).
+          order.setLimitUsageDate(java.time.LocalDate.now(clock));
           return transferOrderRepository.save(order).getOrderId();
         });
   }

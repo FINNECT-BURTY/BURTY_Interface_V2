@@ -131,8 +131,11 @@ public class TransferReconciliationBatch {
       case REJECTED, NOT_FOUND -> {
         // 출금이 없었음이 확인됐다. 이때만 한도를 되돌린다.
         orderWriter.markFailed(candidate.orderId(), "정산 결과: " + status.reason());
-        transferLimitGuard.release(
-            candidate.userIdAsString(), candidate.amount(), candidate.requestedAt().toLocalDate());
+        // 차감한 적이 있을 때만, 차감한 그 날짜로 되돌린다.
+        if (candidate.hasLimitReserved()) {
+          transferLimitGuard.release(
+              candidate.userIdAsString(), candidate.amount(), candidate.limitUsageDateOrFallback());
+        }
         auditLogger.logFailure(
             candidate.userIdAsString(),
             "TRANSFER_RECONCILED",
