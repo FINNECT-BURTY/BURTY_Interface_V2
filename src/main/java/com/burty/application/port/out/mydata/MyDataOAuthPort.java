@@ -6,14 +6,6 @@ import java.time.LocalDateTime;
 public interface MyDataOAuthPort {
   String buildAuthorizeUrl(String stateKey);
 
-  /**
-   * @deprecated {@link #exchangeTokens(String, String)} 사용
-   */
-  default String exchangeCodeForAccessToken(String stateKey, String code) {
-    MyDataTokenBundle bundle = exchangeTokens(stateKey, code);
-    return bundle == null ? null : bundle.accessToken();
-  }
-
   MyDataTokenBundle exchangeTokens(String stateKey, String code);
 
   String findAccessToken(String stateKey);

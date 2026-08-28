@@ -86,6 +86,11 @@ public class ProdStartupValidator {
       throw new IllegalStateException(
           "PROD startup blocked: burty.api.swagger-enabled must be false.");
     }
+    if (environment.getProperty("burty.webauthn.stub-mode", Boolean.class, Boolean.FALSE)) {
+      throw new IllegalStateException(
+          "PROD startup blocked: burty.webauthn.stub-mode must be false "
+              + "(서명을 검증하지 않는 스텁으로 이체의 생체인증 게이트가 무력화됩니다).");
+    }
     if (identityProperties.isStubMode()) {
       throw new IllegalStateException(
           "PROD startup blocked: burty.identity.stub-mode must be false.");
