@@ -111,6 +111,17 @@ public class TransferOrderEntity {
   @Column(name = "reconcile_attempts", nullable = false)
   private Integer reconcileAttempts = 0;
 
+  /**
+   * 일일 한도를 실제로 차감한 사용량 행의 날짜.
+   *
+   * <p>해제할 때 날짜를 다시 계산하면 안 된다. 주문 생성과 한도 예약 사이에 자정이 지나면 {@code requestedAt} 기준 날짜와 실제 차감한 날짜가 달라져,
+   * 엉뚱한 행을 해제하려다 실패한다. 돈이 새지는 않지만 사용자 한도가 하루 동안 복구되지 않는다.
+   *
+   * <p>예약 전 단계에서 실패한 주문은 null 이다 (차감한 적이 없으므로 해제할 것도 없다).
+   */
+  @Column(name = "limit_usage_date")
+  private java.time.LocalDate limitUsageDate;
+
   public enum Purpose {
     SELF,
     TRANSFER,
