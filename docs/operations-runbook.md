@@ -531,3 +531,69 @@ grep -rn "log\.\(info\|warn\|error\|debug\)" src/main \
 ```
 
 `PiiMaskerTests` 와 `LogbackPiiMaskingTests` 가 마스킹 로직과 배선을 각각 검증한다.
+
+---
+
+# 필드 암호화 키 로테이션
+
+마이데이터 토큰은 `FieldEncryptor` 로 암호화되어 `tbl_linked_institution` 에 저장된다.
+암호문 앞 1바이트가 **키 버전**이라 어느 키로 썼는지 암호문만 보고 알 수 있다.
+
+> **순서를 지킬 것.** 구키 설정을 먼저 지우면 기존 토큰이 전부 복호화 불가가 되고,
+> 되돌릴 방법이 없다. 사용자 연동이 통째로 끊긴다.
+
+## 1. 신키 투입 (구키는 남겨둔다)
+
+```bash
+BURTY_FIELD_ENCRYPTION_KEY=<신키>
+BURTY_FIELD_ENCRYPTION_KEY_VERSION=3          # 기존이 2 였다면 3
+
+BURTY_FIELD_ENCRYPTION_PREVIOUS_KEY=<구키>
+BURTY_FIELD_ENCRYPTION_PREVIOUS_KEY_VERSION=2
+```
+
+배포하면 이 시점부터 **새로 쓰는 값은 v3**, 기존 v2 값은 계속 읽힌다.
+기동 로그에 `필드 암호화 키 로테이션 활성 — 쓰기 v3, 복호화 호환 [3, 1, 2]` 가 나오는지 확인한다.
+
+## 2. 재암호화 배치 켜기
+
+```bash
+BURTY_FIELD_ENCRYPTION_ROTATION=true
+```
+
+매일 03:15 에 구키로 쓰인 행을 찾아 신키로 다시 쓴다. 한 주기 상한은 2,000행이므로
+데이터가 많으면 며칠 걸린다. 진행 상황은 로그와 메트릭으로 본다.
+
+```
+필드 암호화 로테이션 — 검사 2000 / 재암호화 1840 / 실패 0
+burty_encryption_rotation_total{outcome="rotated"}
+burty_encryption_rotation_total{outcome="failed"}
+```
+
+**실패가 0 이 아니면 멈추고 원인부터 확인한다.** 복호화 실패는 키 설정 오류일 가능성이
+높고, 그 상태로 계속 돌리면 실패만 쌓인다.
+
+## 3. 완료 확인 후 구키 제거
+
+`재암호화 0 / 실패 0` 이 며칠 연속 나오면 남은 구키 데이터가 없다는 뜻이다.
+
+```sql
+-- 남은 구버전 암호문 확인 (v3 = 0x03 → base64 첫 글자가 'A' 로 시작하지 않는 것)
+SELECT COUNT(*) FROM tbl_linked_institution
+WHERE access_token IS NOT NULL AND status = 'ACTIVE';
+```
+
+확인 후 구키 설정과 배치를 제거한다.
+
+```bash
+BURTY_FIELD_ENCRYPTION_PREVIOUS_KEY=          # 비움
+BURTY_FIELD_ENCRYPTION_PREVIOUS_KEY_VERSION=0
+BURTY_FIELD_ENCRYPTION_ROTATION=false
+```
+
+## 주의
+
+- **현재 키와 이전 키의 버전을 같게 두지 말 것.** 구분이 불가능해진다. 애플리케이션이
+  기동 시점에 거부한다.
+- Redis·인메모리 토큰 스토어는 TTL 로 자연 교체되므로 로테이션 대상이 아니다.
+- 재암호화는 멱등하다. 중간에 멈춰도 다음 주기에 이어서 하면 된다.

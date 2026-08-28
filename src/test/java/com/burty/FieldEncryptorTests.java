@@ -22,7 +22,7 @@ class FieldEncryptorTests {
   private static final String KEY = "unit-test-field-encryption-key-value";
 
   private FieldEncryptor encryptor() {
-    return new FieldEncryptor(KEY, "");
+    return new FieldEncryptor(KEY, 2, "", 0);
   }
 
   @Test
@@ -47,7 +47,7 @@ class FieldEncryptorTests {
   @DisplayName("키가 다르면 복호화가 조용히 성공하지 않고 예외를 던진다")
   void wrongKeyThrowsInsteadOfReturningGarbage() {
     String cipher = encryptor().encrypt("secret-token");
-    FieldEncryptor other = new FieldEncryptor("completely-different-key-material", "");
+    FieldEncryptor other = new FieldEncryptor("completely-different-key-material", 2, "", 0);
 
     assertThrows(FieldEncryptor.FieldDecryptionException.class, () -> other.decrypt(cipher));
   }
