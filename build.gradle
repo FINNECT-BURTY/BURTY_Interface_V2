@@ -73,6 +73,9 @@ dependencies {
     testImplementation 'org.testcontainers:testcontainers-mariadb'
     testRuntimeOnly 'com.h2database:h2'
     testCompileOnly 'org.projectlombok:lombok'
+    // WebAuthn 검증 경로를 실제 인증기 에뮬레이터로 검증한다.
+    // 서명 검증 코드는 페이로드를 실제로 만들어보지 않으면 테스트할 수 없다.
+    testImplementation 'com.webauthn4j:webauthn4j-test:0.31.9.RELEASE'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
     testAnnotationProcessor 'org.projectlombok:lombok'
 }
