@@ -135,7 +135,6 @@ public class TransferService implements TransferUseCase {
     }
 
     Long orderId = claim.order().getOrderId();
-    LocalDate usageDate = LocalDate.now(clock);
 
     // --- 2-1. 보호자 사전 승인 -------------------------------------------------
     // 기존 가족 보호는 이체가 끝난 뒤 알리기만 했다. 알림 시점에는 이미 돈이 나간 뒤라
@@ -151,15 +150,7 @@ public class TransferService implements TransferUseCase {
     }
 
     return runTransfer(
-        orderId,
-        userId,
-        fromAccount,
-        toAccount,
-        amount,
-        description,
-        assertionToken,
-        effectiveKey,
-        usageDate);
+        orderId, userId, fromAccount, toAccount, amount, description, assertionToken, effectiveKey);
   }
 
   /**
@@ -175,12 +166,15 @@ public class TransferService implements TransferUseCase {
       long amount,
       String description,
       String assertionToken,
-      String effectiveKey,
-      LocalDate usageDate) {
+      String effectiveKey) {
 
     // --- 3. 한도 예약 --------------------------------------------------------
+    // 차감한 날짜를 주문에 기록해 둔다. 해제할 때 날짜를 다시 계산하면 자정을 걸친 이체에서
+    // 다른 행을 가리킨다.
+    LocalDate reservedDate;
     try {
-      transferLimitGuard.reserve(userId, amount);
+      reservedDate = transferLimitGuard.reserve(userId, amount);
+      orderWriter.markLimitReserved(orderId, reservedDate);
     } catch (RuntimeException e) {
       orderWriter.markFailed(orderId, e.getMessage());
       throw e;
@@ -190,7 +184,7 @@ public class TransferService implements TransferUseCase {
     orderWriter.markStatus(orderId, TransferOrderEntity.Status.AUTH_REQUESTED);
     if (!biometricAuthPort.verifyAssertion(userId, assertionToken)) {
       orderWriter.markFailed(orderId, AppMessages.Transfer.WEBAUTHN_VERIFY_FAILED);
-      transferLimitGuard.release(userId, amount, usageDate);
+      transferLimitGuard.release(userId, amount, reservedDate);
       auditLogger.logFailure(
           userId, "TRANSFER", toAccount, AppMessages.Transfer.WEBAUTHN_VERIFY_FAILED);
       throw new BusinessException(ErrorCode.FORBIDDEN, AppMessages.Transfer.WEBAUTHN_VERIFY_FAILED);
@@ -228,7 +222,7 @@ public class TransferService implements TransferUseCase {
     } catch (RuntimeException e) {
       // 은행이 명확히 거절한 경우 — 출금이 없었으므로 한도를 되돌린다.
       orderWriter.markFailed(orderId, AppMessages.Transfer.ORDER_FAILED_PREFIX + e.getMessage());
-      transferLimitGuard.release(userId, amount, usageDate);
+      transferLimitGuard.release(userId, amount, reservedDate);
       auditLogger.logFailure(userId, "TRANSFER", toAccount, e.getMessage());
       throw e;
     }
@@ -257,8 +251,7 @@ public class TransferService implements TransferUseCase {
         amount,
         description,
         assertionToken,
-        idempotencyKey,
-        LocalDate.now(clock));
+        idempotencyKey);
   }
 
   /** 사용자가 아직 실행되지 않은 이체를 취소한다. */
@@ -274,10 +267,9 @@ public class TransferService implements TransferUseCase {
                         ErrorCode.TRANSFER_NOT_FOUND, AppMessages.Transfer.NOT_FOUND));
 
     orderWriter.markCancelled(order.getOrderId(), reason);
-    // 취소 시점에 한도 예약이 잡혀 있었다면 되돌린다. 예약 전 단계라면 no-op 이다.
-    if (order.getStatus() == TransferOrderEntity.Status.AUTHORIZED
-        || order.getStatus() == TransferOrderEntity.Status.AUTH_REQUESTED) {
-      transferLimitGuard.release(userId, order.getAmount(), order.getRequestedAt().toLocalDate());
+    // 예약이 잡혀 있었을 때만 되돌린다. limitUsageDate 가 null 이면 차감한 적이 없다.
+    if (order.getLimitUsageDate() != null) {
+      transferLimitGuard.release(userId, order.getAmount(), order.getLimitUsageDate());
     }
     auditLogger.logSuccess(
         userId, "TRANSFER_CANCELLED", String.valueOf(order.getOrderId()), reason);
