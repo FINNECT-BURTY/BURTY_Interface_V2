@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.burty.config.BurtyApiProperties;
+import com.burty.config.BurtySecurityProperties;
 import com.burty.config.ExternalFinanceProperties;
 import com.burty.config.IdentityProperties;
 import com.burty.config.MyDataProperties;
@@ -27,6 +28,7 @@ class ProdStartupValidatorTests {
   private BurtyApiProperties apiProperties;
   private IdentityProperties identityProperties;
   private NotifyProperties notifyProperties;
+  private BurtySecurityProperties securityProperties;
   private ProdStartupValidator validator;
 
   @BeforeEach
@@ -39,6 +41,7 @@ class ProdStartupValidatorTests {
     apiProperties = new BurtyApiProperties();
     identityProperties = new IdentityProperties();
     notifyProperties = new NotifyProperties();
+    securityProperties = new BurtySecurityProperties();
     validator =
         new ProdStartupValidator(
             mockEnvironment,
@@ -47,7 +50,8 @@ class ProdStartupValidatorTests {
             externalFinanceProperties,
             apiProperties,
             identityProperties,
-            notifyProperties);
+            notifyProperties,
+            securityProperties);
     configureValidProd();
   }
 
@@ -55,6 +59,15 @@ class ProdStartupValidatorTests {
   void skipsValidationOutsideProdProfile() {
     mockEnvironment.setActiveProfiles("dev");
     validator.validate();
+  }
+
+  @Test
+  void blocksMissingTrustedProxiesInProd() {
+    // 비워두면 모든 요청이 프록시 IP 로 기록된다. 레이트리밋도 접근 기록도 의미를 잃는다.
+    securityProperties.setTrustedProxies(java.util.List.of());
+    IllegalStateException error =
+        assertThrows(IllegalStateException.class, () -> validator.validate());
+    assertTrue(error.getMessage().contains("burty.security.trusted-proxies"));
   }
 
   @Test
@@ -89,6 +102,7 @@ class ProdStartupValidatorTests {
   }
 
   private void configureValidProd() {
+    securityProperties.setTrustedProxies(java.util.List.of("10.0.0.0/8"));
     myDataProperties.setStubMode(false);
     socialLoginProperties.setStubMode(false);
     externalFinanceProperties.setStubMode(false);
