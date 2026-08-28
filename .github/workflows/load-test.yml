@@ -1,0 +1,191 @@
+name: Load Test
+
+# 부하 시나리오가 실제로 도는지 CI 에서 확인한다.
+#
+# 여기서 나오는 숫자는 용량 산정치가 **아니다**. GitHub 러너는 2 vCPU 이고
+# DB·앱·부하 생성기가 한 머신에 같이 있다. 용량 산정은 스테이징에서 full 프로파일로
+# 따로 해야 한다 (infra/loadtest/README.md).
+#
+# 이 워크플로의 목적은 두 가지다.
+#   1. 시나리오와 시딩이 깨지지 않았는지 (엔드포인트·스키마 변경에 따른 회귀)
+#   2. 부하 상태에서 커넥션 풀이 고갈되는지 (hikaricp_connections_pending)
+
+on:
+  pull_request:
+    paths:
+      - 'infra/loadtest/**'
+      - '.github/workflows/load-test.yml'
+  schedule:
+    # 매주 월요일 05:00 UTC (KST 14:00) — 백업 리허설 직후
+    - cron: '0 5 * * 1'
+  workflow_dispatch:
+
+jobs:
+  smoke:
+    name: 부하 스모크
+    runs-on: ubuntu-latest
+
+    services:
+      mariadb:
+        image: mariadb:11.4
+        env:
+          MARIADB_ROOT_PASSWORD: ci-test-password
+          MARIADB_DATABASE: burty
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mariadb-admin ping -uroot -pci-test-password --silent"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+    env:
+      DB_HOST: 127.0.0.1
+      DB_PORT: '3306'
+      DB_NAME: burty
+      DB_USER: root
+      DB_PASSWORD: ci-test-password
+      SPRING_PROFILES_ACTIVE: dev
+      JWT_SECRET: ci-load-test-secret-key-long-enough-for-hmac-sha256
+      # /api/v1 전반에 분당 300건 안전망이 걸려 있다. 켜둔 채로 측정하면
+      # 애플리케이션 처리량이 아니라 레이트리밋 설정을 재게 된다.
+      BURTY_API_RATELIMIT_ENABLED: 'false'
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup Java 21
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+
+      - name: MariaDB 클라이언트 설치
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq mariadb-client
+
+      - name: 스키마 준비
+        run: |
+          chmod +x gradlew
+          ./gradlew ciSchema --no-daemon \
+            -Dburty.ci.db.url="jdbc:mariadb://${DB_HOST}:${DB_PORT}/${DB_NAME}" \
+            -Dburty.ci.db.user="${DB_USER}" \
+            -Dburty.ci.db.password="${DB_PASSWORD}"
+
+      # 빈 DB 를 대상으로 한 측정은 아무것도 말해주지 않는다.
+      - name: 표본 데이터 시딩
+        run: |
+          mariadb -h "$DB_HOST" -P "$DB_PORT" -u "$DB_USER" -p"$DB_PASSWORD" \
+            "$DB_NAME" < infra/loadtest/seed.sql
+
+      - name: 애플리케이션 빌드
+        run: ./gradlew bootJar --no-daemon
+
+      # dev 프로파일은 SQL 을 DEBUG 로 남긴다. 부하 중에는 로그 I/O 자체가 병목이 되어
+      # 애플리케이션이 아니라 로깅 성능을 재게 되므로 WARN 으로 낮춘다.
+      #
+      # 이 환경에는 Redis 가 없다(dev 는 in-memory fallback 을 쓴다). 그대로 두면
+      # 헬스 집계가 DOWN 이 되어 503 이 나오고, 기동은 됐는데 대기가 끝나지 않는다.
+      - name: 애플리케이션 기동
+        run: |
+          nohup java -jar build/libs/*-SNAPSHOT.jar \
+            --logging.level.root=WARN \
+            --logging.level.com.burty=INFO \
+            --management.health.redis.enabled=false \
+            --management.health.mail.enabled=false \
+            > app.log 2>&1 &
+          echo $! > app.pid
+          for i in $(seq 1 180); do
+            if curl -sf http://localhost:8080/actuator/health > /dev/null; then
+              echo "기동 완료 (${i}초)"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "기동 실패 — 헬스 응답:" >&2
+          curl -s -w '\nHTTP %{http_code}\n' http://localhost:8080/actuator/health >&2 || true
+          echo "--- 로그 ---" >&2
+          tail -100 app.log >&2
+          exit 1
+
+      # apt 저장소 방식은 러너에서 gpg dirmngr 가 없어 실패한다.
+      # 릴리스 바이너리를 직접 받는 편이 단순하고 버전도 고정된다.
+      - name: k6 설치
+        env:
+          K6_VERSION: v1.3.0
+        run: |
+          curl -sSL "https://github.com/grafana/k6/releases/download/${K6_VERSION}/k6-${K6_VERSION}-linux-amd64.tar.gz" \
+            | tar xz --strip-components=1 -C /usr/local/bin "k6-${K6_VERSION}-linux-amd64/k6"
+          k6 version
+
+      - name: 토큰 발급
+        run: |
+          UID_VALUE=$(mariadb -h "$DB_HOST" -P "$DB_PORT" -u "$DB_USER" -p"$DB_PASSWORD" \
+            -N -B -e "SELECT user_id FROM ${DB_NAME}.tbl_user LIMIT 1;")
+          TOKEN=$(curl -sf -X POST http://localhost:8080/api/v1/auth/token \
+            -H 'Content-Type: application/json' \
+            -d "{\"userId\":\"${UID_VALUE}\"}" | python3 -c 'import sys,json; print(json.load(sys.stdin)["data"]["accessToken"])')
+          test -n "$TOKEN" || { echo "토큰 발급 실패" >&2; exit 1; }
+          echo "::add-mask::$TOKEN"
+          echo "TOKEN=$TOKEN" >> "$GITHUB_ENV"
+
+      # 이체는 계좌·연동기관 시딩과 LEVEL_3 단계 인증이 필요하다. 조회 경로만 돌린다.
+      #
+      # 커넥션 풀 지표는 게이지라 부하가 끝난 뒤에 읽으면 항상 0 이다. 대기는 순간적으로
+      # 발생했다 사라지므로, 부하가 도는 동안 표본을 뽑아 최댓값을 봐야 의미가 있다.
+      - name: 부하 스모크 실행
+        run: |
+          (
+            while :; do
+              curl -s http://localhost:8080/actuator/prometheus \
+                | grep -E '^hikaricp_connections(_active|_pending)\{' >> pool-samples.txt || true
+              sleep 2
+            done
+          ) &
+          echo $! > sampler.pid
+
+          # 실패해도 샘플러를 정리하고 결과를 확인할 수 있어야 하므로 종료코드를 잡아둔다.
+          STATUS=0
+          k6 run -e BASE_URL=http://localhost:8080 -e TOKEN="$TOKEN" \
+            -e PROFILE=smoke -e TRANSFERS=off \
+            infra/loadtest/burty-load.js || STATUS=$?
+
+          kill "$(cat sampler.pid)" 2>/dev/null || true
+          exit $STATUS
+
+      - name: 커넥션 풀 최댓값 확인
+        if: always()
+        run: |
+          if [ ! -s pool-samples.txt ]; then
+            echo "표본이 없다 — 샘플러가 돌지 않았다" >&2
+            exit 1
+          fi
+          extract() { grep "^$1{" pool-samples.txt | awk '{print $2}' | sort -g | tail -1; }
+          MAX_ACTIVE=$(extract hikaricp_connections_active)
+          MAX_PENDING=$(extract hikaricp_connections_pending)
+          # 지표 이름이 바뀌면 조용히 통과해버린다. 값이 없으면 실패로 본다.
+          if [ -z "${MAX_ACTIVE}" ] || [ -z "${MAX_PENDING}" ]; then
+            echo "hikaricp 지표를 찾지 못했다 — 지표 이름이 바뀌었는지 확인할 것" >&2
+            exit 1
+          fi
+          echo "표본 $(wc -l < pool-samples.txt)건"
+          echo "  최대 사용 커넥션 : ${MAX_ACTIVE} / 20"
+          echo "  최대 대기        : ${MAX_PENDING}"
+          # 대기가 있었다면 이 부하에서 이미 풀 크기가 부족하다는 뜻이다.
+          if [ "${MAX_PENDING%.*}" -gt 0 ] 2>/dev/null; then
+            echo "커넥션 대기가 발생했다. DB_POOL_MAX 상향 또는 커넥션을 오래 잡는 코드를 확인할 것." >&2
+            exit 1
+          fi
+
+      - name: 애플리케이션 종료
+        if: always()
+        run: |
+          [ -f app.pid ] && kill "$(cat app.pid)" || true
+
+      - name: 애플리케이션 로그 업로드
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-log
+          path: app.log
+          if-no-files-found: warn
