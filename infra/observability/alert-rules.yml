@@ -58,6 +58,16 @@ groups:
         annotations:
           summary: "아웃박스 재시도가 급증 — 하위 채널 장애 의심"
 
+      # 감사 기록은 규제 대응 자료다. 저장에 실패하면 업무 흐름은 계속 가지만
+      # 기록만 사라진다. 나중에 남는 것은 "그 시점 기록이 없다" 는 사실뿐이다.
+      - alert: AuditLogSaveFailed
+        expr: sum(increase(burty_audit_save_failed_total[10m])) > 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "감사 기록 저장 실패 — 규제 기록이 유실되고 있음"
+
   - name: burty-platform
     interval: 30s
     rules:
