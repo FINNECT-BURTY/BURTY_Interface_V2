@@ -49,17 +49,28 @@ public class RefreshTokenService {
   private final JwtTokenProvider jwtTokenProvider;
   private final JwtProperties jwtProperties;
   private final AccountNumberHasher accountNumberHasher;
+
+  /**
+   * 세션 강제 종료. 별도 빈이라야 {@code REQUIRES_NEW} 가 적용된다.
+   *
+   * <p>재사용을 감지하면 세션을 끊고 예외를 던져 요청을 거절한다. 같은 트랜잭션에서 끊으면 그 예외가 끊은 것까지 되돌려, 응답만 "모든 세션을 종료했습니다" 이고
+   * 실제로는 아무 일도 일어나지 않는다.
+   */
+  private final SessionRevoker sessionRevoker;
+
   private final SecureRandom secureRandom = new SecureRandom();
 
   public RefreshTokenService(
       UserSessionRepository sessionRepository,
       JwtTokenProvider jwtTokenProvider,
       JwtProperties jwtProperties,
-      AccountNumberHasher accountNumberHasher) {
+      AccountNumberHasher accountNumberHasher,
+      SessionRevoker sessionRevoker) {
     this.sessionRepository = sessionRepository;
     this.jwtTokenProvider = jwtTokenProvider;
     this.jwtProperties = jwtProperties;
     this.accountNumberHasher = accountNumberHasher;
+    this.sessionRevoker = sessionRevoker;
   }
 
   /** 로그인 직후 호출. access + refresh 쌍 발급, 새 session row 생성. */
@@ -105,7 +116,7 @@ public class RefreshTokenService {
 
     // 도난 의심: 이미 revoke 된 token 이 다시 들어옴 → 모든 세션 강제 종료
     if (session.getRevokedAt() != null) {
-      revokeAllForUser(String.valueOf(session.getUserId()));
+      sessionRevoker.revokeAllForUser(session.getUserId());
       throw new BusinessException(
           ErrorCode.FORBIDDEN, "refresh token 재사용이 감지되었습니다. 보안을 위해 모든 세션을 종료했습니다.");
     }
@@ -113,11 +124,19 @@ public class RefreshTokenService {
       throw new BusinessException(ErrorCode.EXPIRED_TOKEN, "refresh token 이 만료되었습니다.");
     }
 
-    // 기존 세션 revoke 후 새 쌍 발급
-    session.setRevokedAt(LocalDateTime.now());
-    sessionRepository.save(session);
+    String userId = String.valueOf(session.getUserId());
+    String deviceId = session.getDeviceId();
 
-    return issueNewSession(String.valueOf(session.getUserId()), session.getDeviceId());
+    // 조건부 UPDATE 로 한쪽만 회전에 성공하게 한다. 읽어서 확인하고 쓰면, 같은 token 으로
+    // 두 요청이 동시에 들어왔을 때 둘 다 통과해 각자 새 세션을 받는다 — 재사용 탐지가
+    // 정확히 그 상황을 잡으라고 있는 것인데 그때 뚫린다.
+    if (sessionRepository.revokeIfActive(session.getSessionId(), LocalDateTime.now()) == 0) {
+      sessionRevoker.revokeAllForUser(session.getUserId());
+      throw new BusinessException(
+          ErrorCode.FORBIDDEN, "refresh token 재사용이 감지되었습니다. 보안을 위해 모든 세션을 종료했습니다.");
+    }
+
+    return issueNewSession(userId, deviceId);
   }
 
   /** 로그아웃 시 호출. 해당 refresh token 하나만 revoke (없으면 조용히 무시). */
@@ -136,15 +155,7 @@ public class RefreshTokenService {
   /** 특정 사용자의 모든 활성 세션 종료 (비밀번호 변경 / 도난 의심 등). */
   @Transactional
   public void revokeAllForUser(String userId) {
-    Long numericUserId = parseUserId(userId);
-    LocalDateTime now = LocalDateTime.now();
-    sessionRepository
-        .findByUserIdAndRevokedAtIsNull(numericUserId)
-        .forEach(
-            s -> {
-              s.setRevokedAt(now);
-              sessionRepository.save(s);
-            });
+    sessionRepository.revokeAllActive(parseUserId(userId), LocalDateTime.now());
   }
 
   private String generateToken() {
