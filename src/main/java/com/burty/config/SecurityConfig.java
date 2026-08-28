@@ -117,6 +117,11 @@ public class SecurityConfig {
               auth.requestMatchers(HttpMethod.GET, "/api/v1/mydata/oauth/callback").permitAll();
               auth.requestMatchers(HttpMethod.GET, "/api/v1/mydata/institutions/*/callback")
                   .permitAll();
+              // 전사 집계 지표. 컨트롤러 주석에는 "관리자용" 이라 적혀 있었지만 경로가
+              // /api/v1/kpi 라 인증만 통과하면 누구나 읽을 수 있었다. @AuthLevel(LEVEL_3) 은
+              // 단계 인증이지 권한이 아니다. (@PreAuthorize 는 메서드 보안이 꺼져 있어
+              // 붙여도 조용히 무시된다 — 매처로 막는다.)
+              auth.requestMatchers(HttpMethod.GET, "/api/v1/kpi/global").hasRole("ADMIN");
               auth.requestMatchers("/api/v1/admin/**").hasRole("ADMIN");
               auth.requestMatchers("/api/v1/**").authenticated();
               auth.requestMatchers(ApiVersions.V2 + "/**").authenticated();
