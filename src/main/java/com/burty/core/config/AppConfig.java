@@ -20,12 +20,15 @@
 package com.burty.core.config;
 
 import com.burty.config.ExternalFinanceProperties;
+import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.MapperFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.databind.json.JsonMapper;
 import java.time.Clock;
 import java.time.ZoneId;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.http.converter.json.Jackson2ObjectMapperBuilder;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.client.RestTemplate;
@@ -71,11 +74,27 @@ public class AppConfig implements WebMvcConfigurer {
   /**
    * Jackson 2 ObjectMapper.
    *
-   * <p>{@code new ObjectMapper()} 는 JSR-310 등 모듈을 등록하지 않아 {@code LocalDate}/{@code LocalDateTime}
-   * 직렬화가 깨진다. Spring 빌더를 쓰면 클래스패스에 있는 모듈이 자동 등록된다.
+   * <p>HTTP 응답용이 아니다. 아웃박스 페이로드·감사 로그·멱등키 저장처럼 <b>오래 남는 데이터</b>를 직렬화한다. 그래서 설정을 명시적으로 고정한다.
+   *
+   * <p>{@code new ObjectMapper()} 는 JSR-310 모듈을 등록하지 않아 {@code LocalDate} 직렬화가 아예 깨진다. {@code
+   * findAndAddModules()} 로 클래스패스의 모듈을 등록한다.
+   *
+   * <p>{@code WRITE_DATES_AS_TIMESTAMPS} 는 반드시 꺼야 한다. 켜져 있으면 {@code LocalDate} 가 {@code
+   * [2026,8,28]} 배열로 나간다 — 저장된 감사 로그를 사람이 읽을 수 없고, Jackson 의 배열 표현에 데이터가 묶인다. 읽을 때는 배열도 ISO 문자열도 모두
+   * 받아들이므로 예전에 저장된 값은 그대로 읽힌다.
+   *
+   * <p>계약은 {@code ObjectMapperContractTests} 가 검증한다.
    */
   @Bean
   public ObjectMapper objectMapper() {
-    return Jackson2ObjectMapperBuilder.json().build();
+    return JsonMapper.builder()
+        .findAndAddModules()
+        .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS)
+        // 응답에 우리가 모르는 필드가 섞여도 역직렬화가 깨지면 안 된다.
+        // 여기서 예외가 나면 아웃박스 이벤트가 DEAD 로 격리된다.
+        .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
+        // @JsonView 를 쓰는 순간 뷰에 없는 필드까지 전부 나가는 것을 막는다.
+        .disable(MapperFeature.DEFAULT_VIEW_INCLUSION)
+        .build();
   }
 }
