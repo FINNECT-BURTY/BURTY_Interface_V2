@@ -135,6 +135,16 @@ public class TransferOrderWriter {
     order.setNextReconcileAt(nextReconcileAt);
   }
 
+  /**
+   * 한도를 차감한 날짜를 주문에 기록한다.
+   *
+   * <p>해제 시 이 값을 그대로 쓴다. 나중에 날짜를 다시 계산하면 자정을 걸친 이체에서 다른 행을 가리킨다.
+   */
+  @Transactional(propagation = Propagation.REQUIRES_NEW)
+  public void markLimitReserved(Long orderId, java.time.LocalDate usageDate) {
+    load(orderId).setLimitUsageDate(usageDate);
+  }
+
   /** 사용자/시스템에 의한 취소. 이미 실행된 건은 취소할 수 없다. */
   @Transactional(propagation = Propagation.REQUIRES_NEW)
   public void markCancelled(Long orderId, String reason) {
