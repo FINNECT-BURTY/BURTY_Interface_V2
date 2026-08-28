@@ -1,0 +1,100 @@
+name: Backup Restore
+
+# 백업·복구 스크립트가 실제로 동작하는지 검증한다.
+#
+# 복구되지 않는 백업은 백업이 아니다. 스크립트를 저장소에 두는 것만으로는
+# 동작을 보장하지 못하므로, 실제 MariaDB 를 띄워 백업 → 복구 → 검증을 돌린다.
+#
+# 이 워크플로가 깨지면 "지금 백업이 복구 가능한 상태가 아니다" 라는 뜻이다.
+
+on:
+  pull_request:
+    paths:
+      - 'infra/scripts/**'
+      - 'src/main/resources/db/migration/**'
+      - '.github/workflows/backup-restore.yml'
+  schedule:
+    # 매주 월요일 04:00 UTC (KST 13:00). 스크립트가 그대로여도 스키마 변경으로 깨질 수 있다.
+    - cron: '0 4 * * 1'
+  workflow_dispatch:
+
+jobs:
+  rehearsal:
+    name: 백업·복구 리허설
+    runs-on: ubuntu-latest
+
+    services:
+      mariadb:
+        image: mariadb:11.4
+        env:
+          MARIADB_ROOT_PASSWORD: ci-test-password
+          MARIADB_DATABASE: burty
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mariadb-admin ping -uroot -pci-test-password --silent"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+    env:
+      DB_HOST: 127.0.0.1
+      DB_PORT: '3306'
+      DB_NAME: burty
+      DB_USER: root
+      DB_PASSWORD: ci-test-password
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup Java 21
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+
+      - name: MariaDB 클라이언트 설치
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq mariadb-client
+
+      # 빈 DB 에 Flyway 마이그레이션을 적용해 실제 스키마를 만든다.
+      # 실제 스키마가 아니면 복구 검증(테이블 수, Flyway 이력)이 의미가 없다.
+      - name: 스키마 준비 (Flyway 마이그레이션 적용 + validate)
+        run: |
+          chmod +x gradlew
+          ./gradlew ciSchema --no-daemon \
+            -Dburty.ci.db.url="jdbc:mariadb://${DB_HOST}:${DB_PORT}/${DB_NAME}" \
+            -Dburty.ci.db.user="${DB_USER}" \
+            -Dburty.ci.db.password="${DB_PASSWORD}"
+
+      - name: 표본 데이터 삽입
+        run: |
+          mariadb -h "$DB_HOST" -P "$DB_PORT" -u "$DB_USER" -p"$DB_PASSWORD" "$DB_NAME" <<'SQL'
+          INSERT INTO tbl_user (ci_hash, ci, phone_hash, phone, status, failed_login_count, created_at, updated_at)
+          VALUES (REPEAT('a',64), 'ci-sample', REPEAT('b',64), '010-0000-0000', 'ACTIVE', 0, NOW(6), NOW(6));
+          SQL
+
+      - name: 리허설 실행 (백업 → 복구 → 검증)
+        run: |
+          chmod +x infra/scripts/*.sh
+          BACKUP_DIR=./backups/ci REHEARSAL_DB=burty_rehearsal \
+            ./infra/scripts/backup-restore-rehearsal.sh
+
+      # 복구된 스키마가 애플리케이션 기대와 맞는지까지 확인한다.
+      # 복구는 됐는데 validate 를 통과하지 못하면 서비스를 못 띄운다.
+      - name: 복구본으로 ddl-auto=validate 통과 확인
+        run: |
+          KEEP_RESTORED=yes BACKUP_DIR=./backups/ci REHEARSAL_DB=burty_validate \
+            ./infra/scripts/backup-restore-rehearsal.sh
+          # 복구본에는 Flyway 를 다시 적용하지 않는다. 복구된 그대로가 유효해야 한다.
+          ./gradlew ciSchema --no-daemon \
+            -Dburty.ci.db.url="jdbc:mariadb://${DB_HOST}:${DB_PORT}/burty_validate" \
+            -Dburty.ci.db.user="${DB_USER}" \
+            -Dburty.ci.db.password="${DB_PASSWORD}" \
+            -Dburty.ci.flyway=false
+
+      - name: 정리
+        if: always()
+        run: |
+          mariadb -h "$DB_HOST" -P "$DB_PORT" -u "$DB_USER" -p"$DB_PASSWORD" \
+            -e "DROP DATABASE IF EXISTS burty_validate;" || true
