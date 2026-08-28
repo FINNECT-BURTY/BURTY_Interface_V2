@@ -41,6 +41,22 @@ public class BurtySecurityProperties {
   private final Cors cors = new Cors();
   private final Actuator actuator = new Actuator();
 
+  /**
+   * 전달 헤더를 신뢰할 프록시 대역(CIDR).
+   *
+   * <p>비워두면 {@code X-Forwarded-For} 등을 아예 보지 않고 실제 접속 출처만 쓴다. 프록시가 없는 배포에서 안전한 기본값이다. 로드밸런서·인그레스 뒤에
+   * 둔다면 그 대역을 여기에 적어야 클라이언트 IP 가 제대로 잡힌다.
+   */
+  private List<String> trustedProxies = new ArrayList<>();
+
+  public List<String> getTrustedProxies() {
+    return trustedProxies;
+  }
+
+  public void setTrustedProxies(List<String> trustedProxies) {
+    this.trustedProxies = trustedProxies;
+  }
+
   public Mode getMode() {
     return mode;
   }

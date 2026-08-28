@@ -20,67 +20,32 @@
 package com.burty.util;
 
 import jakarta.servlet.http.HttpServletRequest;
-import org.springframework.stereotype.Component;
+import java.util.List;
 
-/** 프록시/nginx 뒤에서 실제 클라이언트 IP 를 추출합니다. */
-@Component
-public class IpUtil {
+/**
+ * 클라이언트 IP 조회 진입점.
+ *
+ * <p>판정 규칙은 {@link ClientIpResolver} 에 있다. 이 클래스는 필터·유틸에서 정적으로 부를 수 있게 하는 얇은 껍데기다.
+ *
+ * <p>설정({@code burty.security.trusted-proxies})은 스프링 컨텍스트가 뜰 때 {@link #configure(List)} 로 주입된다. 주입
+ * 전에는 전달 헤더를 신뢰하지 않는다 — 설정을 못 읽었을 때 헤더를 믿는 쪽으로 기울면 안 된다.
+ */
+public final class IpUtil {
 
-  private static final String[] IP_HEADERS = {
-    "X-Forwarded-For",
-    "X-Real-IP",
-    "Proxy-Client-IP",
-    "WL-Proxy-Client-IP",
-    "HTTP_CLIENT_IP",
-    "HTTP_X_FORWARDED_FOR"
-  };
+  private static volatile ClientIpResolver resolver = new ClientIpResolver(List.of());
+
+  private IpUtil() {}
+
+  /** 신뢰 프록시 대역을 적용한다. {@code ClientIpConfiguration} 이 기동 시 한 번 호출한다. */
+  public static void configure(List<String> trustedProxyCidrs) {
+    resolver = new ClientIpResolver(trustedProxyCidrs);
+  }
 
   public static String getClientIp(HttpServletRequest request) {
-    return getClientIpAddress(request);
+    return resolver.resolve(request);
   }
 
   public static String getClientIpAddress(HttpServletRequest request) {
-    for (String headerName : IP_HEADERS) {
-      String ipAddress = request.getHeader(headerName);
-      if (isValidIp(ipAddress)) {
-        if (ipAddress.contains(",")) {
-          ipAddress = ipAddress.split(",")[0].trim();
-        }
-        if (isValidIpFormat(ipAddress)) {
-          return ipAddress;
-        }
-      }
-    }
-    String remoteAddr = request.getRemoteAddr();
-    return isValidIpFormat(remoteAddr) ? remoteAddr : "unknown";
-  }
-
-  private static boolean isValidIp(String ip) {
-    return ip != null && !ip.isEmpty() && !"unknown".equalsIgnoreCase(ip) && !"-".equals(ip.trim());
-  }
-
-  private static boolean isValidIpFormat(String ip) {
-    if (ip == null || ip.isEmpty()) {
-      return false;
-    }
-    if (ip.matches("^(?:[0-9]{1,3}\\.){3}[0-9]{1,3}$")) {
-      try {
-        for (String part : ip.split("\\.")) {
-          int num = Integer.parseInt(part);
-          if (num < 0 || num > 255) {
-            return false;
-          }
-        }
-        return true;
-      } catch (NumberFormatException e) {
-        return false;
-      }
-    }
-    if (ip.contains(":")) {
-      return ip.matches("^([0-9a-fA-F]{0,4}:){1,7}[0-9a-fA-F]{0,4}$")
-          || "::1".equals(ip)
-          || "::".equals(ip);
-    }
-    return false;
+    return resolver.resolve(request);
   }
 }
