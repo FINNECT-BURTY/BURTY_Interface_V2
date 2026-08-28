@@ -19,8 +19,8 @@
  */
 package com.burty.security;
 
+import java.time.Duration;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -47,7 +47,9 @@ public class JwtBlacklistService {
     long ttl = jwtTokenProvider.getRemainingTtlSeconds(token);
     if (redisTemplate != null) {
       try {
-        redisTemplate.opsForValue().set("burty:jwt:blacklist:" + token, "1", ttl, TimeUnit.SECONDS);
+        redisTemplate
+            .opsForValue()
+            .set("burty:jwt:blacklist:" + token, "1", Duration.ofSeconds(ttl));
         return;
       } catch (Exception ignored) {
         warnRedisFallbackOnce();

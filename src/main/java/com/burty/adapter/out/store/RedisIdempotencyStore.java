@@ -2,9 +2,9 @@ package com.burty.adapter.out.store;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.time.Duration;
 import java.util.Map;
 import java.util.Optional;
-import java.util.concurrent.TimeUnit;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
@@ -42,7 +42,7 @@ public class RedisIdempotencyStore implements IdempotencyStore {
       String json = objectMapper.writeValueAsString(value);
       redisTemplate
           .opsForValue()
-          .set("burty:idempotency:" + key, json, ttlSeconds, TimeUnit.SECONDS);
+          .set("burty:idempotency:" + key, json, Duration.ofSeconds(ttlSeconds));
     } catch (Exception ignored) {
       // 멱등성 저장 실패 시 이체 응답은 그대로 반환
     }

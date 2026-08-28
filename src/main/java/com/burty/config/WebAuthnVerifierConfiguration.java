@@ -19,7 +19,7 @@
  */
 package com.burty.config;
 
-import com.burty.security.StandardLikeWebAuthnVerifier;
+import com.burty.security.StubWebAuthnVerifier;
 import com.burty.security.WebAuthn4jCompositeAssertionVerifier;
 import com.burty.security.WebAuthnAssertionVerifier;
 import org.springframework.context.annotation.Bean;
@@ -29,15 +29,18 @@ import org.springframework.context.annotation.Primary;
 @Configuration
 public class WebAuthnVerifierConfiguration {
 
-  @Bean
-  public StandardLikeWebAuthnVerifier standardLikeWebAuthnVerifier() {
-    return new StandardLikeWebAuthnVerifier();
-  }
-
+  /**
+   * WebAuthn 어설션 검증기.
+   *
+   * <p>기본은 서명을 실제로 검증하는 WebAuthn4J 구현이다. 스텁은 <b>명시적으로 켰을 때만</b> 쓴다 — 예전에는 스텁이 검증 실패 시의 폴백으로 항상 붙어
+   * 있어, 위조 페이로드가 이체의 생체인증 게이트를 통과했다.
+   */
   @Bean
   @Primary
-  public WebAuthnAssertionVerifier webAuthnAssertionVerifier(
-      StandardLikeWebAuthnVerifier standardLikeWebAuthnVerifier) {
-    return new WebAuthn4jCompositeAssertionVerifier(standardLikeWebAuthnVerifier);
+  public WebAuthnAssertionVerifier webAuthnAssertionVerifier(WebAuthnProperties properties) {
+    if (properties.isStubMode()) {
+      return new StubWebAuthnVerifier();
+    }
+    return new WebAuthn4jCompositeAssertionVerifier();
   }
 }
