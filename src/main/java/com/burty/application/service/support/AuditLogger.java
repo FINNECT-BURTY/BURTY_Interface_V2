@@ -21,6 +21,7 @@ package com.burty.application.service.support;
 
 import com.burty.application.port.out.audit.AuditLogPort;
 import com.burty.domain.admin.model.AuditEvent;
+import com.burty.util.PiiMasker;
 import io.micrometer.core.instrument.MeterRegistry;
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -47,6 +48,14 @@ public class AuditLogger {
     log(actorId, action, target, "FAILURE", detail);
   }
 
+  /**
+   * 감사 기록을 남긴다.
+   *
+   * <p>{@code target} 과 {@code detail} 은 개인정보로 보이는 부분을 가려 저장한다. 로그는 {@code %maskedMsg} 로 가리면서 감사
+   * 테이블에는 계좌번호가 평문으로 들어가고 있었다 — 감사 기록은 규제 대응 자료라 보존 기간이 길어 오히려 더 위험하다.
+   *
+   * <p>호출부에서 이미 가려서 넘기는 것이 원칙이지만, 여기서도 한 번 훑는다. 새 호출부가 생길 때마다 사람이 기억해야 하는 규칙은 언젠가 새는 규칙이다.
+   */
   public void log(String actorId, String action, String target, String result, String detail) {
     try {
       auditLogPort.save(
@@ -54,9 +63,9 @@ public class AuditLogger {
               UUID.randomUUID().toString(),
               actorId,
               action,
-              target,
+              PiiMasker.scrub(target),
               result,
-              detail,
+              PiiMasker.scrub(detail),
               LocalDateTime.now()));
     } catch (Exception e) {
       // 감사 기록 실패로 업무 흐름을 끊지는 않는다. 다만 조용히 넘어가서도 안 된다 —
