@@ -33,6 +33,9 @@ public interface TransactionRepository extends JpaRepository<TransactionEntity, 
 
   List<TransactionEntity> findByUserIdOrderByTxnDateDesc(Long userId);
 
+  /** 건수만 필요할 때. 전체를 적재해 size() 를 세면 사용자당 수만 건이 메모리에 올라온다. */
+  long countByUserId(Long userId);
+
   /**
    * 페이지 단위 조회.
    *

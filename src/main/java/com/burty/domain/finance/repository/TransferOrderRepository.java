@@ -64,4 +64,7 @@ public interface TransferOrderRepository extends JpaRepository<TransferOrderEnti
   }
 
   long countByStatus(TransferOrderEntity.Status status);
+
+  /** 건수만 필요할 때. 전체를 적재해 size() 를 세지 않기 위함이다. */
+  long countByUser_UserId(Long userId);
 }
