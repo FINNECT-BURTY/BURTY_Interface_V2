@@ -223,27 +223,52 @@ GET /api/v1/admin/observability/embed/dashboard?uid=burty-logs
 
 ## prod 필수 env
 
+`ProdStartupValidator` 가 아래 조건을 하나라도 어기면 **기동을 중단한다.** 검증은 웹 서버가
+포트를 열기 전에 돌기 때문에, 잘못된 설정으로 잠깐이라도 트래픽을 받는 일은 없다.
 
+배포가 `PROD startup blocked: ...` 로 실패하면 그 메시지의 설정값을 아래에서 찾으면 된다.
+
+### 시크릿 (기본값이면 차단)
 
 | 변수 | 용도 |
+|---|---|
+| `JWT_SECRET` | 액세스 토큰 서명 |
+| `BURTY_SIGN_SECRET` | 요청 서명 |
+| `ADMIN_SETUP_KEY` | 관리자 부트스트랩 키 |
+| `BURTY_FIELD_ENCRYPTION_KEY` | 마이데이터 토큰 등 필드 암호화 |
 
-|------|------|
+### 인프라
 
-| `JWT_SECRET`, `BURTY_SIGN_SECRET`, `ADMIN_SETUP_KEY` | 인증/서명 |
+| 변수 | 값 | 왜 |
+|---|---|---|
+| `BURTY_REDIS_ENABLED` | `true` | JWT 블랙리스트·레이트리밋·큐가 인스턴스 간 공유돼야 한다 |
+| `TRUSTED_PROXIES` | 인그레스/LB 의 CIDR | 전달 헤더를 신뢰할 범위. **비워두면 기동하지 않는다** |
 
-| `BURTY_REDIS_ENABLED=true` | JWT blacklist, rate limit, 큐 |
+`TRUSTED_PROXIES` 를 비워두면 모든 요청이 프록시 IP 하나로 기록되어 레이트리밋이 전체
+트래픽을 한 버킷에 몰아넣고 접근 기록도 무의미해진다. 그래서 조용히 그렇게 되도록 두지 않는다.
+반대로 너무 넓게 잡으면 클라이언트가 자기 IP 를 지정할 수 있게 되므로 실제 프록시 주소로 좁힌다.
 
-| `BURTY_FIELD_ENCRYPTION_KEY` | 마이데이터 토큰 암호화 |
+### stub 은 전부 꺼야 한다
 
-| `MYDATA_*`, `OB_*` | 금융 API 키 |
+`burty.mydata`, `burty.social`, `burty.external`, `burty.identity`, `burty.webauthn`,
+`burty.notify.email`, `burty.notify.sms`, `burty.notify.push` 의 `stub-mode` 가 하나라도
+`true` 면 차단된다.
 
-| `MAIL_*` | 이메일 알림 (stub-mode=false 시) |
+특히 `burty.webauthn.stub-mode` 는 **서명을 검증하지 않는** 스텁이라, 켜져 있으면 이체의
+생체인증 게이트가 무력화된다.
 
+### 그 밖에 차단되는 설정
 
+| 설정 | 요구 | 왜 |
+|---|---|---|
+| `burty.admin.bootstrap-enabled` | `false` | 무인증 관리자 등록 창구 |
+| `burty.api.swagger-enabled` | `false` | 내부 API 명세 노출 |
+| 본인확인 자격증명 | NICE 또는 KCB 설정 완료 | provider 를 지정했으면 자격증명이 있어야 한다 |
+| `MAIL_HOST`, SMS 자격증명, FCM 자격증명 | 설정 | 해당 채널 stub 을 껐다면 실제 연동이 있어야 한다 |
 
-`ProdStartupValidator`가 prod에서 stub/기본 secret 미설정 시 기동을 차단합니다.
+### 외부 연동 키
 
-
+`MYDATA_*`, `OB_*`, `MAIL_*` — 금융 API 및 알림 채널.
 
 ## 장애 대응
 
