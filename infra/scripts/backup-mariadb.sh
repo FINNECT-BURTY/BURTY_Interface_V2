@@ -103,12 +103,26 @@ if [ "${SIZE_KB}" -lt "${MIN_BACKUP_KB}" ]; then
 fi
 
 # 3) 핵심 테이블이 실제로 들어 있는가
+#
+# 덤프를 한 번만 펼쳐서 필요한 것을 모두 뽑는다. 테이블마다 `gzip -dc | grep -q` 를
+# 돌리면 grep 이 첫 일치에서 끝나며 gzip 이 SIGPIPE 로 죽고, pipefail 때문에
+# 파이프라인 전체가 실패로 잡힌다 — 테이블이 있는데도 없다고 판정된다.
+# awk 는 끝까지 읽으므로 이 문제가 없고, 덤프를 세 번 펼치지 않아 더 빠르다.
+DUMP_SCAN=$(gzip -dc "${DUMP_PATH}" | awk '
+  /^CREATE TABLE `/ { n=$0; sub(/^CREATE TABLE `/,"",n); sub(/`.*$/,"",n); print "T " n }
+  /^(CHANGE MASTER TO|CHANGE REPLICATION SOURCE TO)/ && !seen { seen=1; print "B " $0 }
+')
+
+NL=$'\n'
 for t in tbl_user tbl_transfer_order flyway_schema_history; do
-  if ! gzip -dc "${DUMP_PATH}" | grep -q "CREATE TABLE \`${t}\`"; then
-    echo "[backup] FAILED — ${t} 이(가) 덤프에 없다" >&2
-    rm -f "${DUMP_PATH}"
-    exit 1
-  fi
+  case "${NL}${DUMP_SCAN}${NL}" in
+    *"${NL}T ${t}${NL}"*) ;;
+    *)
+      echo "[backup] FAILED — ${t} 이(가) 덤프에 없다" >&2
+      rm -f "${DUMP_PATH}"
+      exit 1
+      ;;
+  esac
 done
 
 # ── 메타데이터 ──────────────────────────────────────────────────────────────
@@ -119,7 +133,11 @@ done
   echo "size_kb=${SIZE_KB}"
   echo "sha256=$(sha256_of "${DUMP_PATH}")"
   # 덤프에 기록된 바이너리 로그 위치 (PITR 기준점)
-  gzip -dc "${DUMP_PATH}" | grep -m1 'CHANGE MASTER TO\|CHANGE REPLICATION SOURCE TO' || echo "binlog_position=unavailable"
+  BINLOG_LINE=""
+  while IFS= read -r line; do
+    case "${line}" in "B "*) BINLOG_LINE="${line#B }"; break ;; esac
+  done <<< "${DUMP_SCAN}"
+  echo "binlog_position=${BINLOG_LINE:-unavailable}"
 } > "${META_PATH}"
 
 echo "[backup] OK ${SIZE_KB}KB — 메타: ${META_PATH}"
