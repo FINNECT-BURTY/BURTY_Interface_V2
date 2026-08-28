@@ -30,6 +30,13 @@ public class WebAuthnProperties {
   private String rpId = "localhost";
   private String origin = "http://localhost:8080";
 
+  /**
+   * 서명 검증을 건너뛰는 스텁 검증기 사용 여부.
+   *
+   * <p>실제 인증기 없이 이체 흐름을 돌려보기 위한 개발·테스트 전용 설정이다. prod 프로파일에서는 {@code true} 면 기동을 막는다.
+   */
+  private boolean stubMode = false;
+
   public String getServerSecret() {
     return serverSecret;
   }
@@ -60,5 +67,13 @@ public class WebAuthnProperties {
 
   public void setOrigin(String origin) {
     this.origin = origin;
+  }
+
+  public boolean isStubMode() {
+    return stubMode;
+  }
+
+  public void setStubMode(boolean stubMode) {
+    this.stubMode = stubMode;
   }
 }
