@@ -180,7 +180,7 @@ public class AsyncJobConsumer {
       Map<String, String> payload = toStringMap(record.getValue());
       try {
         handleJob(payload);
-        template.opsForStream().acknowledge(streamKey, record);
+        ack(template, streamKey, record);
       } catch (RuntimeException e) {
         long deliveries = deliveryCount(template, streamKey, record.getId().getValue());
         if (deliveries >= queueProperties.getMaxDeliveries()) {
@@ -197,6 +197,21 @@ public class AsyncJobConsumer {
         }
       }
     }
+  }
+
+  /**
+   * 처리 완료를 확정한다.
+   *
+   * <p>반드시 (스트림, 그룹, 레코드ID) 를 명시한다. {@code acknowledge(String, Record)} 오버로드는 <b>첫 인자가 그룹명</b>이라,
+   * 스트림 키를 넘기면 존재하지 않는 그룹에 XACK 하게 된다. Redis 는 그것을 오류로 보지 않고 0 을 돌려주므로 아무 일도 일어나지 않은 채 성공처럼 보인다.
+   *
+   * <p>그래서 어떤 메시지도 확정되지 않았고, pending 에 남아 회수 주기마다 다시 처리됐다 — 사용자에게 같은 알림이 반복 발송되고, 전달 횟수가 임계치를 넘으면
+   * DLQ 항목까지 계속 쌓였다.
+   */
+  private void ack(StringRedisTemplate template, String streamKey, MapRecord<String, ?, ?> record) {
+    template
+        .opsForStream()
+        .acknowledge(streamKey, queueProperties.getConsumerGroup(), record.getId());
   }
 
   private long deliveryCount(StringRedisTemplate template, String streamKey, String id) {
@@ -225,7 +240,7 @@ public class AsyncJobConsumer {
     entry.put("_error", cause.getClass().getSimpleName() + ": " + cause.getMessage());
     try {
       template.opsForStream().add(dlq, entry);
-      template.opsForStream().acknowledge(streamKey, record);
+      ack(template, streamKey, record);
       log.error(
           "비동기 작업 DLQ 격리 — 수동 확인 필요 stream={} id={} dlq={} reason={}",
           streamKey,
