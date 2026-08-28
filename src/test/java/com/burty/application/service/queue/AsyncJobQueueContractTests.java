@@ -23,10 +23,12 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.data.domain.Range;
+import org.springframework.data.redis.connection.stream.Consumer;
 import org.springframework.data.redis.connection.stream.MapRecord;
 import org.springframework.data.redis.connection.stream.PendingMessages;
 import org.springframework.data.redis.connection.stream.ReadOffset;
 import org.springframework.data.redis.connection.stream.StreamOffset;
+import org.springframework.data.redis.connection.stream.StreamReadOptions;
 import org.springframework.data.redis.core.StringRedisTemplate;
 
 /**
@@ -85,6 +87,35 @@ class AsyncJobQueueContractTests {
 
     assertEquals(1, channel.sent.size(), "알림이 전달되지 않았다");
     assertEquals(0, pendingCount(), "성공했는데 pending 으로 남았다");
+  }
+
+  @Test
+  @DisplayName("XACK 자체가 동작한다 (컨슈머와 무관한 기준선)")
+  void rawAcknowledgeWorks() {
+    publishNotification();
+
+    List<MapRecord<String, Object, Object>> read =
+        redis
+            .opsForStream()
+            .read(
+                Consumer.from(
+                    queueProperties.getConsumerGroup(), queueProperties.getConsumerName()),
+                StreamReadOptions.empty().count(10),
+                StreamOffset.create(streamKey(), ReadOffset.lastConsumed()));
+
+    assertNotNull(read, "XREADGROUP 이 null 을 돌려줬다");
+    assertEquals(1, read.size(), "발행한 메시지를 읽지 못했다");
+    assertEquals(1, pendingCount(), "읽었는데 pending 에 없다");
+
+    Long acked =
+        redis
+            .opsForStream()
+            .acknowledge(streamKey(), queueProperties.getConsumerGroup(), read.get(0).getId());
+
+    // 컨슈머 코드를 거치지 않은 순수 XACK. 이것이 0 이면 문제는 컨슈머가 아니라
+    // 키·그룹·ID 중 하나가 어긋난 것이다.
+    assertEquals(1L, acked, "XACK 이 아무것도 확정하지 못했다");
+    assertEquals(0, pendingCount(), "XACK 했는데 pending 에 남았다");
   }
 
   @Test

@@ -209,9 +209,20 @@ public class AsyncJobConsumer {
    * DLQ 항목까지 계속 쌓였다.
    */
   private void ack(StringRedisTemplate template, String streamKey, MapRecord<String, ?, ?> record) {
-    template
-        .opsForStream()
-        .acknowledge(streamKey, queueProperties.getConsumerGroup(), record.getId());
+    Long acknowledged =
+        template
+            .opsForStream()
+            .acknowledge(streamKey, queueProperties.getConsumerGroup(), record.getId());
+
+    // XACK 은 대상이 없어도 오류가 아니라 0 을 돌려준다. 확인하지 않으면 확정되지 않은
+    // 메시지를 확정된 것으로 착각한 채 넘어가고, 그 메시지는 pending 에 남아 계속 재전달된다.
+    if (acknowledged == null || acknowledged == 0L) {
+      log.error(
+          "ACK 되지 않았다 — 메시지가 pending 에 남아 재전달된다 stream={} group={} id={}",
+          streamKey,
+          queueProperties.getConsumerGroup(),
+          record.getId());
+    }
   }
 
   private long deliveryCount(StringRedisTemplate template, String streamKey, String id) {
