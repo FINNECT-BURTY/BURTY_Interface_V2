@@ -6,7 +6,7 @@
 //   Jenkins  : 검증 → 이미지 빌드/스캔/푸시 → GitOps 레포에 이미지 태그 커밋
 //   ArgoCD   : 그 커밋을 클러스터에 반영 (배포의 단일 진실 공급원)
 //
-// 매니페스트는 이 레포에 없다. RosieOh/BURTY-GitOps 가 소유한다.
+// 매니페스트는 이 레포에 없다. FINNECT-BURTY/BURTY_GitOps 가 소유한다.
 //
 // 이렇게 나누면 "지금 클러스터에 뭐가 떠 있나"의 답이 항상 Git 에 있다. 롤백은 revert 다.
 //
@@ -105,7 +105,7 @@ spec:
         // 패키지 권한이 레포 권한을 따라간다. (Dockerfile 의 image.source 라벨과 한 쌍)
         IMAGE_REPO = 'ghcr.io/finnect-burty/burty-api'
         // 매니페스트는 별도 GitOps 레포가 소유한다. 이 레포는 앱 코드만 갖는다.
-        GITOPS_REPO   = 'github.com/RosieOh/BURTY-GitOps.git'
+        GITOPS_REPO   = 'github.com/FINNECT-BURTY/BURTY_GitOps.git'
         GITOPS_BRANCH = 'main'
         ARGOCD_SERVER = 'argocd.burty.co.kr'
     }
