@@ -18,11 +18,13 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
+import javax.sql.DataSource;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
@@ -53,6 +55,7 @@ class OutboxRelayTests extends IntegrationTestBase {
   @Autowired private TransactionTemplate transactionTemplate;
   @Autowired private RecordingHandler recordingHandler;
   @Autowired private AlwaysFailingHandler failingHandler;
+  @Autowired private DataSource dataSource;
 
   @BeforeEach
   void reset() {
@@ -77,6 +80,31 @@ class OutboxRelayTests extends IntegrationTestBase {
     assertEquals(Status.PUBLISHED, event.getStatus());
     assertNotNull(event.getPublishedAt());
     assertNull(event.getLastError());
+  }
+
+  @Test
+  @DisplayName("스케줄 진입점 relay() 도 이벤트를 실제로 처리한다 (자기 호출로 트랜잭션이 사라지지 않는다)")
+  void scheduledEntryPointActuallyRelays() {
+    publish(OK_EVENT, "agg-scheduled", Map.of("value", "via-schedule"));
+
+    // 컨텍스트 기동 시 스케줄러가 relay() 를 한 번 돌리며 lockAtLeastFor(1초) 동안 락을 잡는다.
+    // 그 안에 테스트가 실행되면 ShedLock 이 조용히 건너뛰어 검증이 성립하지 않는다.
+    //
+    // 행을 지우면 안 된다. ShedLock 은 이미 본 락 이름을 기억해 INSERT 가 아닌 UPDATE 를
+    // 보내므로, 행이 없으면 0건 갱신이 되어 오히려 락을 못 잡는다. 만료시켜야 한다.
+    new JdbcTemplate(dataSource)
+        .update("update shedlock set lock_until = locked_at where name = 'outboxRelay'");
+
+    // 운영에서 릴레이를 부르는 것은 relayOnce() 가 아니라 스케줄러가 부르는 relay() 다.
+    // 예전에는 relay() 가 this.relayOnce() 로 자기를 불러 프록시를 우회했고, 그 결과
+    // @Transactional 이 적용되지 않아 비관적 락 쿼리가 TransactionRequiredException 으로
+    // 매 폴링마다 실패했다 — 아웃박스가 하나도 발행되지 않는 상태였다.
+    // relayOnce() 만 검증하는 테스트로는 잡을 수 없다. 테스트는 프록시 빈을 통해 부르므로
+    // 트랜잭션이 정상적으로 걸리기 때문이다.
+    outboxRelay.relay();
+
+    assertEquals(1, recordingHandler.received.size(), "relay() 가 이벤트를 처리하지 못했다");
+    assertEquals(Status.PUBLISHED, onlyEvent().getStatus());
   }
 
   @Test
