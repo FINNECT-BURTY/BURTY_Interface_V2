@@ -94,21 +94,19 @@ class StoreContractTests {
       assertTrue(store.tryConsume(key, 1, 300L), "창이 지났는데도 계속 막힌다");
     }
 
-    @ParameterizedTest(name = "{0}")
-    @MethodSource("implementations")
-    @DisplayName("만료가 걸리지 않은 키를 만나면 스스로 회복한다")
-    void recoversFromKeyWithoutTtl(String name, Supplier<RateLimitStore> factory) throws Exception {
-      RateLimitStore store = factory.get();
+    @org.junit.jupiter.api.Test
+    @DisplayName("만료가 걸리지 않은 키를 만나면 창을 새로 시작한다 (Redis 전용)")
+    void recoversFromKeyWithoutTtl() {
+      // TTL 없이 남은 키는 Redis 에만 생길 수 있는 상태다. INCR 은 반영됐는데 EXPIRE 가
+      // 실패한 경우다. 그대로 두면 그 주체는 영구 차단된다.
+      RateLimitStore store = new RedisRateLimitStore(redis());
       String key = key();
-      assertTrue(store.tryConsume(key, 1, 300L));
+      assertTrue(store.tryConsume(key, 1, 60_000L));
+      assertFalse(store.tryConsume(key, 1, 60_000L));
 
-      // 과거 사고로 TTL 없이 남은 키를 흉내낸다.
-      if (name.equals("redis")) {
-        redis().persist("burty:ratelimit:" + key);
-      }
+      redis().persist("burty:ratelimit:" + key);
 
-      Thread.sleep(400L);
-      assertTrue(store.tryConsume(key, 1, 300L), "TTL 이 없는 키에서 회복하지 못했다");
+      assertTrue(store.tryConsume(key, 1, 60_000L), "TTL 이 없는 키에서 회복하지 못했다");
     }
   }
 
