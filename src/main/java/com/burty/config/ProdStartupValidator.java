@@ -21,6 +21,7 @@ public class ProdStartupValidator {
   private final BurtyApiProperties apiProperties;
   private final IdentityProperties identityProperties;
   private final NotifyProperties notifyProperties;
+  private final BurtySecurityProperties securityProperties;
 
   public ProdStartupValidator(
       Environment environment,
@@ -29,7 +30,8 @@ public class ProdStartupValidator {
       ExternalFinanceProperties externalFinanceProperties,
       BurtyApiProperties apiProperties,
       IdentityProperties identityProperties,
-      NotifyProperties notifyProperties) {
+      NotifyProperties notifyProperties,
+      BurtySecurityProperties securityProperties) {
     this.environment = environment;
     this.myDataProperties = myDataProperties;
     this.socialLoginProperties = socialLoginProperties;
@@ -37,6 +39,7 @@ public class ProdStartupValidator {
     this.apiProperties = apiProperties;
     this.identityProperties = identityProperties;
     this.notifyProperties = notifyProperties;
+    this.securityProperties = securityProperties;
   }
 
   @EventListener(ApplicationReadyEvent.class)
@@ -85,6 +88,11 @@ public class ProdStartupValidator {
     if (apiProperties.isSwaggerEnabled()) {
       throw new IllegalStateException(
           "PROD startup blocked: burty.api.swagger-enabled must be false.");
+    }
+    if (securityProperties.getTrustedProxies().isEmpty()) {
+      throw new IllegalStateException(
+          "PROD startup blocked: burty.security.trusted-proxies must list the ingress/LB CIDRs "
+              + "(비워두면 모든 요청이 프록시 IP 로 기록되어 레이트리밋과 접근 기록이 무의미해집니다).");
     }
     if (environment.getProperty("burty.webauthn.stub-mode", Boolean.class, Boolean.FALSE)) {
       throw new IllegalStateException(
