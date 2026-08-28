@@ -149,9 +149,10 @@ public class DataSubjectRequestService {
 
     // 거래·이체는 건수가 많을 수 있어 요약만 제공하고, 상세는 기존 조회 API(페이지)를 안내한다.
     Map<String, Object> counts = new LinkedHashMap<>();
-    counts.put(
-        "transactions", transactionRepository.findByUserIdOrderByTxnDateDesc(numericUserId).size());
-    counts.put("transferOrders", transferOrderRepository.findByUser_UserId(numericUserId).size());
+    // 건수만 필요하다. 예전에는 전체를 적재해 size() 를 셌는데, 열람 요청은 데이터가 많은
+    // 사용자가 낼 가능성이 높은 엔드포인트라 하필 최악의 조합이었다.
+    counts.put("transactions", transactionRepository.countByUserId(numericUserId));
+    counts.put("transferOrders", transferOrderRepository.countByUser_UserId(numericUserId));
     export.put("financialRecordCounts", counts);
     export.put(
         "financialRecordsDetailEndpoint",
