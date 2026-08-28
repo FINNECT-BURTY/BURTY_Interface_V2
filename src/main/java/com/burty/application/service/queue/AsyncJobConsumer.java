@@ -156,13 +156,17 @@ public class AsyncJobConsumer {
     }
     for (AsyncJobType type : AsyncJobType.values()) {
       String streamKey = queueProperties.streamKey(type.name());
+      // 블로킹 읽기를 쓰지 않는다. StringRedisTemplate 은 네이티브 커넥션을 공유하므로
+      // XREADGROUP BLOCK 이 그 커넥션을 붙잡고 있는 동안 다른 Redis 명령이 뒤에서 대기한다.
+      // 작업 타입마다 200ms 씩 잡으면 폴링 한 번이 타입 수만큼 커넥션을 막는다.
+      // 어차피 이 메서드는 1초 주기로 다시 호출되므로 기다릴 이유가 없다.
       List<MapRecord<String, Object, Object>> records =
           template
               .opsForStream()
               .read(
                   Consumer.from(
                       queueProperties.getConsumerGroup(), queueProperties.getConsumerName()),
-                  StreamReadOptions.empty().count(10).block(Duration.ofMillis(200)),
+                  StreamReadOptions.empty().count(10),
                   StreamOffset.create(streamKey, ReadOffset.lastConsumed()));
       if (records == null) {
         continue;
