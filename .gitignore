@@ -50,3 +50,8 @@ secrets/
 ### Runtime logs (HOST_LOG_DIR / LOG_PATH) ###
 logs/
 uploads/
+
+# 프론트엔드 프로젝트. 이 저장소의 산출물이 아닌데 루트에 놓여 있어,
+# git add . 한 번에 통째로 들어올 수 있었다. 함께 버전 관리하려면
+# 서브모듈이나 별도 저장소로 옮기는 편이 맞다.
+/BURTY_FE/
