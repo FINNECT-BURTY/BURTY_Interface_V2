@@ -43,6 +43,8 @@ jobs:
       DB_NAME: burty
       DB_USER: root
       DB_PASSWORD: ci-test-password
+      # CI 데이터는 표본 한 건뿐이라 덤프가 운영 기준(16KB)보다 작다.
+      MIN_BACKUP_KB: '4'
 
     steps:
       - uses: actions/checkout@v7
@@ -54,6 +56,8 @@ jobs:
           java-version: '21'
           cache: gradle
 
+      # 서비스 컨테이너는 CMD 를 바꿀 수 없어 바이너리 로그가 꺼진 상태로 뜬다.
+      # 따라서 이 워크플로는 PITR 기준점 없이 덤프하는 경로를 검증한다.
       - name: MariaDB 클라이언트 설치
         run: sudo apt-get update -qq && sudo apt-get install -y -qq mariadb-client
 
