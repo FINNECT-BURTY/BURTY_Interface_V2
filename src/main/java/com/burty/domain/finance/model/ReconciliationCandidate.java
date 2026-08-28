@@ -15,7 +15,8 @@ public record ReconciliationCandidate(
     String idempotencyKey,
     Long amount,
     LocalDateTime requestedAt,
-    Integer attempts) {
+    Integer attempts,
+    java.time.LocalDate limitUsageDate) {
 
   public String userIdAsString() {
     return String.valueOf(userId);
@@ -23,5 +24,19 @@ public record ReconciliationCandidate(
 
   public int attemptsOrZero() {
     return attempts == null ? 0 : attempts;
+  }
+
+  /**
+   * 한도를 차감한 날짜. 기록이 없으면(구버전 데이터) 요청 시각 기준으로 되돌린다.
+   *
+   * <p>재계산은 자정을 걸친 건에서 어긋날 수 있지만, 기록이 없는 건에 대해서는 이것이 예전과 동일한 동작이므로 더 나빠지지는 않는다.
+   */
+  public java.time.LocalDate limitUsageDateOrFallback() {
+    return limitUsageDate != null ? limitUsageDate : requestedAt.toLocalDate();
+  }
+
+  /** 한도를 차감한 적이 있는가. 없으면 해제할 것도 없다. */
+  public boolean hasLimitReserved() {
+    return limitUsageDate != null;
   }
 }

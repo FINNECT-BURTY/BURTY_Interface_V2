@@ -39,7 +39,7 @@ public interface TransferOrderRepository extends JpaRepository<TransferOrderEnti
   @Query(
       "select new com.burty.domain.finance.model.ReconciliationCandidate("
           + "   o.orderId, o.user.userId, o.idempotencyKey, o.amount, o.requestedAt,"
-          + "   o.reconcileAttempts)"
+          + "   o.reconcileAttempts, o.limitUsageDate)"
           + " from TransferOrderEntity o"
           + " where (o.status = :unknownStatus"
           + "        and o.nextReconcileAt is not null and o.nextReconcileAt <= :now)"
