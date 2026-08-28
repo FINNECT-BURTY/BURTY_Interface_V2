@@ -2,7 +2,7 @@ package com.burty.support;
 
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.testcontainers.DockerClientFactory;
-import org.testcontainers.containers.MariaDBContainer;
+import org.testcontainers.mariadb.MariaDBContainer;
 
 /**
  * 통합 테스트용 데이터베이스 선택기.
@@ -19,7 +19,7 @@ import org.testcontainers.containers.MariaDBContainer;
 public final class MariaDbTestContainer {
 
   private static final boolean DOCKER_AVAILABLE = detectDocker();
-  private static final MariaDBContainer<?> INSTANCE = DOCKER_AVAILABLE ? startContainer() : null;
+  private static final MariaDBContainer INSTANCE = DOCKER_AVAILABLE ? startContainer() : null;
 
   private MariaDbTestContainer() {}
 
@@ -31,9 +31,9 @@ public final class MariaDbTestContainer {
     }
   }
 
-  private static MariaDBContainer<?> startContainer() {
-    MariaDBContainer<?> container =
-        new MariaDBContainer<>("mariadb:11.4").withDatabaseName("burty").withReuse(true);
+  private static MariaDBContainer startContainer() {
+    MariaDBContainer container =
+        new MariaDBContainer("mariadb:11.4").withDatabaseName("burty").withReuse(true);
     container.start();
     return container;
   }

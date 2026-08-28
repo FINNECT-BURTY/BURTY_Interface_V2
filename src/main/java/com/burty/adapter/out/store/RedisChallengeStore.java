@@ -19,7 +19,7 @@
  */
 package com.burty.adapter.out.store;
 
-import java.util.concurrent.TimeUnit;
+import java.time.Duration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
@@ -35,7 +35,9 @@ public class RedisChallengeStore implements ChallengeStore {
 
   @Override
   public void put(String key, String value, long ttlSeconds) {
-    redisTemplate.opsForValue().set("burty:challenge:" + key, value, ttlSeconds, TimeUnit.SECONDS);
+    redisTemplate
+        .opsForValue()
+        .set("burty:challenge:" + key, value, Duration.ofSeconds(ttlSeconds));
   }
 
   @Override

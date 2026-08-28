@@ -1,6 +1,6 @@
 package com.burty.adapter.out.store;
 
-import java.util.concurrent.TimeUnit;
+import java.time.Duration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
@@ -20,7 +20,7 @@ public class RedisRateLimitStore implements RateLimitStore {
     String redisKey = "burty:ratelimit:" + key;
     Long count = redisTemplate.opsForValue().increment(redisKey);
     if (count != null && count == 1L) {
-      redisTemplate.expire(redisKey, windowMillis, TimeUnit.MILLISECONDS);
+      redisTemplate.expire(redisKey, Duration.ofMillis(windowMillis));
     }
     return count != null && count <= maxRequests;
   }
