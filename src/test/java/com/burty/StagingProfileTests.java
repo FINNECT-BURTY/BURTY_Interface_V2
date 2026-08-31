@@ -65,6 +65,7 @@ class StagingProfileTests {
     for (String key :
         new String[] {
           "burty.external.open-banking-transfer-url",
+          "burty.external.open-banking-token-url",
           "burty.external.open-banking-accounts-url",
           "burty.mydata.token-url",
           "burty.mydata.asset-url"

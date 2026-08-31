@@ -1,0 +1,17 @@
+{
+  "request": {
+    "method": "POST",
+    "urlPath": "/openbanking/oauth/2.0/token"
+  },
+  "response": {
+    "status": 200,
+    "headers": { "Content-Type": "application/json" },
+    "jsonBody": {
+      "access_token": "staging-openbanking-access-token",
+      "refresh_token": "staging-openbanking-refresh-token",
+      "token_type": "Bearer",
+      "expires_in": 7776000,
+      "user_seq_no": "1100000001"
+    }
+  }
+}
