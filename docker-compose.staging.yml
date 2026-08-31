@@ -73,6 +73,9 @@ services:
       JWT_SECRET: ${JWT_SECRET:-staging-jwt-secret-long-enough-for-hmac-sha256}
       BURTY_FIELD_ENCRYPTION_KEY: ${BURTY_FIELD_ENCRYPTION_KEY:-staging-field-encryption-key-32b}
       APP_BASE_URL: http://localhost:8080
+      # 프론트엔드 origin. 백엔드 주소와 의미가 다르다 — 브라우저가 clientDataJSON 에
+      # 넣는 값과 비교되므로 패스키를 호출하는 쪽의 origin 이어야 한다.
+      WEBAUTHN_ORIGIN: ${WEBAUTHN_ORIGIN:-http://localhost:3000}
       # 부하 시험 시 false 로 올린다. 켜둔 채로 측정하면 처리량이 아니라 레이트리밋을 잰다.
       BURTY_API_RATELIMIT_ENABLED: ${BURTY_API_RATELIMIT_ENABLED:-true}
     ports:
