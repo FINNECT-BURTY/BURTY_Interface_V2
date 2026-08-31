@@ -30,12 +30,23 @@ curl -sf "${BASE}/api/v1/transactions?page=0&size=10" \
 ok "거래내역 조회"
 
 echo "[smoke] 4/4 외부 연동이 실제 HTTP 를 타는가"
-BEFORE=$(curl -sf "${MOCK}/__admin/requests/count" | python3 -c 'import sys,json; print(json.load(sys.stdin)["count"])')
-curl -sf "${BASE}/api/v1/external/openbanking/accounts" \
-  -H "Authorization: Bearer ${TOKEN}" >/dev/null || true
-AFTER=$(curl -sf "${MOCK}/__admin/requests/count" | python3 -c 'import sys,json; print(json.load(sys.stdin)["count"])')
+# /__admin/requests/count 는 POST 에 조건 본문을 받는다. 단순 집계는 목록의 meta.total 이다.
+mock_request_total() {
+  curl -sf "${MOCK}/__admin/requests" \
+    | python3 -c 'import sys,json; print(json.load(sys.stdin)["meta"]["total"])'
+}
+
+BEFORE=$(mock_request_total)
+# 응답을 삼키면 왜 목에 닿지 않았는지 알 수 없다. 상태와 본문을 남긴다.
+ACCOUNTS_STATUS=$(curl -s -o /tmp/burty-accounts.json -w '%{http_code}' \
+  "${BASE}/api/v1/external/openbanking/accounts" -H "Authorization: Bearer ${TOKEN}" || true)
+echo "  계좌 조회 HTTP ${ACCOUNTS_STATUS}: $(head -c 300 /tmp/burty-accounts.json)"
+AFTER=$(mock_request_total)
 
 if [ "${AFTER}" -le "${BEFORE}" ]; then
+  echo "  목이 받은 요청 (최근 3건):" >&2
+  curl -sf "${MOCK}/__admin/requests?limit=3" \
+    | python3 -c 'import sys,json;[print("   ", r["request"]["method"], r["request"]["url"]) for r in json.load(sys.stdin)["requests"]]' >&2 || true
   fail "외부 목에 요청이 도달하지 않았다 (stub 으로 돌고 있을 수 있다: before=${BEFORE} after=${AFTER})"
 fi
 ok "외부 연동이 실제 HTTP 를 탐 (${BEFORE} → ${AFTER})"
@@ -44,6 +55,6 @@ echo
 echo "[smoke] 통과"
 echo
 echo "다음으로 해볼 것:"
-echo "  실패 시나리오  — 이체 요청에 X-Mock-Scenario: timeout 을 붙여 UNKNOWN 처리를 확인"
+echo "  실패 시나리오  — ./infra/staging/transfer-scenario.sh (금액으로 목 응답을 고른다)"
 echo "  부하 시험      — BURTY_API_RATELIMIT_ENABLED=false 로 재기동 후"
 echo "                   k6 run -e BASE_URL=${BASE} -e TOKEN=\$TOKEN -e PROFILE=full infra/loadtest/burty-load.js"

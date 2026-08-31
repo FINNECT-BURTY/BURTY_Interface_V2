@@ -1,0 +1,78 @@
+name: Staging Smoke
+
+# 스테이징 스택이 실제로 뜨고, 외부 연동이 stub 이 아니라 진짜 HTTP 를 타는지 검증한다.
+#
+# 이 저장소에서 "처음 실행해본 것" 은 매번 깨졌다 — 백업 스크립트에서 결함 세 개,
+# 워크플로에서 여러 개, 레이트리밋 Lua 에서 하나. 스테이징 스택도 지금 그 상태다.
+# 작성만 되어 있고 한 번도 돌아본 적이 없다.
+#
+# 여기서 확인하는 것은 용량이 아니라 **경로가 실제로 도는가** 다.
+
+on:
+  pull_request:
+    paths:
+      - 'docker-compose.staging.yml'
+      - 'infra/staging/**'
+      - 'src/main/resources/application-staging.properties'
+      - '.github/workflows/staging-smoke.yml'
+  schedule:
+    # 매주 월요일 06:00 UTC (KST 15:00) — 백업·부하 리허설 다음
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+jobs:
+  smoke:
+    name: 스테이징 스모크
+    runs-on: ubuntu-latest
+
+    env:
+      DB_PASSWORD: staging-ci-password
+      COMPOSE: docker-compose.staging.yml
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: 스택 기동
+        run: |
+          docker compose -f "$COMPOSE" up -d --build
+
+      - name: 애플리케이션 readiness 대기
+        run: |
+          for i in $(seq 1 90); do
+            if curl -sf http://localhost:8080/actuator/health/readiness > /dev/null; then
+              echo "readiness 통과 (${i}0초 이내)"
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "::error::스테이징 애플리케이션이 뜨지 않았다" >&2
+          docker compose -f "$COMPOSE" logs --tail=200 burty >&2
+          exit 1
+
+      - name: 표본 데이터 적재
+        run: ./infra/staging/seed.sh
+
+      - name: 스모크 (연동이 실제 HTTP 를 타는지)
+        run: ./infra/staging/smoke.sh
+
+      # 이체 실패 시나리오(infra/staging/transfer-scenario.sh)는 여기서 돌리지 않는다.
+      # 오픈뱅킹 연동 기관이 등록된 사용자가 필요한데, 그 연동은 OAuth 링크 흐름을 거쳐야
+      # 만들어진다. SQL 로 흉내내려면 access_token 을 FieldEncryptor 로 암호화해 넣어야 해서
+      # 시딩만으로는 안 된다.
+      #
+      # 지금 상태로 돌리면 이체가 404(미연동)로 거절되고, "2xx 가 아니다" 만 보는 검증은
+      # 그걸 통과시킨다 — 아무것도 확인하지 못하면서 통과하는 검사가 된다. 그런 검사는
+      # 없는 것만 못하므로 넣지 않는다.
+      #
+      # 링크 흐름을 목으로 세우는 것이 다음 단계다 (#45).
+
+      - name: 실패 시 로그
+        if: failure()
+        run: |
+          docker compose -f "$COMPOSE" ps
+          docker compose -f "$COMPOSE" logs --tail=300 burty
+          docker compose -f "$COMPOSE" logs --tail=100 wiremock
+
+      - name: 정리
+        if: always()
+        run: docker compose -f "$COMPOSE" down -v
