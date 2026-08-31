@@ -77,8 +77,9 @@ public class SessionManagementController extends BaseController {
   @DeleteMapping("/{sessionId}")
   @AuthLevel(RiskLevel.LEVEL_2)
   @Operation(summary = "특정 세션 종료", description = "sessionId 로 해당 기기의 세션 하나만 종료합니다.")
-  public ApiResponse<SimpleResultResponse> revoke(@PathVariable String sessionId) {
-    sessionManagementUseCase.revokeSession(sessionId);
+  public ApiResponse<SimpleResultResponse> revoke(
+      @CurrentUserId String userId, @PathVariable String sessionId) {
+    sessionManagementUseCase.revokeSession(userId, sessionId);
     return ApiResponse.ok(new SimpleResultResponse(true, "세션이 만료되었습니다."));
   }
 

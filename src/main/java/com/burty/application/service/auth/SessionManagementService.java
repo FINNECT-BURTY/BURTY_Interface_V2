@@ -63,12 +63,20 @@ public class SessionManagementService implements SessionManagementUseCase {
 
   @Override
   @Transactional
-  public void revokeSession(String sessionId) {
+  public void revokeSession(String userId, String sessionId) {
     UserSessionEntity session =
         userSessionRepository
             .findById(Long.parseLong(sessionId))
             .orElseThrow(
                 () -> new BusinessException(ErrorCode.ENTITY_NOT_FOUND, "해당 세션을 찾을 수 없습니다."));
+
+    // 남의 세션은 끊을 수 없다. 예전에는 sessionId 만으로 끊을 수 있었고, ID 가
+    // auto_increment 라 아무 번호나 넣어 다른 사용자를 반복 로그아웃시킬 수 있었다.
+    // 존재 여부를 알려주지 않도록 소유자가 아니면 "찾을 수 없음" 으로 답한다.
+    if (!session.getUserId().equals(Long.parseLong(userId))) {
+      throw new BusinessException(ErrorCode.ENTITY_NOT_FOUND, "해당 세션을 찾을 수 없습니다.");
+    }
+
     if (session.getRevokedAt() == null) {
       session.setRevokedAt(LocalDateTime.now());
       userSessionRepository.save(session);
