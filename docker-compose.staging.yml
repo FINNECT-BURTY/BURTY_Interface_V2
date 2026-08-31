@@ -1,0 +1,88 @@
+# 스테이징 스택.
+#
+# 목적은 "기능이 되나" 가 아니라 "연동 경로가 실제로 도나" 다.
+#
+# 지금까지 모든 외부 연동이 stub 이었다. stub 은 어댑터가 HTTP 를 아예 타지 않고 가짜 객체를
+# 돌려주므로 직렬화·타임아웃·에러 매핑·서킷브레이커가 전부 검증되지 않는다. 운영에서 문제가
+# 되는 것은 대부분 그 경로다.
+#
+# 여기서는 WireMock 을 향해 실제 HTTP 요청이 나간다. 자격증명은 필요 없다.
+#
+#   docker compose -f docker-compose.staging.yml up -d --build
+#   ./infra/staging/seed.sh          # 부하 시험용 데이터
+#   ./infra/staging/smoke.sh         # 연동 경로가 도는지 확인
+#
+# 실패 시나리오는 헤더로 유발한다 (X-Mock-Scenario: timeout | server-error).
+# 이체 타임아웃이 UNKNOWN 으로 남고 정산 대상이 되는지 여기서 눈으로 확인할 수 있다.
+
+services:
+  mariadb:
+    image: mariadb:11
+    environment:
+      MARIADB_ROOT_PASSWORD: ${DB_PASSWORD:-staging-password}
+      MARIADB_DATABASE: burty
+    ports:
+      - "13306:3306"
+    healthcheck:
+      test: ["CMD", "mariadb-admin", "ping", "-uroot", "-p${DB_PASSWORD:-staging-password}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - staging-db:/var/lib/mysql
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "16379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+
+  # 금융기관 목. 실제 자격증명 없이 실제 HTTP 경로를 타게 한다.
+  wiremock:
+    image: wiremock/wiremock:3.9.1
+    command: ["--global-response-templating", "--verbose"]
+    ports:
+      - "18080:8080"
+    volumes:
+      - ./infra/staging/wiremock:/home/wiremock:ro
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8080/__admin/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+
+  burty:
+    build: .
+    depends_on:
+      mariadb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      wiremock:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: staging
+      DB_HOST: mariadb
+      DB_PASSWORD: ${DB_PASSWORD:-staging-password}
+      REDIS_HOST: redis
+      MOCK_BANK_URL: http://wiremock:8080
+      JWT_SECRET: ${JWT_SECRET:-staging-jwt-secret-long-enough-for-hmac-sha256}
+      BURTY_FIELD_ENCRYPTION_KEY: ${BURTY_FIELD_ENCRYPTION_KEY:-staging-field-encryption-key-32b}
+      APP_BASE_URL: http://localhost:8080
+      # 부하 시험 시 false 로 올린다. 켜둔 채로 측정하면 처리량이 아니라 레이트리밋을 잰다.
+      BURTY_API_RATELIMIT_ENABLED: ${BURTY_API_RATELIMIT_ENABLED:-true}
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8080/actuator/health/readiness"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 60s
+
+volumes:
+  staging-db:

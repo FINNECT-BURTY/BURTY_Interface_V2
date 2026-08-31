@@ -1,0 +1,15 @@
+{
+  "request": { "method": "GET", "urlPath": "/openbanking/v2.0/account/list" },
+  "response": {
+    "status": 200,
+    "headers": { "Content-Type": "application/json" },
+    "jsonBody": {
+      "rsp_code": "A0000",
+      "res_cnt": "2",
+      "res_list": [
+        { "fintech_use_num": "199200001234567890123456", "account_alias": "주거래", "bank_code_std": "004", "bank_name": "국민은행", "account_num_masked": "123456-**-*7890", "account_holder_name": "홍길동" },
+        { "fintech_use_num": "199200009876543210987654", "account_alias": "적금", "bank_code_std": "088", "bank_name": "신한은행", "account_num_masked": "110-***-**4321", "account_holder_name": "홍길동" }
+      ]
+    }
+  }
+}

@@ -80,11 +80,15 @@ dependencies {
     testAnnotationProcessor 'org.projectlombok:lombok'
 }
 
+// 빠른 되먹임용. 스프링 컨텍스트를 띄우지 않는 테스트만 돈다.
+//
+// 예전에는 전체 check 가 18분까지 늘어났다. 그 정도가 되면 사람들이 로컬에서 안 돌리고
+// CI 에 떠넘기게 되는데, 그러면 되먹임이 6분에서 20분으로 늘어난다.
 tasks.named('test') {
     // schema-dump 는 베이스라인 재생성 전용 유틸리티다. 일반 테스트 실행에서는 제외한다.
     // 재생성: ./gradlew schemaDump && python3 tools/generate_baseline.py
     useJUnitPlatform {
-        excludeTags 'schema-dump', 'ci-schema'
+        excludeTags 'schema-dump', 'ci-schema', 'integration'
     }
     // CI 로그만으로 원인을 파악할 수 있게 실패 시 전체 스택트레이스를 남긴다.
     // 스키마 검증 실패는 원인 메시지가 예외 체인 깊숙이 있어 기본 출력으로는 보이지 않는다.
@@ -94,7 +98,33 @@ tasks.named('test') {
         showStackTraces = true
         showCauses = true
     }
-    finalizedBy tasks.named('jacocoTestReport')
+}
+
+/**
+ * 스프링 컨텍스트·Testcontainers 가 필요한 테스트.
+ *
+ * <p>느리지만 이쪽이 진짜를 잡는다 — 이번에 나온 결함 대부분이 여기서 드러났다. 분리하는 것은 안 돌리기 위해서가
+ * 아니라, 빠른 쪽을 자주 돌리게 하기 위해서다. check 는 여전히 둘 다 실행한다.
+ */
+tasks.register('integrationTest', Test) {
+    description = '스프링 컨텍스트가 필요한 통합 테스트를 실행한다.'
+    group = 'verification'
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    useJUnitPlatform {
+        includeTags 'integration'
+    }
+    testLogging {
+        events = ['failed']
+        exceptionFormat = 'full'
+        showStackTraces = true
+        showCauses = true
+    }
+    shouldRunAfter tasks.named('test')
+}
+
+tasks.named('check') {
+    dependsOn tasks.named('integrationTest')
 }
 
 // CI 백업·복구 검증 전용. 애플리케이션의 Flyway 설정과 validate 를 그대로 쓴다.
@@ -133,12 +163,20 @@ jacoco {
     toolVersion = '0.8.12'
 }
 
+// 커버리지는 두 태스크를 합산한다. test 만 보면 통합 테스트가 검증한 부분이 통째로
+// 미커버로 잡혀, 테스트를 나눈 것만으로 수치가 떨어진다.
 tasks.named('jacocoTestReport') {
-    dependsOn tasks.named('test')
+    dependsOn tasks.named('test'), tasks.named('integrationTest')
+    executionData fileTree(layout.buildDirectory.dir('jacoco')).include('*.exec')
     reports {
         xml.required = true
         html.required = true
     }
+}
+
+tasks.named('jacocoTestCoverageVerification') {
+    dependsOn tasks.named('jacocoTestReport')
+    executionData fileTree(layout.buildDirectory.dir('jacoco')).include('*.exec')
 }
 
 // 커버리지 게이트 — 돈/보안 관련 패키지는 별도로 더 높은 기준을 적용한다.

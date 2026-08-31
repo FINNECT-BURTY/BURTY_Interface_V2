@@ -1,0 +1,13 @@
+{
+  "request": { "method": "POST", "urlPath": "/mydata/oauth2/token" },
+  "response": {
+    "status": 200,
+    "headers": { "Content-Type": "application/json" },
+    "jsonBody": {
+      "access_token": "staging-mydata-access-token",
+      "refresh_token": "staging-mydata-refresh-token",
+      "token_type": "Bearer",
+      "expires_in": 3600
+    }
+  }
+}
