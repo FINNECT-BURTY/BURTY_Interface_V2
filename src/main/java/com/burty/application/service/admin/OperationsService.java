@@ -141,11 +141,19 @@ public class OperationsService {
     }
 
     String userId = String.valueOf(order.getUser().getUserId());
+
+    // 확정에 성공했을 때만 이어서 처리한다. 위의 상태 검사는 조회 시점의 것이라,
+    // 정산 배치가 같은 주문을 동시에 집으면 둘 다 통과한다. 그러면 각자 한도를 되돌리게
+    // 되는데, 차감은 한 번인데 복구가 두 번이면 그만큼 한도가 늘어난다.
     if (executed) {
-      orderWriter.markExecuted(orderId, evidence);
+      if (!orderWriter.settleExecuted(orderId, evidence)) {
+        throw new BusinessException(ErrorCode.OPERATION_NOT_ALLOWED, "이미 확정된 이체입니다.");
+      }
       // 출금됐으므로 한도는 그대로 소비된 상태로 둔다.
     } else {
-      orderWriter.markFailed(orderId, "수동 확정: 미출금 (" + evidence + ")");
+      if (!orderWriter.settleFailed(orderId, "수동 확정: 미출금 (" + evidence + ")")) {
+        throw new BusinessException(ErrorCode.OPERATION_NOT_ALLOWED, "이미 확정된 이체입니다.");
+      }
       // 차감한 적이 있을 때만, 차감한 그 날짜로 되돌린다. 날짜를 재계산하면 자정을 걸친
       // 이체에서 다른 행을 가리킨다.
       if (order.getLimitUsageDate() != null) {

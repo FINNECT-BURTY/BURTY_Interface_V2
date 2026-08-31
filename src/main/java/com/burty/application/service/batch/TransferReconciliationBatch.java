@@ -118,7 +118,10 @@ public class TransferReconciliationBatch {
 
     switch (status.outcome()) {
       case COMPLETED -> {
-        orderWriter.markExecuted(candidate.orderId(), status.bankTransactionId());
+        if (!orderWriter.settleExecuted(candidate.orderId(), status.bankTransactionId())) {
+          log.info("정산 건너뜀 — 이미 확정된 주문 orderId={}", candidate.orderId());
+          return;
+        }
         auditLogger.logSuccess(
             candidate.userIdAsString(),
             "TRANSFER_RECONCILED",
@@ -130,7 +133,16 @@ public class TransferReconciliationBatch {
       }
       case REJECTED, NOT_FOUND -> {
         // 출금이 없었음이 확인됐다. 이때만 한도를 되돌린다.
-        orderWriter.markFailed(candidate.orderId(), "정산 결과: " + status.reason());
+        //
+        // 확정에 성공했을 때만 되돌린다. 관리자 수동 확정이 같은 주문을 동시에 집으면 둘 다
+        // 확정하고 각자 한도를 되돌리게 되는데, 차감은 한 번인데 복구가 두 번이면 그만큼
+        // 한도가 늘어난다.
+        boolean settled =
+            orderWriter.settleFailed(candidate.orderId(), "정산 결과: " + status.reason());
+        if (!settled) {
+          log.info("정산 건너뜀 — 이미 확정된 주문 orderId={}", candidate.orderId());
+          return;
+        }
         // 차감한 적이 있을 때만, 차감한 그 날짜로 되돌린다.
         if (candidate.hasLimitReserved()) {
           transferLimitGuard.release(

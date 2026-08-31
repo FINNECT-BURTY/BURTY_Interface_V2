@@ -108,22 +108,53 @@ public class TransferOrderWriter {
 
   @Transactional(propagation = Propagation.REQUIRES_NEW)
   public void markExecuted(Long orderId, String bankTransactionId) {
+    settleExecuted(orderId, bankTransactionId);
+  }
+
+  /**
+   * 출금 완료로 확정한다.
+   *
+   * @return {@code true} 면 이 호출이 확정했다, {@code false} 면 이미 다른 쪽이 확정했다
+   */
+  @Transactional(propagation = Propagation.REQUIRES_NEW)
+  public boolean settleExecuted(Long orderId, String bankTransactionId) {
+    if (transferOrderRepository.settleIfNotTerminal(orderId, TransferOrderEntity.Status.EXECUTED)
+        == 0) {
+      return false;
+    }
     TransferOrderEntity order = load(orderId);
-    order.setStatus(TransferOrderEntity.Status.EXECUTED);
     order.setBankTransactionId(bankTransactionId);
     order.setExecutedAt(LocalDateTime.now(clock));
     order.setFailedReason(null);
-    order.setNextReconcileAt(null);
     publishOutcome(order, "TransferExecuted");
+    return true;
   }
 
   @Transactional(propagation = Propagation.REQUIRES_NEW)
   public void markFailed(Long orderId, String reason) {
+    settleFailed(orderId, reason);
+  }
+
+  /**
+   * 미출금으로 확정한다.
+   *
+   * <p>확정은 한 번만 일어나야 한다. 정산 배치와 관리자 수동 확정이 같은 주문을 동시에 집으면, 조회 후 상태 검사로는 둘 다 통과해 각자 확정하고 <b>각자 한도를
+   * 되돌린다.</b> 차감은 한 번인데 복구가 두 번이면 그만큼 한도가 늘어난다.
+   *
+   * <p>호출자는 반환값이 {@code true} 일 때만 한도를 되돌려야 한다.
+   *
+   * @return {@code true} 면 이 호출이 확정했다, {@code false} 면 이미 다른 쪽이 확정했다
+   */
+  @Transactional(propagation = Propagation.REQUIRES_NEW)
+  public boolean settleFailed(Long orderId, String reason) {
+    if (transferOrderRepository.settleIfNotTerminal(orderId, TransferOrderEntity.Status.FAILED)
+        == 0) {
+      return false;
+    }
     TransferOrderEntity order = load(orderId);
-    order.setStatus(TransferOrderEntity.Status.FAILED);
     order.setFailedReason(truncate(reason));
-    order.setNextReconcileAt(null);
     publishOutcome(order, "TransferFailed");
+    return true;
   }
 
   /** 은행 응답을 확인하지 못한 건. 정산 대상으로 표시한다. */
