@@ -41,6 +41,7 @@ print("" if d is None else d)
 }
 
 # WebAuthn 스텁이 받아들이는 페이로드. 서명은 검증하지 않고 기대값 문자열만 확인한다.
+# 등록은 attestationObject 를, 인증은 signature 를 찾으므로 둘 다 넣는다.
 # (운영에서 이 스텁이 켜져 있으면 기동이 막힌다 — ProdStartupValidator)
 stub_payload() {
   python3 -c '
@@ -52,6 +53,7 @@ inner = json.dumps(
         "origin": sys.argv[2],
         "rpId": sys.argv[3],
         "signature": "staging-stub-signature",
+        "attestationObject": "staging-stub-attestation",
     },
     separators=(",", ":"),
 )
