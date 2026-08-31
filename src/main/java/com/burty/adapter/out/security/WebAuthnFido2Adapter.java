@@ -29,8 +29,10 @@ import com.burty.domain.user.entity.DeviceEntity;
 import com.burty.security.JwtTokenProvider;
 import com.burty.security.WebAuthnAssertionVerifier;
 import java.util.UUID;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
+@Slf4j
 @Component
 public class WebAuthnFido2Adapter implements BiometricAuthPort, WebAuthnCeremonyPort {
 
@@ -186,10 +188,20 @@ public class WebAuthnFido2Adapter implements BiometricAuthPort, WebAuthnCeremony
     return credentialStore.verifyAssertion(userId, assertionToken, properties.getServerSecret());
   }
 
+  /**
+   * 사용자 키.
+   *
+   * <p>자격증명과 기기는 숫자 키로 저장된다. 숫자가 아닌 {@code userId}(데모 세션의 {@code demo-user} 같은)는 여기서 {@code null} 이
+   * 되고, 호출부는 인증 실패로 끝낸다.
+   *
+   * <p>예전에는 그 실패가 조용했다. 화면에는 "인증이 확인되지 않았습니다" 로만 보여서, <b>등록이 애초에 불가능한 것</b>과 인증기가 거부한 것을 구분할 수 없었다.
+   * 실제로 이 때문에 origin 설정 문제를 찾다가 엉뚱한 곳을 뒤졌다. 원인이 검증이 아니라 여기일 때는 그렇다고 남긴다.
+   */
   private Long parseUserKey(String value) {
     try {
       return Long.parseLong(value);
     } catch (Exception e) {
+      log.warn("숫자가 아닌 userId 라 자격증명을 찾을 수 없다 — {}. 이 계정은 패스키를 등록할 수 없다.", value);
       return null;
     }
   }
