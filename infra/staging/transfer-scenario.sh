@@ -24,12 +24,21 @@ USER_ID="${USER_ID:-1}"
 
 fail() { echo "  ✗ $1" >&2; exit 1; }
 ok()   { echo "  ✓ $1"; }
-json() { python3 -c "import sys,json;d=json.load(sys.stdin);print(eval('d'+'$1'))"; }
+# 중첩 따옴표를 피하려고 키 경로를 인자로 받아 순회한다.
+json() {
+  python3 -c '
+import sys, json
+d = json.load(sys.stdin)
+for k in sys.argv[1:]:
+    d = d.get(k) if isinstance(d, dict) else None
+print("" if d is None else d)
+' "$@"
+}
 
 echo "[scenario] 토큰 발급"
 TOKEN=$(curl -sf -XPOST "${BASE}/api/v1/auth/token" \
   -H 'Content-Type: application/json' -d "{\"userId\":\"${USER_ID}\"}" \
-  | json "['data']['accessToken']")
+  | json data accessToken)
 [ -n "${TOKEN}" ] || fail "토큰 발급 실패"
 
 # LEVEL_3 증명을 받는다. 스테이징은 WebAuthn 스텁이라 서명 없이 통과한다.
@@ -37,7 +46,7 @@ TOKEN=$(curl -sf -XPOST "${BASE}/api/v1/auth/token" \
 echo "[scenario] 단계 인증 (WebAuthn 스텁)"
 CHALLENGE_ID=$(curl -sf -XPOST "${BASE}/api/v1/security/webauthn/authenticate/begin" \
   -H "Authorization: Bearer ${TOKEN}" -H 'Content-Type: application/json' -d '{}' \
-  | json "['data']['challengeId']")
+  | json data challengeId)
 [ -n "${CHALLENGE_ID}" ] || fail "챌린지 발급 실패"
 
 PAYLOAD=$(python3 - "$CHALLENGE_ID" <<'PY'
@@ -53,8 +62,8 @@ PY
 RISK_PROOF=$(curl -sf -XPOST "${BASE}/api/v1/security/webauthn/authenticate/finish" \
   -H "Authorization: Bearer ${TOKEN}" -H 'Content-Type: application/json' \
   -d "{\"challengeId\":\"${CHALLENGE_ID}\",\"payload\":${PAYLOAD}}" \
-  | json "['data']['riskProof']")
-[ -n "${RISK_PROOF}" ] && [ "${RISK_PROOF}" != "None" ] || fail "LEVEL_3 증명 발급 실패"
+  | json data riskProof)
+[ -n "${RISK_PROOF}" ] || fail "LEVEL_3 증명 발급 실패"
 ok "단계 인증 통과"
 
 transfer() {

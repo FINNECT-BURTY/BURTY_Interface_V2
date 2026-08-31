@@ -55,6 +55,6 @@ echo
 echo "[smoke] 통과"
 echo
 echo "다음으로 해볼 것:"
-echo "  실패 시나리오  — 이체 요청에 X-Mock-Scenario: timeout 을 붙여 UNKNOWN 처리를 확인"
+echo "  실패 시나리오  — ./infra/staging/transfer-scenario.sh (금액으로 목 응답을 고른다)"
 echo "  부하 시험      — BURTY_API_RATELIMIT_ENABLED=false 로 재기동 후"
 echo "                   k6 run -e BASE_URL=${BASE} -e TOKEN=\$TOKEN -e PROFILE=full infra/loadtest/burty-load.js"
