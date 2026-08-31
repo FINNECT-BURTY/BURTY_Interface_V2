@@ -49,4 +49,9 @@ public class RedisChallengeStore implements ChallengeStore {
   public void remove(String key) {
     redisTemplate.delete("burty:challenge:" + key);
   }
+
+  @Override
+  public boolean consume(String key) {
+    return Boolean.TRUE.equals(redisTemplate.delete("burty:challenge:" + key));
+  }
 }

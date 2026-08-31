@@ -73,6 +73,12 @@ public class WebAuthnFido2Adapter implements BiometricAuthPort, WebAuthnCeremony
     if (session == null) {
       return false;
     }
+    // 챌린지는 검증 결과와 무관하게 한 번만 쓸 수 있어야 한다. 성공했을 때만 지우면
+    // 실패한 시도가 챌린지를 남겨, TTL 이 다할 때까지 같은 챌린지로 몇 번이든 다시 시도할 수 있다.
+    // 선점에 실패했다는 것은 다른 요청이 먼저 소비했다는 뜻이다.
+    if (!challengeStore.consume(challengeId)) {
+      return false;
+    }
     String[] split = session.split("\\|");
     if (split.length != 2) {
       return false;
@@ -111,7 +117,6 @@ public class WebAuthnFido2Adapter implements BiometricAuthPort, WebAuthnCeremony
         credentialStore.updateAfterAuthentication(userKey, result);
       }
     }
-    challengeStore.remove(challengeId);
     return true;
   }
 
