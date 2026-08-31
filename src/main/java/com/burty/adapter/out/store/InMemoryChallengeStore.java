@@ -55,6 +55,11 @@ public class InMemoryChallengeStore implements ChallengeStore {
     store.remove(key);
   }
 
+  @Override
+  public boolean consume(String key) {
+    return store.remove(key) != null;
+  }
+
   private static class Entry {
     private final String value;
     private final LocalDateTime expireAt;

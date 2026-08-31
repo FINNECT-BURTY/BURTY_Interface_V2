@@ -1,0 +1,12 @@
+{
+  "priority": 1,
+  "request": {
+    "method": "POST",
+    "urlPath": "/openbanking/v2.0/transfer/withdraw",
+    "headers": { "X-Mock-Scenario": { "equalTo": "timeout" } }
+  },
+  "response": {
+    "status": 200,
+    "fixedDelayMilliseconds": 30000
+  }
+}

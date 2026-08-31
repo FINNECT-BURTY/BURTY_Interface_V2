@@ -1,0 +1,19 @@
+{
+  "priority": 5,
+  "request": {
+    "method": "POST",
+    "urlPath": "/openbanking/v2.0/transfer/withdraw"
+  },
+  "response": {
+    "status": 200,
+    "headers": { "Content-Type": "application/json" },
+    "jsonBody": {
+      "rsp_code": "A0000",
+      "rsp_message": "",
+      "api_tran_id": "{{randomValue type='UUID'}}",
+      "bank_tran_id": "{{jsonPath request.body '$.bankTranId'}}",
+      "bank_tran_date": "{{now format='yyyyMMdd'}}"
+    },
+    "transformers": ["response-template"]
+  }
+}
