@@ -3,7 +3,7 @@
   "request": {
     "method": "POST",
     "urlPath": "/openbanking/v2.0/transfer/withdraw",
-    "headers": { "X-Mock-Scenario": { "equalTo": "timeout" } }
+    "bodyPatterns": [ { "matchesJsonPath": "$[?(@.amount == 99999)]" } ]
   },
   "response": {
     "status": 200,
