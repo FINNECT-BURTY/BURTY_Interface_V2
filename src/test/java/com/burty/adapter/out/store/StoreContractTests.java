@@ -199,6 +199,27 @@ class StoreContractTests {
 
       assertNull(store.get(key), "TTL 이 지났는데도 남아 있다");
     }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("implementations")
+    @DisplayName("선점은 한 번만 성공한다")
+    void consumeClaimsOnce(String name, Supplier<ChallengeStore> factory) {
+      ChallengeStore store = factory.get();
+      String key = key();
+      store.put(key, "user-1|AUTHENTICATION", 60L);
+
+      // 챌린지가 두 번 선점되면 같은 챌린지로 두 번 인증할 수 있다.
+      assertTrue(store.consume(key), "첫 선점이 실패했다");
+      assertFalse(store.consume(key), "이미 소비한 챌린지를 다시 선점했다");
+      assertNull(store.get(key));
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("implementations")
+    @DisplayName("없는 챌린지는 선점되지 않는다")
+    void consumeMissingKeyFails(String name, Supplier<ChallengeStore> factory) {
+      assertFalse(factory.get().consume(key()));
+    }
   }
 
   @Nested
