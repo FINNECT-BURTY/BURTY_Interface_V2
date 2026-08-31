@@ -26,7 +26,13 @@ public interface ConsentManagementUseCase {
 
   List<ConsentResponse> listConsents(String userId);
 
-  void revokeConsent(String consentId, String reason);
+  /**
+   * 동의를 철회한다.
+   *
+   * <p>{@code userId} 를 함께 받는다. 동의 ID 만으로 철회하면 남의 동의 이력도 철회할 수 있다. 동의는 규제 기록이라 남의 것을 건드리면 그 사용자의
+   * 데이터 처리 근거가 사라지고 감사 추적도 어긋난다.
+   */
+  void revokeConsent(String userId, String consentId, String reason);
 
   void unlinkSocial(String userId, String provider);
 

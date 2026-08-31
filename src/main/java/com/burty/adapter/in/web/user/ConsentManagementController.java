@@ -54,8 +54,10 @@ public class ConsentManagementController extends BaseController {
   @AuthLevel(RiskLevel.LEVEL_3)
   @Operation(summary = "동의 철회", description = "동의 이력을 철회 처리합니다.")
   public ApiResponse<SimpleResultResponse> revokeConsent(
-      @PathVariable String consentId, @RequestParam(required = false) String reason) {
-    consentManagementUseCase.revokeConsent(consentId, reason);
+      @CurrentUserId String userId,
+      @PathVariable String consentId,
+      @RequestParam(required = false) String reason) {
+    consentManagementUseCase.revokeConsent(userId, consentId, reason);
     return ApiResponse.ok(new SimpleResultResponse(true, "동의가 철회되었습니다."));
   }
 
