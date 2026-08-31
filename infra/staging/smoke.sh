@@ -37,11 +37,16 @@ mock_request_total() {
 }
 
 BEFORE=$(mock_request_total)
-curl -sf "${BASE}/api/v1/external/openbanking/accounts" \
-  -H "Authorization: Bearer ${TOKEN}" >/dev/null || true
+# 응답을 삼키면 왜 목에 닿지 않았는지 알 수 없다. 상태와 본문을 남긴다.
+ACCOUNTS_STATUS=$(curl -s -o /tmp/burty-accounts.json -w '%{http_code}' \
+  "${BASE}/api/v1/external/openbanking/accounts" -H "Authorization: Bearer ${TOKEN}" || true)
+echo "  계좌 조회 HTTP ${ACCOUNTS_STATUS}: $(head -c 300 /tmp/burty-accounts.json)"
 AFTER=$(mock_request_total)
 
 if [ "${AFTER}" -le "${BEFORE}" ]; then
+  echo "  목이 받은 요청 (최근 3건):" >&2
+  curl -sf "${MOCK}/__admin/requests?limit=3" \
+    | python3 -c 'import sys,json;[print("   ", r["request"]["method"], r["request"]["url"]) for r in json.load(sys.stdin)["requests"]]' >&2 || true
   fail "외부 목에 요청이 도달하지 않았다 (stub 으로 돌고 있을 수 있다: before=${BEFORE} after=${AFTER})"
 fi
 ok "외부 연동이 실제 HTTP 를 탐 (${BEFORE} → ${AFTER})"
