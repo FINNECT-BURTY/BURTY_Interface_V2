@@ -8,6 +8,7 @@ import java.util.Optional;
 import org.springframework.data.domain.Limit;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -67,4 +68,23 @@ public interface TransferOrderRepository extends JpaRepository<TransferOrderEnti
 
   /** 건수만 필요할 때. 전체를 적재해 size() 를 세지 않기 위함이다. */
   long countByUser_UserId(Long userId);
+
+  /**
+   * 아직 확정되지 않은 주문만 종결 상태로 바꾸고, 실제로 바꾼 행 수를 돌려준다.
+   *
+   * <p>확정은 <b>한 번만</b> 일어나야 한다. 정산 배치와 관리자 수동 확정이 같은 주문을 동시에 집으면, 조회 후 상태 검사로는 둘 다 통과해 각자 확정하고
+   * <b>각자 한도를 되돌린다.</b> 차감은 한 번인데 복구가 두 번이면 그만큼 한도가 늘어난다.
+   *
+   * @return 1 이면 이 호출이 확정했다, 0 이면 이미 다른 쪽이 확정했다
+   */
+  @Modifying(clearAutomatically = true)
+  @Query(
+      "update TransferOrderEntity o set o.status = :status, o.nextReconcileAt = null"
+          + " where o.orderId = :orderId"
+          + " and o.status not in (com.burty.domain.finance.entity.TransferOrderEntity.Status.EXECUTED,"
+          + " com.burty.domain.finance.entity.TransferOrderEntity.Status.FAILED,"
+          + " com.burty.domain.finance.entity.TransferOrderEntity.Status.CANCELLED,"
+          + " com.burty.domain.finance.entity.TransferOrderEntity.Status.REVERSED)")
+  int settleIfNotTerminal(
+      @Param("orderId") Long orderId, @Param("status") TransferOrderEntity.Status status);
 }
