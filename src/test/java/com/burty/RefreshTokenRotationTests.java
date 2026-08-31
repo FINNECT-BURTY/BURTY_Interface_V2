@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.burty.application.service.auth.SessionManagementService;
 import com.burty.core.exception.BusinessException;
 import com.burty.domain.auth.repository.UserSessionRepository;
 import com.burty.domain.user.entity.UserEntity;
@@ -47,6 +48,7 @@ class RefreshTokenRotationTests extends IntegrationTestBase {
   @Autowired private UserSessionRepository sessionRepository;
   @Autowired private UserRepository userRepository;
   @Autowired private TransactionTemplate transactionTemplate;
+  @Autowired private SessionManagementService sessionManagementService;
 
   private Long userId;
 
@@ -154,6 +156,36 @@ class RefreshTokenRotationTests extends IntegrationTestBase {
   private int revokeInOwnTransaction(Long sessionId) {
     return transactionTemplate.execute(
         status -> sessionRepository.revokeIfActive(sessionId, LocalDateTime.now()));
+  }
+
+  @Test
+  @DisplayName("남의 세션은 종료할 수 없다")
+  void cannotRevokeAnotherUsersSession() {
+    RefreshTokenService.TokenPair victim =
+        refreshTokenService.issueNewSession(String.valueOf(userId), "victim-device");
+    Long victimSessionId =
+        sessionRepository.findByUserIdAndRevokedAtIsNull(userId).get(0).getSessionId();
+
+    // 세션 ID 는 auto_increment 라 열거하기 쉽다. 소유자 확인이 없으면 아무 번호나 넣어
+    // 다른 사용자를 반복 로그아웃시킬 수 있다.
+    assertThrows(
+        BusinessException.class,
+        () -> sessionManagementService.revokeSession("999999", String.valueOf(victimSessionId)),
+        "남의 세션을 종료할 수 있다");
+
+    assertEquals(1, activeSessionCount(), "피해자 세션이 끊겼다");
+    assertNotNull(victim.refreshToken());
+  }
+
+  @Test
+  @DisplayName("자기 세션은 종료할 수 있다")
+  void canRevokeOwnSession() {
+    refreshTokenService.issueNewSession(String.valueOf(userId), "my-device");
+    Long sessionId = sessionRepository.findByUserIdAndRevokedAtIsNull(userId).get(0).getSessionId();
+
+    sessionManagementService.revokeSession(String.valueOf(userId), String.valueOf(sessionId));
+
+    assertEquals(0, activeSessionCount());
   }
 
   private long activeSessionCount() {

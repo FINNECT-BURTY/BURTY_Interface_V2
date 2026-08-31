@@ -53,12 +53,20 @@ public class ConsentManagementService implements ConsentManagementUseCase {
 
   @Override
   @Transactional
-  public void revokeConsent(String consentId, String reason) {
+  public void revokeConsent(String userId, String consentId, String reason) {
     ConsentRecordEntity entity =
         consentRecordRepository
             .findById(Long.parseLong(consentId))
             .orElseThrow(
                 () -> new BusinessException(ErrorCode.ENTITY_NOT_FOUND, "동의 이력을 찾을 수 없습니다."));
+
+    // 남의 동의는 철회할 수 없다. 예전에는 consentId 만으로 철회할 수 있었다.
+    // 동의는 규제 기록이라 남의 것을 건드리면 그 사용자의 데이터 처리 근거가 사라진다.
+    // 존재 여부를 알려주지 않도록 소유자가 아니면 "찾을 수 없음" 으로 답한다.
+    if (!entity.getUser().getUserId().equals(Long.parseLong(userId))) {
+      throw new BusinessException(ErrorCode.ENTITY_NOT_FOUND, "동의 이력을 찾을 수 없습니다.");
+    }
+
     entity.setRevokedAt(LocalDateTime.now());
     entity.setRevokeReason(reason == null ? "USER_REQUEST" : reason);
     consentRecordRepository.save(entity);
