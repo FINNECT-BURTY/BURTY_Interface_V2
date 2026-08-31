@@ -255,12 +255,12 @@ docker compose -f docker-compose.staging.yml up -d --build
 ./infra/staging/transfer-scenario.sh
 ```
 
-**전제조건** — 사용자에게 오픈뱅킹 연동 기관이 등록돼 있어야 한다. 없으면 이체가
-404(미연동)로 거절되고 아무것도 확인하지 못한다. 연동은 OAuth 링크 흐름을 거쳐야
-만들어진다 (SQL 시딩으로는 `access_token` 암호화 때문에 안 된다).
+스크립트가 오픈뱅킹 연동(OAuth 링크)부터 만든다. SQL 시딩으로는 `access_token` 이
+`FieldEncryptor` 로 암호화돼 있어야 해서 흉내낼 수 없고, 링크 흐름을 거쳐야 제대로 만들어진다.
+토큰 교환은 WireMock 이 받는다.
 
-이 전제 때문에 CI 스모크에는 이 단계가 빠져 있다. 링크 흐름을 목으로 세우는 것이
-다음 단계다.
+CI 스모크가 같은 스크립트를 돌리고, 이어서 DB 에서 `UNKNOWN`(정산 대상)과
+`FAILED`(확정 실패)가 각각 남았는지 확인한다.
 
 `GET /api/v1/admin/transfers/pending-reconciliation` 으로 정산 대기 건을 확인한다.
 
