@@ -1,0 +1,13 @@
+{
+  "priority": 1,
+  "request": {
+    "method": "POST",
+    "urlPath": "/openbanking/v2.0/transfer/withdraw",
+    "headers": { "X-Mock-Scenario": { "equalTo": "server-error" } }
+  },
+  "response": {
+    "status": 503,
+    "headers": { "Content-Type": "application/json" },
+    "jsonBody": { "rsp_code": "O0001", "rsp_message": "일시적 오류" }
+  }
+}

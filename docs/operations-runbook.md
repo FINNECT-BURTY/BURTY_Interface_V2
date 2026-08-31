@@ -221,6 +221,54 @@ GET /api/v1/admin/observability/embed/dashboard?uid=burty-logs
 
 
 
+## 스테이징
+
+목적은 "기능이 되나" 가 아니라 **"연동 경로가 실제로 도나"** 다.
+
+지금까지 모든 외부 연동이 stub 이었다. stub 은 어댑터가 HTTP 를 아예 타지 않고 가짜
+객체를 돌려주므로 **직렬화·타임아웃·에러 매핑·서킷브레이커가 전부 검증되지 않는다.**
+운영에서 문제가 되는 것은 대부분 그 경로다.
+
+스테이징은 WireMock 을 향해 실제 HTTP 를 낸다. 금융기관 자격증명은 필요 없다.
+
+```bash
+docker compose -f docker-compose.staging.yml up -d --build
+./infra/staging/seed.sh     # 거래 5만 건
+./infra/staging/smoke.sh    # 연동이 실제 HTTP 를 타는지 확인
+```
+
+`smoke.sh` 는 WireMock 의 요청 카운터가 늘어나는지로 판정한다. 늘지 않으면 stub 으로
+돌고 있다는 뜻이므로 실패로 처리한다.
+
+### 실패 시나리오 재현
+
+이체 요청에 헤더를 붙이면 목이 그렇게 응답한다.
+
+| 헤더 | 결과 | 기대 동작 |
+|---|---|---|
+| `X-Mock-Scenario: timeout` | 30초 지연 | 주문이 `UNKNOWN` 으로 남고 정산 대상이 된다. **한도를 되돌리지 않는다.** |
+| `X-Mock-Scenario: server-error` | 503 | 위와 같다 (처리 중이었을 수 있다) |
+| (없음) | 200 | 정상 완료 |
+
+`GET /api/v1/admin/transfers/pending-reconciliation` 으로 정산 대기 건을 확인한다.
+
+### 부하 시험
+
+레이트리밋을 끄고 재기동해야 처리량을 잴 수 있다. 켜둔 채로 측정하면 애플리케이션이
+아니라 레이트리밋 설정을 재게 된다.
+
+```bash
+BURTY_API_RATELIMIT_ENABLED=false docker compose -f docker-compose.staging.yml up -d burty
+k6 run -e BASE_URL=http://localhost:8080 -e TOKEN=$TOKEN -e PROFILE=full \
+  infra/loadtest/burty-load.js
+```
+
+측정값은 `infra/loadtest/README.md` 의 표에 근거와 함께 채운다.
+
+### 스테이징에서 하지 않는 것
+
+알림(이메일·SMS·푸시)과 소셜 로그인은 stub 으로 둔다. 실제 발송은 사람에게 도달한다.
+
 ## prod 필수 env
 
 `ProdStartupValidator` 가 아래 조건을 하나라도 어기면 **기동을 중단한다.** 검증은 웹 서버가
