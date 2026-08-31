@@ -7,6 +7,10 @@
 # 단위 테스트는 예외 매핑까지만 확인한다. 컨트롤러 → 서비스 → 어댑터 → 은행 을
 # 전부 통과시켜야 실제로 그렇게 도는지 알 수 있다.
 #
+# 전제조건: 사용자에게 오픈뱅킹 연동 기관이 등록돼 있어야 한다.
+#   없으면 이체가 404(미연동)로 거절되고 이 스크립트는 아무것도 확인하지 못한다.
+#   연동은 OAuth 링크 흐름을 거쳐야 만들어진다 (SQL 시딩으로는 access_token 암호화 때문에 안 된다).
+#
 # 사용:
 #   ./infra/staging/transfer-scenario.sh
 #   AMOUNT=99999 ./infra/staging/transfer-scenario.sh   # 한 건만
@@ -118,10 +122,14 @@ fi
 
 echo "[scenario] 은행 타임아웃 — 결과를 알 수 없다"
 STATUS=$(transfer 99999 "타임아웃")
+CODE=$(json errorCode < /tmp/burty-transfer.json)
 if [ "${STATUS}" -ge 200 ] && [ "${STATUS}" -lt 300 ]; then
   fail "은행 응답을 받지 못했는데 성공으로 응답했다"
 fi
-ok "성공으로 확정하지 않음"
+# 거절 이유가 무엇이든 2xx 만 아니면 통과시키면, 미연동(404) 같은 무관한 실패도 통과한다.
+# 결과 불명(9000)인지까지 확인해야 실제로 그 경로를 지났다고 말할 수 있다.
+[ "${CODE}" = "9000" ] || fail "결과 불명(9000)이 아니라 ${CODE} 로 거절됐다 — 이 경로를 지나지 않았다"
+ok "결과 불명으로 처리 (errorCode=9000)"
 
 echo "[scenario] 은행 5xx — 처리 중이었을 수 있다"
 STATUS=$(transfer 88888 "서버 오류")
