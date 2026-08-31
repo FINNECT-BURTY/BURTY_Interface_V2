@@ -44,10 +44,10 @@ TOKEN=$(curl -sf -XPOST "${BASE}/api/v1/auth/token" \
 # LEVEL_3 증명을 받는다. 스테이징은 WebAuthn 스텁이라 서명 없이 통과한다.
 # (운영에서는 이 스텁이 켜져 있으면 기동이 막힌다 — ProdStartupValidator)
 echo "[scenario] 단계 인증 (WebAuthn 스텁)"
-CHALLENGE_ID=$(curl -sf -XPOST "${BASE}/api/v1/security/webauthn/authenticate/begin" \
-  -H "Authorization: Bearer ${TOKEN}" -H 'Content-Type: application/json' -d '{}' \
-  | json data challengeId)
-[ -n "${CHALLENGE_ID}" ] || fail "챌린지 발급 실패"
+BEGIN_RESP=$(curl -s -XPOST "${BASE}/api/v1/security/webauthn/authenticate/begin" \
+  -H "Authorization: Bearer ${TOKEN}" -H 'Content-Type: application/json' -d '{}')
+CHALLENGE_ID=$(printf '%s' "${BEGIN_RESP}" | json data challengeId)
+[ -n "${CHALLENGE_ID}" ] || fail "챌린지 발급 실패: ${BEGIN_RESP}"
 
 PAYLOAD=$(python3 - "$CHALLENGE_ID" <<'PY'
 import json, sys
@@ -59,11 +59,11 @@ print(json.dumps(json.dumps({
 })))
 PY
 )
-RISK_PROOF=$(curl -sf -XPOST "${BASE}/api/v1/security/webauthn/authenticate/finish" \
+FINISH_RESP=$(curl -s -XPOST "${BASE}/api/v1/security/webauthn/authenticate/finish" \
   -H "Authorization: Bearer ${TOKEN}" -H 'Content-Type: application/json' \
-  -d "{\"challengeId\":\"${CHALLENGE_ID}\",\"payload\":${PAYLOAD}}" \
-  | json data riskProof)
-[ -n "${RISK_PROOF}" ] || fail "LEVEL_3 증명 발급 실패"
+  -d "{\"challengeId\":\"${CHALLENGE_ID}\",\"payload\":${PAYLOAD}}")
+RISK_PROOF=$(printf '%s' "${FINISH_RESP}" | json data riskProof)
+[ -n "${RISK_PROOF}" ] || fail "LEVEL_3 증명 발급 실패: ${FINISH_RESP}"
 ok "단계 인증 통과"
 
 transfer() {
