@@ -23,7 +23,9 @@ set -euo pipefail
 
 BASE="${BASE_URL:-http://localhost:8080}"
 USER_ID="${USER_ID:-1}"
-ORIGIN="${WEBAUTHN_ORIGIN:-http://localhost:8080}"
+# WebAuthn origin 은 백엔드 주소가 아니라 프론트엔드 origin 이다 (브라우저가 clientDataJSON 에
+# 넣는 값과 비교된다). 스테이징 설정의 기본값과 같아야 스텁 검증을 통과한다.
+ORIGIN="${WEBAUTHN_ORIGIN:-http://localhost:3000}"
 RP_ID="${WEBAUTHN_RP_ID:-localhost}"
 # 이체는 assertionToken 을 따로 검증한다 (webauthn:<HMAC>).
 # 스텁 등록이 남기는 자격증명 ID 는 "cred-raw" 로 고정이다.
