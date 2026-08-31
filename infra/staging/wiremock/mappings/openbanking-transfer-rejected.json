@@ -3,11 +3,11 @@
   "request": {
     "method": "POST",
     "urlPath": "/openbanking/v2.0/transfer/withdraw",
-    "bodyPatterns": [ { "matchesJsonPath": "$[?(@.amount == 88888)]" } ]
+    "bodyPatterns": [ { "matchesJsonPath": "$[?(@.amount == 77777)]" } ]
   },
   "response": {
-    "status": 503,
+    "status": 400,
     "headers": { "Content-Type": "application/json" },
-    "jsonBody": { "rsp_code": "O0001", "rsp_message": "일시적 오류" }
+    "jsonBody": { "rsp_code": "A0013", "rsp_message": "출금계좌 잔액 부족" }
   }
 }
