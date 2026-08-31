@@ -97,11 +97,15 @@ public class JpaOAuthStateStore implements OAuthStateStore {
     }
     OAuthStateEntity entity = maybe.get();
     String frontendOrigin = entity.getFrontendOrigin();
-    // 검증 결과와 무관하게 단발성 — 삭제 먼저 (replay 방지)
-    try {
-      repository.deleteById(key);
-    } catch (Exception e) {
-      log.warn("OAuthStateStore: delete after verify failed key={}", key, e);
+
+    // state 는 한 번만 쓸 수 있어야 콜백 replay 를 막는다. 조회 후 삭제로는 보장되지 않는다 —
+    // 같은 state 로 두 콜백이 동시에 들어오면 둘 다 조회에 성공해 둘 다 통과한다.
+    // 삭제 결과로 선점 여부를 판정한다. 0 이면 이미 다른 호출이 소비했다는 뜻이다.
+    //
+    // 예전에는 삭제 실패를 warn 으로 삼키고 그대로 성공 처리했다. 그러면 지워지지 않은 state 로
+    // 몇 번이든 다시 들어올 수 있어 replay 방지가 사실상 없는 것과 같았다.
+    if (repository.consume(key) == 0) {
+      throw new IllegalStateException("OAuth state가 유효하지 않거나 만료되었습니다.");
     }
     if (entity.getExpiresAt().isBefore(now())) {
       throw new IllegalStateException("OAuth state가 유효하지 않거나 만료되었습니다.");
