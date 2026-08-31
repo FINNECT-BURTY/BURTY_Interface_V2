@@ -25,6 +25,10 @@ BASE="${BASE_URL:-http://localhost:8080}"
 USER_ID="${USER_ID:-1}"
 ORIGIN="${WEBAUTHN_ORIGIN:-http://localhost:8080}"
 RP_ID="${WEBAUTHN_RP_ID:-localhost}"
+# 이체는 assertionToken 을 따로 검증한다 (webauthn:<HMAC>).
+# 스텁 등록이 남기는 자격증명 ID 는 "cred-raw" 로 고정이다.
+SERVER_SECRET="${WEBAUTHN_SERVER_SECRET:-change-me-webauthn-secret}"
+STUB_CREDENTIAL_ID="${WEBAUTHN_STUB_CREDENTIAL_ID:-cred-raw}"
 
 fail() { echo "  ✗ $1" >&2; exit 1; }
 ok()   { echo "  ✓ $1"; }
@@ -59,6 +63,17 @@ inner = json.dumps(
 )
 print(json.dumps(inner))
 ' "$1" "$ORIGIN" "$RP_ID"
+}
+
+# 이체 직전 생체인증 확인용 토큰. HMAC-SHA256(서버 시크릿, "<userId>:<자격증명ID>") 을
+# base64url(패딩 없음) 로 인코딩한 값이다. 스텁 모드에서만 이렇게 만들 수 있다.
+assertion_token() {
+  python3 -c '
+import base64, hashlib, hmac, sys
+raw = (sys.argv[1] + ":" + sys.argv[2]).encode()
+mac = hmac.new(sys.argv[3].encode(), raw, hashlib.sha256).digest()
+print("webauthn:" + base64.urlsafe_b64encode(mac).decode().rstrip("="))
+' "$1" "$STUB_CREDENTIAL_ID" "$SERVER_SECRET"
 }
 
 echo "[scenario] 토큰 발급"
@@ -106,12 +121,14 @@ RISK_PROOF=$(printf '%s' "${FINISH_RESP}" | json data riskProof)
 [ -n "${RISK_PROOF}" ] || fail "LEVEL_3 증명 발급 실패: ${FINISH_RESP}"
 ok "단계 인증 통과"
 
+ASSERTION_TOKEN=$(assertion_token "${USER_ID}")
+
 transfer() {
   local amount="$1" label="$2"
   local key status body
   key="scenario-$(date +%s%N)"
-  body=$(printf '{"fromAccount":"1234567890","toAccount":"9876543210","amount":%s,"description":"staging","assertionToken":"staging","idempotencyKey":"%s"}' \
-    "${amount}" "${key}")
+  body=$(printf '{"fromAccount":"1234567890","toAccount":"9876543210","amount":%s,"description":"staging","assertionToken":"%s","idempotencyKey":"%s"}' \
+    "${amount}" "${ASSERTION_TOKEN}" "${key}")
   status=$(curl -s -o /tmp/burty-transfer.json -w '%{http_code}' \
     -XPOST "${BASE}/api/v1/transfers" \
     -H "Authorization: Bearer ${TOKEN}" \
