@@ -7,10 +7,6 @@
 # 단위 테스트는 예외 매핑까지만 확인한다. 컨트롤러 → 서비스 → 어댑터 → 은행 을
 # 전부 통과시켜야 실제로 그렇게 도는지 알 수 있다.
 #
-# 전제조건: 사용자에게 오픈뱅킹 연동 기관이 등록돼 있어야 한다.
-#   없으면 이체가 404(미연동)로 거절되고 이 스크립트는 아무것도 확인하지 못한다.
-#   연동은 OAuth 링크 흐름을 거쳐야 만들어진다 (SQL 시딩으로는 access_token 암호화 때문에 안 된다).
-#
 # 사용:
 #   ./infra/staging/transfer-scenario.sh
 #   AMOUNT=99999 ./infra/staging/transfer-scenario.sh   # 한 건만
@@ -29,6 +25,10 @@ BASE="${BASE_URL:-http://localhost:8080}"
 USER_ID="${USER_ID:-1}"
 ORIGIN="${WEBAUTHN_ORIGIN:-http://localhost:8080}"
 RP_ID="${WEBAUTHN_RP_ID:-localhost}"
+# 이체는 assertionToken 을 따로 검증한다 (webauthn:<HMAC>).
+# 스텁 등록이 남기는 자격증명 ID 는 "cred-raw" 로 고정이다.
+SERVER_SECRET="${WEBAUTHN_SERVER_SECRET:-change-me-webauthn-secret}"
+STUB_CREDENTIAL_ID="${WEBAUTHN_STUB_CREDENTIAL_ID:-cred-raw}"
 
 fail() { echo "  ✗ $1" >&2; exit 1; }
 ok()   { echo "  ✓ $1"; }
@@ -65,11 +65,32 @@ print(json.dumps(inner))
 ' "$1" "$ORIGIN" "$RP_ID"
 }
 
+# 이체 직전 생체인증 확인용 토큰. HMAC-SHA256(서버 시크릿, "<userId>:<자격증명ID>") 을
+# base64url(패딩 없음) 로 인코딩한 값이다. 스텁 모드에서만 이렇게 만들 수 있다.
+assertion_token() {
+  python3 -c '
+import base64, hashlib, hmac, sys
+raw = (sys.argv[1] + ":" + sys.argv[2]).encode()
+mac = hmac.new(sys.argv[3].encode(), raw, hashlib.sha256).digest()
+print("webauthn:" + base64.urlsafe_b64encode(mac).decode().rstrip("="))
+' "$1" "$STUB_CREDENTIAL_ID" "$SERVER_SECRET"
+}
+
 echo "[scenario] 토큰 발급"
 TOKEN=$(curl -sf -XPOST "${BASE}/api/v1/auth/token" \
   -H 'Content-Type: application/json' -d "{\"userId\":\"${USER_ID}\"}" \
   | json data accessToken)
 [ -n "${TOKEN}" ] || fail "토큰 발급 실패"
+
+# 이체는 오픈뱅킹 연동 기관이 있어야 한다. 링크 흐름을 거쳐 만든다 —
+# SQL 시딩으로는 access_token 이 FieldEncryptor 로 암호화돼 있어야 해서 흉내낼 수 없다.
+echo "[scenario] 오픈뱅킹 연동"
+LINK_RESP=$(curl -s -XPOST "${BASE}/api/v1/external/openbanking/oauth/callback?code=staging-auth-code" \
+  -H "Authorization: Bearer ${TOKEN}")
+# 응답은 {"flag":"linked","value":true} 형태다.
+LINKED=$(printf '%s' "${LINK_RESP}" | json data value)
+[ "${LINKED}" = "True" ] || [ "${LINKED}" = "true" ] || fail "오픈뱅킹 연동 실패: ${LINK_RESP}"
+ok "오픈뱅킹 연동"
 
 # 인증은 신뢰 기기가 있어야 한다. 등록 의식을 먼저 거쳐 deviceToken 을 받는다.
 echo "[scenario] 기기 등록 (WebAuthn 스텁)"
@@ -100,12 +121,14 @@ RISK_PROOF=$(printf '%s' "${FINISH_RESP}" | json data riskProof)
 [ -n "${RISK_PROOF}" ] || fail "LEVEL_3 증명 발급 실패: ${FINISH_RESP}"
 ok "단계 인증 통과"
 
+ASSERTION_TOKEN=$(assertion_token "${USER_ID}")
+
 transfer() {
   local amount="$1" label="$2"
   local key status body
   key="scenario-$(date +%s%N)"
-  body=$(printf '{"fromAccount":"1234567890","toAccount":"9876543210","amount":%s,"description":"staging","assertionToken":"staging","idempotencyKey":"%s"}' \
-    "${amount}" "${key}")
+  body=$(printf '{"fromAccount":"1234567890","toAccount":"9876543210","amount":%s,"description":"staging","assertionToken":"%s","idempotencyKey":"%s"}' \
+    "${amount}" "${ASSERTION_TOKEN}" "${key}")
   status=$(curl -s -o /tmp/burty-transfer.json -w '%{http_code}' \
     -XPOST "${BASE}/api/v1/transfers" \
     -H "Authorization: Bearer ${TOKEN}" \
