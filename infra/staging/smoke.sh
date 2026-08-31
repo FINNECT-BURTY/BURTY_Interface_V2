@@ -30,10 +30,16 @@ curl -sf "${BASE}/api/v1/transactions?page=0&size=10" \
 ok "거래내역 조회"
 
 echo "[smoke] 4/4 외부 연동이 실제 HTTP 를 타는가"
-BEFORE=$(curl -sf "${MOCK}/__admin/requests/count" | python3 -c 'import sys,json; print(json.load(sys.stdin)["count"])')
+# /__admin/requests/count 는 POST 에 조건 본문을 받는다. 단순 집계는 목록의 meta.total 이다.
+mock_request_total() {
+  curl -sf "${MOCK}/__admin/requests" \
+    | python3 -c 'import sys,json; print(json.load(sys.stdin)["meta"]["total"])'
+}
+
+BEFORE=$(mock_request_total)
 curl -sf "${BASE}/api/v1/external/openbanking/accounts" \
   -H "Authorization: Bearer ${TOKEN}" >/dev/null || true
-AFTER=$(curl -sf "${MOCK}/__admin/requests/count" | python3 -c 'import sys,json; print(json.load(sys.stdin)["count"])')
+AFTER=$(mock_request_total)
 
 if [ "${AFTER}" -le "${BEFORE}" ]; then
   fail "외부 목에 요청이 도달하지 않았다 (stub 으로 돌고 있을 수 있다: before=${BEFORE} after=${AFTER})"
