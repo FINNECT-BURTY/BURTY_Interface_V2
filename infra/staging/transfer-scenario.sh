@@ -72,7 +72,8 @@ TOKEN=$(curl -sf -XPOST "${BASE}/api/v1/auth/token" \
 echo "[scenario] 오픈뱅킹 연동"
 LINK_RESP=$(curl -s -XPOST "${BASE}/api/v1/external/openbanking/oauth/callback?code=staging-auth-code" \
   -H "Authorization: Bearer ${TOKEN}")
-LINKED=$(printf '%s' "${LINK_RESP}" | json data linked)
+# 응답은 {"flag":"linked","value":true} 형태다.
+LINKED=$(printf '%s' "${LINK_RESP}" | json data value)
 [ "${LINKED}" = "True" ] || [ "${LINKED}" = "true" ] || fail "오픈뱅킹 연동 실패: ${LINK_RESP}"
 ok "오픈뱅킹 연동"
 
