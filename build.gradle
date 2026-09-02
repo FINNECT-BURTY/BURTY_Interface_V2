@@ -42,8 +42,8 @@ dependencies {
     // 2.4.0 부터 SpringBoot3Verifier 가 Spring Boot 4 를 거부해 버전을 올릴 수 없고,
     // Boot 4 대응 모듈은 배포되지 않았다. 실제로 필요한 건 CircuitBreakerRegistry 뿐이라
     // core 모듈만 쓰고 설정 바인딩은 CircuitBreakerConfiguration 에서 직접 한다.
-    implementation 'io.github.resilience4j:resilience4j-circuitbreaker:2.3.0'
-    implementation 'io.github.resilience4j:resilience4j-micrometer:2.3.0'
+    implementation 'io.github.resilience4j:resilience4j-circuitbreaker:2.4.0'
+    implementation 'io.github.resilience4j:resilience4j-micrometer:2.4.0'
     // Spring Boot 4 는 자동설정을 기술별 모듈로 분리했다.
     // flyway-core 만 넣으면 FlywayAutoConfiguration 이 클래스패스에 없어 마이그레이션이
     // 조용히 실행되지 않는다 (spring.flyway.* 설정이 전부 무시된다).
