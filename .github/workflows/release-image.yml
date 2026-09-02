@@ -98,7 +98,7 @@ jobs:
 
       # 태그 발행 후에는 빌드를 막을 수 없다. 차단 대신 Security 탭에 기록한다.
       - name: 스캔 결과 업로드
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         if: always()
         with:
           sarif_file: trivy-results.sarif
