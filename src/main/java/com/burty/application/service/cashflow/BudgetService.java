@@ -1,6 +1,5 @@
 package com.burty.application.service.cashflow;
 
-import com.burty.application.port.out.outbox.OutboxPublisher;
 import com.burty.core.error.enums.ErrorCode;
 import com.burty.core.exception.BusinessException;
 import com.burty.domain.cashflow.entity.BudgetAlertEntity;
@@ -38,20 +37,20 @@ public class BudgetService {
 
   private final BudgetRepository budgetRepository;
   private final BudgetAlertRepository budgetAlertRepository;
+  private final BudgetAlertPublisher alertPublisher;
   private final TransactionRepository transactionRepository;
-  private final OutboxPublisher outboxPublisher;
   private final Clock clock;
 
   public BudgetService(
       BudgetRepository budgetRepository,
       BudgetAlertRepository budgetAlertRepository,
+      BudgetAlertPublisher alertPublisher,
       TransactionRepository transactionRepository,
-      OutboxPublisher outboxPublisher,
       Clock clock) {
     this.budgetRepository = budgetRepository;
     this.budgetAlertRepository = budgetAlertRepository;
+    this.alertPublisher = alertPublisher;
     this.transactionRepository = transactionRepository;
-    this.outboxPublisher = outboxPublisher;
     this.clock = clock;
   }
 
@@ -164,8 +163,10 @@ public class BudgetService {
           budget.getBudgetId(), periodKey, level)) {
         continue; // 이번 기간에 이미 알림 — 소음 방지
       }
-      recordAndPublish(budget, periodKey, level, spent);
-      published++;
+      // 별도 트랜잭션에서 발행한다. 경고 중복이 나도 이 동기화 트랜잭션은 살아남아야 한다.
+      if (alertPublisher.publish(budget, periodKey, level, spent)) {
+        published++;
+      }
     }
     return published;
   }
@@ -180,39 +181,6 @@ public class BudgetService {
     }
     long thresholdAmount = amount * budget.getAlertThresholdPercent() / 100;
     return spent >= thresholdAmount ? BudgetAlertEntity.Level.THRESHOLD : null;
-  }
-
-  private void recordAndPublish(
-      BudgetEntity budget, String periodKey, BudgetAlertEntity.Level level, long spent) {
-    BudgetAlertEntity alert = new BudgetAlertEntity();
-    alert.setBudgetId(budget.getBudgetId());
-    alert.setUserId(budget.getUserId());
-    alert.setPeriodKey(periodKey);
-    alert.setLevel(level);
-    alert.setSpentAmount(spent);
-    alert.setBudgetAmount(budget.getAmount());
-    alert.setNotifiedAt(LocalDateTime.now(clock));
-    budgetAlertRepository.save(alert);
-
-    String label = budget.isTotalBudget() ? "전체 지출" : budget.getCategoryCode();
-    String message =
-        level == BudgetAlertEntity.Level.EXCEEDED
-            ? "%s 예산을 초과했습니다. (%,d원 / %,d원)".formatted(label, spent, budget.getAmount())
-            : "%s 예산의 %d%% 를 사용했습니다. (%,d원 / %,d원)"
-                .formatted(label, spent * 100 / budget.getAmount(), spent, budget.getAmount());
-
-    outboxPublisher.publish(
-        "Budget",
-        String.valueOf(budget.getBudgetId()),
-        BudgetAlertOutboxHandler.EVENT_TYPE,
-        Map.of(
-            "userId", budget.getUserId(),
-            "level", level.name(),
-            "message", message,
-            "spent", spent,
-            "budget", budget.getAmount()));
-    log.info(
-        "예산 경고 발행 userId={} budgetId={} level={}", budget.getUserId(), budget.getBudgetId(), level);
   }
 
   // ── 내부 ──────────────────────────────────────────────────────────────────

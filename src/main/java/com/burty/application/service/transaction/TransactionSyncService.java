@@ -29,6 +29,7 @@ import com.burty.domain.transaction.repository.TransactionRepository;
 import com.burty.util.PiiMasker;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import org.slf4j.Logger;
@@ -116,16 +117,13 @@ public class TransactionSyncService implements TransactionSyncUseCase {
 
     int saved = 0;
     List<TransactionEntity> newTransactions = new ArrayList<>();
+    // 기관이 거래 ID 를 주지 않을 때 쓰는 대체 키의 중복 횟수. 아래 fallbackExternalId 참고.
+    Map<String, Integer> fallbackOccurrences = new HashMap<>();
     for (Object item : txList) {
       if (!(item instanceof Map<?, ?> txMap)) continue;
       String externalId = stringValue(txMap.get("id"));
       if (externalId == null || externalId.isBlank()) {
-        externalId =
-            fintechUseNum
-                + "-"
-                + stringValue(txMap.get("date"))
-                + "-"
-                + stringValue(txMap.get("amount"));
+        externalId = fallbackExternalId(fintechUseNum, txMap, fallbackOccurrences);
       }
       if (transactionRepository.findByUserIdAndExternalTxId(numericUserId, externalId).isPresent())
         continue;
@@ -234,14 +232,48 @@ public class TransactionSyncService implements TransactionSyncUseCase {
     return fallback;
   }
 
+  /**
+   * 기관이 거래 ID 를 주지 않을 때 쓰는 대체 키.
+   *
+   * <p>예전에는 {@code 계좌-날짜-금액} 이었다. 같은 날 같은 금액의 서로 다른 거래(예: 4,500원 커피를 두 번)가 같은 키가 되어 <b>두 번째가 중복으로
+   * 판정돼 조용히 사라졌다.</b> 자산 관리 앱에서 거래 누락은 예산·지출 집계를 그대로 틀리게 만든다.
+   *
+   * <p>가맹점·메모·구분까지 넣어 구별력을 높이고, 그래도 같은 것이 여러 건이면 배치 안에서의 등장 순서를 붙인다. 같은 응답을 다시 동기화해도 같은 키가 나오므로 중복
+   * 저장되지 않는다.
+   */
+  private String fallbackExternalId(
+      String fintechUseNum, Map<?, ?> txMap, Map<String, Integer> occurrences) {
+    String base =
+        String.join(
+            "|",
+            fintechUseNum,
+            String.valueOf(stringValue(txMap.get("date"))),
+            String.valueOf(stringValue(txMap.get("amount"))),
+            String.valueOf(stringValue(txMap.get("type"))),
+            String.valueOf(stringValue(txMap.get("merchant"))),
+            String.valueOf(stringValue(txMap.get("memo"))));
+    int seq = occurrences.merge(base, 1, Integer::sum);
+    return seq == 1 ? base : base + "#" + seq;
+  }
+
+  /**
+   * 거래일 파싱.
+   *
+   * <p>해석하지 못하면 오늘로 둔다. 다만 <b>조용히 넘기지 않는다.</b> 거래일이 틀리면 그 거래가 다른 예산 기간과 다른 월 리포트에 들어가는데, 로그가 없으면
+   * 아무도 알 수 없다.
+   */
   private LocalDate parseDate(String s) {
-    if (s == null || s.isBlank()) return LocalDate.now();
+    if (s == null || s.isBlank()) {
+      log.warn("거래일이 비어 있어 오늘로 기록한다 — 집계가 어긋날 수 있다");
+      return LocalDate.now();
+    }
     try {
       return LocalDate.parse(s);
     } catch (Exception e) {
       try {
         return LocalDate.parse(s, java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd"));
       } catch (Exception ex) {
+        log.warn("거래일을 해석하지 못해 오늘로 기록한다 raw={} — 집계가 어긋날 수 있다", s);
         return LocalDate.now();
       }
     }

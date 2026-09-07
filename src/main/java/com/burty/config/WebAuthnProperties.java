@@ -28,7 +28,14 @@ public class WebAuthnProperties {
   private String serverSecret = "change-me-webauthn-secret";
   private long challengeTtlSeconds = 300;
   private String rpId = "localhost";
-  private String origin = "http://localhost:8080";
+
+  /**
+   * 브라우저가 {@code clientDataJSON} 에 넣는 origin 과 비교되는 값.
+   *
+   * <p><b>패스키를 호출하는 프론트엔드의 origin 이다.</b> 백엔드 API 주소가 아니다. 예전에 이 값이 {@code app.base-url}(백엔드 URL)에
+   * 묶여 있었고, prod 는 FE·BE 가 같은 도메인이라 우연히 맞아떨어져 문제가 드러나지 않았다.
+   */
+  private String origin = "http://localhost:3000";
 
   /**
    * 서명 검증을 건너뛰는 스텁 검증기 사용 여부.
