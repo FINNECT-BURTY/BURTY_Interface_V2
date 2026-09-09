@@ -55,3 +55,6 @@ uploads/
 # git add . 한 번에 통째로 들어올 수 있었다. 함께 버전 관리하려면
 # 서브모듈이나 별도 저장소로 옮기는 편이 맞다.
 /BURTY_FE/
+
+# Claude Code 개인 설정 (커밋하지 않는다)
+.claude/settings.local.json
