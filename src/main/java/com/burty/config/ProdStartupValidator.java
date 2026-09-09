@@ -12,6 +12,7 @@ public class ProdStartupValidator {
   private static final String DEFAULT_SIGN = "change-me-burty-sign-secret";
   private static final String DEFAULT_ADMIN = "burty-admin-setup-key";
   private static final String DEFAULT_FIELD_ENCRYPTION = "change-me-burty-field-encryption-key-32";
+  private static final String DEFAULT_WEBAUTHN = "change-me-webauthn-secret";
 
   private final Environment environment;
   private final MyDataProperties myDataProperties;
@@ -61,6 +62,7 @@ public class ProdStartupValidator {
     String admin = environment.getProperty("burty.admin.setup-key", DEFAULT_ADMIN);
     String fieldEncryption =
         environment.getProperty("burty.security.field-encryption-key", DEFAULT_FIELD_ENCRYPTION);
+    String webauthn = environment.getProperty("burty.webauthn.server-secret", DEFAULT_WEBAUTHN);
     boolean redisEnabled =
         environment.getProperty("burty.redis.enabled", Boolean.class, Boolean.FALSE);
 
@@ -71,6 +73,12 @@ public class ProdStartupValidator {
     if (containsDefaultSecret(fieldEncryption)) {
       throw new IllegalStateException(
           "PROD startup blocked: burty.security.field-encryption-key must be set to a unique value.");
+    }
+    // 빈 값도 막는다. 이 시크릿이 비면 서명이 성립하지 않아 이체를 지키는 인증이 통째로
+    // 무력화된다. 시크릿을 지우는 것이 인증을 끄는 결과가 되므로 방향이 반대다.
+    if (webauthn.isBlank() || containsDefaultSecret(webauthn)) {
+      throw new IllegalStateException(
+          "PROD startup blocked: burty.webauthn.server-secret must be set to a unique non-empty value.");
     }
     if (!redisEnabled) {
       throw new IllegalStateException(
