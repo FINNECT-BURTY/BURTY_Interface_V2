@@ -28,9 +28,11 @@ import com.burty.security.WebAuthnStoredCredential;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.util.Base64;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 @Component
+@Slf4j
 public class WebAuthnCredentialStore {
 
   private final BiometricCredentialRepository biometricCredentialRepository;
@@ -141,11 +143,25 @@ public class WebAuthnCredentialStore {
       return false;
     }
     String signature = assertionToken.substring("webauthn:".length());
-    String expected =
-        WebAuthnSignature.sign(
-            userId + ":" + new String(credential.getCredentialIdRaw(), StandardCharsets.UTF_8),
-            serverSecret);
-    return expected.equals(signature);
+    if (signature.isEmpty()) {
+      // 접두사만 있는 토큰. 서명이 없으므로 볼 것도 없다.
+      return false;
+    }
+
+    String expected;
+    try {
+      expected =
+          WebAuthnSignature.sign(
+              userId + ":" + new String(credential.getCredentialIdRaw(), StandardCharsets.UTF_8),
+              serverSecret);
+    } catch (IllegalStateException e) {
+      // 서명할 수 없는 상태(시크릿 미설정)는 설정 오류다. 인증은 거부하되 조용히 넘기지
+      // 않는다 — 이 상황을 모르면 인증이 꺼진 채로 운영된다.
+      log.error("WebAuthn 서명 검증 불가. 설정을 확인해야 한다.", e);
+      return false;
+    }
+
+    return WebAuthnSignature.matches(expected, signature);
   }
 
   public BiometricCredentialEntity findActiveCredential(Long userKey) {
