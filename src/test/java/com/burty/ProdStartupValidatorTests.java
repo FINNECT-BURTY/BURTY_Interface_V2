@@ -96,6 +96,24 @@ class ProdStartupValidatorTests {
   }
 
   @Test
+  void blocksDefaultWebAuthnSecretInProd() {
+    mockEnvironment.setProperty("burty.webauthn.server-secret", "change-me-webauthn-secret");
+    IllegalStateException error =
+        assertThrows(IllegalStateException.class, () -> validator.validate());
+    assertTrue(error.getMessage().contains("webauthn.server-secret"));
+  }
+
+  @Test
+  void blocksEmptyWebAuthnSecretInProd() {
+    // 빈 값이면 서명이 성립하지 않아 인증이 통째로 무력화된다. 시크릿을 지우는 것이
+    // 인증을 끄는 결과가 되므로, 기본값만 막아서는 부족하다.
+    mockEnvironment.setProperty("burty.webauthn.server-secret", "");
+    IllegalStateException error =
+        assertThrows(IllegalStateException.class, () -> validator.validate());
+    assertTrue(error.getMessage().contains("webauthn.server-secret"));
+  }
+
+  @Test
   void passesWhenProdConfigurationIsValid() {
     validator.validate();
     assertEquals("prod", mockEnvironment.getActiveProfiles()[0]);
@@ -124,6 +142,7 @@ class ProdStartupValidatorTests {
     mockEnvironment.setProperty("burty.admin.setup-key", "prod-admin-setup-key");
     mockEnvironment.setProperty(
         "burty.security.field-encryption-key", "prod-field-encryption-key-32bytes!");
+    mockEnvironment.setProperty("burty.webauthn.server-secret", "prod-webauthn-secret-value");
     mockEnvironment.setProperty("burty.redis.enabled", "true");
     mockEnvironment.setProperty("spring.mail.host", "smtp.example.com");
   }
