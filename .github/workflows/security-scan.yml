@@ -1,0 +1,95 @@
+# main 의 취약점을 매일 미리 확인한다.
+#
+# CI 의 Trivy 단계는 그대로 둔다 — 취약한 의존성이 새로 들어오는 것을 막는 게이트다.
+# 문제는 그 게이트가 "코드 변경 없이" 빨개진다는 것이었다. PR 이 통과한 뒤 취약점 DB 가
+# 갱신되면, 관계없는 다음 머지가 실패하고 그때서야 원인을 짚게 된다. 실제로 tomcat(#126)
+# 과 netty(#130) 가 그렇게 나왔고 둘 다 .gitignore 나 설정 변경을 머지하다 발견했다.
+#
+# 여기서는 막지 않고 알리기만 한다. 매일 스캔해 새 취약점이 있으면 이슈를 만들거나
+# 갱신한다. 머지가 막히기 전에 알게 되는 것이 목적이다.
+name: Security Scan
+
+on:
+  schedule:
+    # 매일 00:00 UTC (KST 09:00). 출근해서 확인할 수 있는 시각.
+    - cron: "0 0 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  scan:
+    name: Trivy (main)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Java 21
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Build image
+        run: docker build -t burty:scan .
+
+      - name: Run Trivy
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: burty:scan
+          format: table
+          output: trivy-report.txt
+          # 여기서는 실패시키지 않는다. 알리는 것이 목적이고, 막는 것은 CI 가 한다.
+          exit-code: 0
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+
+      - name: Report findings
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+
+          # 취약점이 없으면 표에 데이터 행이 생기지 않는다.
+          if ! grep -qE "CRITICAL|HIGH" trivy-report.txt; then
+            echo "새 취약점 없음"
+            exit 0
+          fi
+
+          TITLE="SECURITY: main 에서 CRITICAL·HIGH 취약점이 발견됐다"
+          BODY_FILE=$(mktemp)
+          {
+            echo "매일 도는 스캔이 \`main\` 에서 취약점을 찾았다. **아직 CI 를 막고 있지는 않지만,"
+            echo "다음 머지가 이것 때문에 실패한다.**"
+            echo
+            echo "실행: $RUN_URL"
+            echo
+            echo '```'
+            # 표 전체는 길 수 있어 앞부분만 싣는다. 상세는 실행 로그에 있다.
+            head -c 50000 trivy-report.txt
+            echo '```'
+            echo
+            echo "고치는 방법은 대개 \`build.gradle\` 에서 Spring Boot BOM 이 고정한 버전을"
+            echo "수정본으로 앞당기는 것이다. \`netty.version\`, \`tomcat.version\` 선례가 있다."
+          } > "$BODY_FILE"
+
+          # 열려 있는 같은 이슈가 있으면 새로 만들지 않고 댓글로 잇는다. 매일 새 이슈가
+          # 쌓이면 아무도 읽지 않게 된다.
+          EXISTING=$(gh issue list --repo "$REPO" --state open --label security-scan \
+            --json number --jq '.[0].number // empty')
+
+          if [ -n "$EXISTING" ]; then
+            gh issue comment "$EXISTING" --repo "$REPO" --body-file "$BODY_FILE"
+            echo "기존 이슈 #$EXISTING 에 덧붙였다"
+          else
+            gh label create security-scan --repo "$REPO" \
+              --description "매일 도는 취약점 스캔이 만든 이슈" --color B60205 2>/dev/null || true
+            gh issue create --repo "$REPO" --title "$TITLE" \
+              --label security-scan --body-file "$BODY_FILE"
+          fi
