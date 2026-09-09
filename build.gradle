@@ -21,9 +21,11 @@ repositories {
 }
 
 // Spring Boot BOM 이 고정하는 버전을 취약점 수정본으로 올린다.
-// netty 4.2.15.Final 에 HIGH 4건(CVE-2026-55831/56816/56819/59901)이 있다.
+// netty 4.2.16.Final 에 CRITICAL 1건(CVE-2026-75595)이 있다. SslClientHelloHandler 가
+// TLS 핸드셰이크 헤더를 읽기 전 offset 을 잘못 검사해, 레코드에 걸쳐 오는 ClientHello 로
+// 기본 SslContext 가 선택된다 — SNI 라우팅을 우회할 수 있다.
 // Boot 가 다음 패치에서 올려주기 전까지 여기서 명시적으로 앞당긴다.
-ext['netty.version'] = '4.2.16.Final'
+ext['netty.version'] = '4.2.17.Final'
 
 // tomcat 11.0.24 에 CRITICAL 3건이 있다. 셋 다 인증·인가 우회다.
 //   CVE-2026-65182  보안 제약 우회 (접근 제어 결함)
