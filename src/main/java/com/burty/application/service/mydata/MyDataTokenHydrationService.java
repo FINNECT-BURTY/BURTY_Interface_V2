@@ -22,6 +22,10 @@ public class MyDataTokenHydrationService {
     Optional<MyDataTokenBundle> bundle =
         linkedInstitutionPersistence.loadTokenBundle(userId, institutionCode);
     if (bundle.isEmpty()) {
+      // DB 가 원본이고 런타임 저장소는 ACTIVE 토큰의 사본일 뿐이다. 원본에 ACTIVE 토큰이 없는데
+      // 사본이 남아 있으면 그것을 읽는 쪽(자산 조회·갱신 배치)이 철회된 연동으로 계속 호출한다.
+      // 여기서 지우면 이미 새어 남아 있던 토큰도 다음 조회 때 정리된다(#142).
+      clearRuntimeTokens(userId, institutionCode);
       return;
     }
     String scopeKey = MyDataOAuthPort.scopeKey(userId, institutionCode);

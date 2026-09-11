@@ -29,7 +29,7 @@ public class MyDataConsentEnforcementService {
 
   private static final Logger log = LoggerFactory.getLogger(MyDataConsentEnforcementService.class);
 
-  private final LinkedInstitutionPersistenceService linkedInstitutionPersistence;
+  private final MyDataGrantRevoker grantRevoker;
   private final LinkedInstitutionRepository linkedInstitutionRepository;
   private final AccountRepository accountRepository;
   private final AccountSnapshotRepository accountSnapshotRepository;
@@ -37,13 +37,13 @@ public class MyDataConsentEnforcementService {
   private final AuditLogger auditLogger;
 
   public MyDataConsentEnforcementService(
-      LinkedInstitutionPersistenceService linkedInstitutionPersistence,
+      MyDataGrantRevoker grantRevoker,
       LinkedInstitutionRepository linkedInstitutionRepository,
       AccountRepository accountRepository,
       AccountSnapshotRepository accountSnapshotRepository,
       MyDataTransmissionLogService transmissionLogService,
       AuditLogger auditLogger) {
-    this.linkedInstitutionPersistence = linkedInstitutionPersistence;
+    this.grantRevoker = grantRevoker;
     this.linkedInstitutionRepository = linkedInstitutionRepository;
     this.accountRepository = accountRepository;
     this.accountSnapshotRepository = accountSnapshotRepository;
@@ -60,8 +60,9 @@ public class MyDataConsentEnforcementService {
   @Transactional
   public int enforceRevocation(
       String userId, String institutionCode, String reason, boolean purgeCollectedData) {
-    // 1) 토큰 무효화 — 더 이상 기관에서 데이터를 가져오지 못하게 한다.
-    linkedInstitutionPersistence.markRevoked(userId, institutionCode);
+    // 1) 토큰 무효화 — DB·런타임 저장소·링크 상태, 그리고 정보제공자 폐기 요청.
+    //    예전에는 DB 만 지워서 런타임 저장소의 토큰으로 수집이 계속됐다(#142).
+    grantRevoker.revoke(userId, institutionCode, MyDataGrantRevoker.LINK_REVOKED);
 
     int purged = 0;
     if (purgeCollectedData) {
