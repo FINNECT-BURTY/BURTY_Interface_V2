@@ -41,6 +41,7 @@ public enum ErrorCode {
   INVALID_TOKEN(2002, "유효하지 않은 토큰입니다"),
   EXPIRED_TOKEN(2003, "만료된 토큰입니다"),
   INVALID_CREDENTIALS(2004, "잘못된 인증 정보입니다"),
+  PASSKEY_UNAVAILABLE(2005, "이 계정은 패스키를 등록할 수 없습니다"),
 
   // 사용자 관련 에러 (3000번대)
   USER_NOT_FOUND(3000, "사용자를 찾을 수 없습니다"),
