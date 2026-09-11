@@ -95,6 +95,23 @@ public class ProdStartupValidator {
       throw new IllegalStateException(
           "PROD startup blocked: burty.mydata.stub-mode must be false.");
     }
+    // 기본값(MyDataProperties 의 burty-client / burty-secret)으로는 실제 정보제공자와 토큰을
+    // 교환할 수 없다. 앱은 뜨고, 사용자가 기관을 연결하는 순간에야 실패한다. 설정 누락은
+    // 사용자 요청이 아니라 배포에서 드러나야 한다.
+    String myDataClientId = myDataProperties.getClientId();
+    if (myDataClientId == null
+        || myDataClientId.isBlank()
+        || "burty-client".equals(myDataClientId.trim())) {
+      throw new IllegalStateException(
+          "PROD startup blocked: burty.mydata.client-id must be set to the value issued by the provider.");
+    }
+    String myDataClientSecret = myDataProperties.getClientSecret();
+    if (myDataClientSecret == null
+        || myDataClientSecret.isBlank()
+        || "burty-secret".equals(myDataClientSecret.trim())) {
+      throw new IllegalStateException(
+          "PROD startup blocked: burty.mydata.client-secret must be set to the value issued by the provider.");
+    }
     if (socialLoginProperties.isStubMode()) {
       throw new IllegalStateException(
           "PROD startup blocked: burty.social.stub-mode must be false.");
