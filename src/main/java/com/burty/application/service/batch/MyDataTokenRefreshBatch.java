@@ -42,6 +42,7 @@ public class MyDataTokenRefreshBatch {
   private static final Logger log = LoggerFactory.getLogger(MyDataTokenRefreshBatch.class);
   private static final String STATUS_ACTIVE = "ACTIVE";
   private static final String STATUS_EXPIRED = "EXPIRED";
+  private static final String STATUS_REVOKED = "REVOKED";
 
   private final MyDataLinkStatusRepository linkStatusRepository;
   private final MyDataOAuthPort myDataOAuthPort;
@@ -101,10 +102,19 @@ public class MyDataTokenRefreshBatch {
 
     int refreshed = 0;
     int failed = 0;
+    int skipped = 0;
     for (MyDataLinkStatusEntity entity : expiring) {
       String userId = entity.getUserId();
       String institutionCode = entity.getInstitutionCode();
       try {
+        // 링크 상태가 ACTIVE 여도 원본(DB) 연동이 ACTIVE 가 아니면 갱신하지 않는다. 두 테이블이
+        // 어긋나면 철회한 연동에 새 토큰을 받게 된다(#142). 어긋난 상태는 여기서 바로잡는다.
+        if (linkedInstitutionPersistence.loadTokenBundle(userId, institutionCode).isEmpty()) {
+          markNotActive(entity);
+          tokenHydrationService.clearRuntimeTokens(userId, institutionCode);
+          skipped++;
+          continue;
+        }
         String scopeKey = MyDataOAuthPort.scopeKey(userId, institutionCode);
         tokenHydrationService.hydrate(userId, institutionCode);
         String newToken = myDataOAuthPort.refreshAccessToken(scopeKey);
@@ -117,11 +127,21 @@ public class MyDataTokenRefreshBatch {
         if (newExpiresAt != null) {
           entity.setTokenExpiresAt(newExpiresAt);
         }
-        linkedInstitutionPersistence.saveTokens(
-            userId,
-            institutionCode,
-            new MyDataTokenBundle(
-                newToken, myDataOAuthPort.findRefreshToken(scopeKey), newExpiresAt));
+        // saveTokens 를 쓰면 안 된다. 연결 시점용이라 상태를 ACTIVE 로 되돌리고 동의 만료일을
+        // 다시 쓴다 — 철회가 되돌려지고 동의 기간이 갱신 때마다 밀렸다.
+        boolean applied =
+            linkedInstitutionPersistence.updateRefreshedTokens(
+                userId,
+                institutionCode,
+                new MyDataTokenBundle(
+                    newToken, myDataOAuthPort.findRefreshToken(scopeKey), newExpiresAt));
+        if (!applied) {
+          // 갱신하는 사이에 철회됐다. 받아 온 토큰은 쓰지 않는다.
+          markNotActive(entity);
+          tokenHydrationService.clearRuntimeTokens(userId, institutionCode);
+          skipped++;
+          continue;
+        }
         entity.setLastErrorCode(null);
         entity.setLastErrorAt(null);
         linkStatusRepository.save(entity);
@@ -134,19 +154,29 @@ public class MyDataTokenRefreshBatch {
     }
     lastSuccessEpochSeconds.set(java.time.Instant.now().getEpochSecond());
     log.info(LogMessages.Batch.MYDATA_TOKEN_REFRESH, refreshed, failed, refreshAheadHours);
-    if (refreshed + failed > 0) {
+    if (skipped > 0) {
+      log.info("MyData token refresh skipped {} link(s) whose source link is not active", skipped);
+    }
+    if (refreshed + failed + skipped > 0) {
       auditLogger.log(
           "system",
           "MYDATA_TOKEN_REFRESH_BATCH",
           "BATCH",
           failed == 0 ? "SUCCESS" : "PARTIAL",
-          "refreshed=" + refreshed + ",failed=" + failed);
+          "refreshed=" + refreshed + ",failed=" + failed + ",skipped=" + skipped);
     }
   }
 
   private void markExpired(MyDataLinkStatusEntity entity, String errorCode) {
     entity.setStatus(STATUS_EXPIRED);
     entity.setLastErrorCode(errorCode);
+    entity.setLastErrorAt(LocalDateTime.now());
+    linkStatusRepository.save(entity);
+  }
+
+  private void markNotActive(MyDataLinkStatusEntity entity) {
+    entity.setStatus(STATUS_REVOKED);
+    entity.setLastErrorCode("LINK_NOT_ACTIVE");
     entity.setLastErrorAt(LocalDateTime.now());
     linkStatusRepository.save(entity);
   }
