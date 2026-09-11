@@ -73,6 +73,38 @@ public class LinkedInstitutionPersistenceService {
     return linkedInstitutionRepository.save(entity);
   }
 
+  /**
+   * 갱신된 토큰만 바꾼다.
+   *
+   * <p>{@link #saveTokens} 는 연결(동의) 시점용이라 상태를 ACTIVE 로 두고 동의 만료일을 새로 정한다. 갱신 배치가 그것을 쓰면서 철회한 연동이
+   * 되살아나고, 동의 만료일이 갱신 때마다 1년씩 밀렸다. 갱신은 동의가 아니므로 둘 다 건드리지 않는다.
+   *
+   * @return 연동이 ACTIVE 가 아니어서 반영하지 않았으면 false
+   */
+  @Transactional
+  public boolean updateRefreshedTokens(
+      String userId, String institutionCode, MyDataTokenBundle bundle) {
+    if (bundle == null || bundle.accessToken() == null || bundle.accessToken().isBlank()) {
+      return false;
+    }
+    return linkedInstitutionRepository
+        .findByUser_UserIdAndInstitutionCode(Long.parseLong(userId), institutionCode)
+        .filter(link -> link.getStatus() == LinkStatus.ACTIVE)
+        .map(
+            link -> {
+              link.setAccessToken(fieldEncryptor.encrypt(bundle.accessToken()));
+              if (bundle.refreshToken() != null && !bundle.refreshToken().isBlank()) {
+                link.setRefreshToken(fieldEncryptor.encrypt(bundle.refreshToken()));
+              }
+              if (bundle.tokenExpiresAt() != null) {
+                link.setTokenExpiresAt(bundle.tokenExpiresAt());
+              }
+              linkedInstitutionRepository.save(link);
+              return true;
+            })
+        .orElse(false);
+  }
+
   public Optional<MyDataTokenBundle> loadTokenBundle(String userId, String institutionCode) {
     return linkedInstitutionRepository
         .findByUser_UserIdAndInstitutionCode(Long.parseLong(userId), institutionCode)
