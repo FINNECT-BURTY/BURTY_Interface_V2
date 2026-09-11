@@ -97,14 +97,20 @@ public final class StandardBankFixtures {
 
     int seed = seed(orgCode);
     boolean savings = accountNum.equals(savingsAccount(orgCode));
+    // 매달 10일 입출금 통장에서 적금으로 옮기는 금액. 양쪽에 같은 날 같은 금액으로 보여야 한다 — 짝 없는 입금만
+    // 있으면 내 계좌 간 이체를 가르는 규칙이 모의에서 한 번도 돌지 않는다.
+    long savingsContribution = 300_000L;
     List<Entry> entries = new ArrayList<>();
     for (LocalDate day = from; !day.isAfter(to); day = day.plusDays(1)) {
       int dom = day.getDayOfMonth();
       if (savings) {
         if (dom == 10) {
-          entries.add(new Entry(day, DEPOSIT, "자동이체", 300_000L));
+          entries.add(new Entry(day, DEPOSIT, "자동이체", savingsContribution));
         }
         continue;
+      }
+      if (dom == 10) {
+        entries.add(new Entry(day, WITHDRAWAL, "자동이체", savingsContribution));
       }
       if (dom == 25) {
         entries.add(new Entry(day, DEPOSIT, "급여", 2_800_000L + (seed % 9) * 100_000L));
