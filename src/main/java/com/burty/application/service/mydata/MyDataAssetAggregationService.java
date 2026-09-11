@@ -40,9 +40,9 @@ import org.springframework.stereotype.Service;
  *       탓에 모두가 "변동이 크다" 로 분류된다.
  * </ul>
  *
- * <p>한 기관이 실패해도 나머지는 합산하고 실패 수를 싣는다. 일부만 더한 합계를 전체처럼 보여주면 안 되기 때문이다.
+ * <p>연결한 내 계좌 사이의 이체(입출금 → 적금, 은행 → 은행)는 지출에도 소득에도 넣지 않는다 — {@link #internalTransfers} 참고.
  *
- * <p>자기 계좌 간 이체(입출금 → 적금)는 가르지 않는다. 입출금에서는 출금, 적금에서는 입금으로 보인다.
+ * <p>한 기관이 실패해도 나머지는 합산하고 실패 수를 싣는다. 일부만 더한 합계를 전체처럼 보여주면 안 되기 때문이다.
  */
 @Service
 public class MyDataAssetAggregationService implements AssetSnapshotQuery {
@@ -98,26 +98,35 @@ public class MyDataAssetAggregationService implements AssetSnapshotQuery {
     LocalDate from = monthStart.minusMonths(INCOME_MONTHS);
 
     BigDecimal total = BigDecimal.ZERO;
-    BigDecimal monthSpend = BigDecimal.ZERO;
-    Map<YearMonth, BigDecimal> incomeByMonth = new HashMap<>();
+    List<AccountTransaction> transactions = new ArrayList<>();
     int failed = 0;
     for (LinkedInstitutionEntity link : links) {
       String code = link.getInstitutionCode();
       try {
         InstitutionData data = collect(userId, code, from, today);
         total = total.add(data.balance());
-        for (BankTransaction transaction : data.transactions()) {
-          YearMonth month = YearMonth.from(transaction.occurredAt());
-          if (transaction.direction() == Direction.WITHDRAWAL && month.equals(thisMonth)) {
-            monthSpend = monthSpend.add(transaction.amount());
-          } else if (transaction.direction() == Direction.DEPOSIT && month.isBefore(thisMonth)) {
-            incomeByMonth.merge(month, transaction.amount(), BigDecimal::add);
-          }
-        }
+        transactions.addAll(data.transactions());
       } catch (RuntimeException e) {
         failed++;
         log.warn(
             "마이데이터 기관 조회 실패 — 합산에서 뺀다 userId={} institution={} err={}", userId, code, e.toString());
+      }
+    }
+
+    // 짝은 기관을 넘나든다(KB 입출금 → 신한 적금). 모든 기관을 모은 뒤에 찾는다.
+    boolean[] transfer = internalTransfers(transactions);
+    BigDecimal monthSpend = BigDecimal.ZERO;
+    Map<YearMonth, BigDecimal> incomeByMonth = new HashMap<>();
+    for (int i = 0; i < transactions.size(); i++) {
+      if (transfer[i]) {
+        continue;
+      }
+      BankTransaction transaction = transactions.get(i).transaction();
+      YearMonth month = YearMonth.from(transaction.occurredAt());
+      if (transaction.direction() == Direction.WITHDRAWAL && month.equals(thisMonth)) {
+        monthSpend = monthSpend.add(transaction.amount());
+      } else if (transaction.direction() == Direction.DEPOSIT && month.isBefore(thisMonth)) {
+        incomeByMonth.merge(month, transaction.amount(), BigDecimal::add);
       }
     }
 
@@ -137,17 +146,67 @@ public class MyDataAssetAggregationService implements AssetSnapshotQuery {
     tokenHydrationService.hydrate(userId, code);
     InstitutionToken token = new InstitutionToken(userId, code);
     BigDecimal balance = BigDecimal.ZERO;
-    List<BankTransaction> transactions = new ArrayList<>();
+    List<AccountTransaction> transactions = new ArrayList<>();
     for (BankAccount account : token.call(t -> bankPort.listAccounts(code, t))) {
       if (!account.consented()) {
         // 정보주체가 전송에 동의하지 않은 계좌는 조회하지 않는다.
         continue;
       }
       balance = balance.add(token.call(t -> bankPort.depositBalance(code, t, account)));
-      transactions.addAll(
-          token.call(t -> bankPort.depositTransactions(code, t, account, from, to)));
+      String accountKey = code + ":" + account.accountNum();
+      for (BankTransaction transaction :
+          token.call(t -> bankPort.depositTransactions(code, t, account, from, to))) {
+        transactions.add(new AccountTransaction(accountKey, transaction));
+      }
     }
     return new InstitutionData(balance, transactions);
+  }
+
+  /**
+   * 연결한 내 계좌 사이의 이체를 찾는다.
+   *
+   * <p>입출금 통장에서 적금으로 옮긴 30만 원은 한쪽에서는 출금, 다른 쪽에서는 입금으로 보인다. 둘 다 세면 쓰지 않은 돈이 지출이 되고 벌지 않은 돈이 소득이 된다.
+   * 기관을 많이 연결할수록 커진다.
+   *
+   * <p>표준 수신 거래내역에는 상대 계좌가 없다. 그래서 짝으로 판별한다 — 연결한 한 계좌의 출금과 <b>다른</b> 계좌의 <b>같은 날 같은 금액</b> 입금.
+   *
+   * <ul>
+   *   <li>짝은 일대일이다. 같은 금액 출금 두 건에 입금 한 건이면 한 쌍만 이체다.
+   *   <li>같은 계좌 안의 입출금은 짝으로 보지 않는다. 취소·환불일 수 있다.
+   *   <li>조회에 실패한 기관의 거래는 짝을 찾을 수 없다. 그 합계는 이미 일부 기관 제외로 표시된다.
+   * </ul>
+   *
+   * @return 거래마다 이체인지. 순서는 {@code transactions} 와 같다.
+   */
+  private static boolean[] internalTransfers(List<AccountTransaction> transactions) {
+    boolean[] transfer = new boolean[transactions.size()];
+    Map<TransferKey, List<Integer>> deposits = new HashMap<>();
+    for (int i = 0; i < transactions.size(); i++) {
+      BankTransaction transaction = transactions.get(i).transaction();
+      if (transaction.direction() == Direction.DEPOSIT) {
+        deposits.computeIfAbsent(TransferKey.of(transaction), key -> new ArrayList<>()).add(i);
+      }
+    }
+    for (int i = 0; i < transactions.size(); i++) {
+      AccountTransaction withdrawal = transactions.get(i);
+      if (withdrawal.transaction().direction() != Direction.WITHDRAWAL) {
+        continue;
+      }
+      List<Integer> candidates = deposits.get(TransferKey.of(withdrawal.transaction()));
+      if (candidates == null) {
+        continue;
+      }
+      for (int c = 0; c < candidates.size(); c++) {
+        int deposit = candidates.get(c);
+        if (!transactions.get(deposit).accountKey().equals(withdrawal.accountKey())) {
+          transfer[i] = true;
+          transfer[deposit] = true;
+          candidates.remove(c);
+          break;
+        }
+      }
+    }
+    return transfer;
   }
 
   /** 월별 합의 변동계수(%). 입금이 없는 달도 0 으로 넣는다 — 빼면 끊긴 소득이 안정적으로 보인다. */
@@ -181,7 +240,18 @@ public class MyDataAssetAggregationService implements AssetSnapshotQuery {
     }
   }
 
-  private record InstitutionData(BigDecimal balance, List<BankTransaction> transactions) {}
+  /** 어느 계좌의 거래인지. 같은 계좌 안의 입출금을 이체로 짝짓지 않으려고 계좌를 기억한다. */
+  private record AccountTransaction(String accountKey, BankTransaction transaction) {}
+
+  /** 이체 짝을 찾는 기준 — 같은 날, 같은 금액. 금액은 표기 자릿수(300000 과 300000.00)가 달라도 같게 본다. */
+  private record TransferKey(LocalDate date, BigDecimal amount) {
+    static TransferKey of(BankTransaction transaction) {
+      return new TransferKey(
+          transaction.occurredAt().toLocalDate(), transaction.amount().stripTrailingZeros());
+    }
+  }
+
+  private record InstitutionData(BigDecimal balance, List<AccountTransaction> transactions) {}
 
   /**
    * 기관 한 곳의 접근토큰.
