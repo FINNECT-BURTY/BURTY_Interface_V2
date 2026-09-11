@@ -1,0 +1,8 @@
+{
+  "request": { "method": "POST", "urlPath": "/mydata/oauth/2.0/revoke" },
+  "response": {
+    "status": 200,
+    "headers": { "Content-Type": "application/json" },
+    "jsonBody": { "rsp_code": "00000", "rsp_msg": "정상처리" }
+  }
+}
