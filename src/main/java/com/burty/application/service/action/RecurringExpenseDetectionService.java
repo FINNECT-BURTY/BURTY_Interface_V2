@@ -19,8 +19,8 @@
  */
 package com.burty.application.service.action;
 
+import com.burty.application.port.in.asset.AssetSnapshotQuery;
 import com.burty.application.port.out.bank.OpenBankingPort;
-import com.burty.application.port.out.mydata.MyDataPort;
 import com.burty.domain.asset.model.AssetSnapshot;
 import com.burty.domain.cashflow.model.RecurringExpense;
 import java.util.ArrayList;
@@ -36,7 +36,7 @@ import org.springframework.stereotype.Component;
 public class RecurringExpenseDetectionService {
 
   private final OpenBankingPort openBankingPort;
-  private final MyDataPort myDataPort;
+  private final AssetSnapshotQuery assetSnapshots;
 
   public List<RecurringExpense> detect(String userId, String fintechUseNum) {
     Map<String, Object> txResponse = openBankingPort.getTransactions(userId, fintechUseNum);
@@ -75,8 +75,12 @@ public class RecurringExpenseDetectionService {
       }
     }
     if (detected.isEmpty()) {
-      AssetSnapshot snapshot = myDataPort.fetchAssetSnapshot(userId);
+      AssetSnapshot snapshot = assetSnapshots.fetchAssetSnapshot(userId);
       long spend = Math.round(snapshot.monthlySpend());
+      if (!snapshot.linked() || spend <= 0) {
+        // 지출을 모르는데 비율로 월세·카드값을 지어내면 0원짜리 고정지출이 생긴다.
+        return List.of();
+      }
       detected =
           List.of(
               new RecurringExpense("월세", (long) (spend * 0.32), 25),

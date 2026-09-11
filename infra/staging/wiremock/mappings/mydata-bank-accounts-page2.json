@@ -1,0 +1,19 @@
+{
+  "priority": 1,
+  "request": {
+    "method": "GET",
+    "urlPath": "/mydata/v1/bank/accounts",
+    "queryParameters": { "next_page": { "equalTo": "2" } }
+  },
+  "response": {
+    "status": 200,
+    "headers": { "Content-Type": "application/json" },
+    "jsonBody": {
+      "rsp_code": "00000", "rsp_msg": "정상처리", "search_timestamp": 0, "account_cnt": 1,
+      "account_list": [
+        { "account_num": "2000000001", "is_consent": true, "seqno": "1", "is_foreign_deposit": false,
+          "prod_name": "스테이징 자유적금", "is_minus": false, "account_type": "1003", "account_status": "01" }
+      ]
+    }
+  }
+}

@@ -19,8 +19,8 @@
  */
 package com.burty.application.service.user;
 
+import com.burty.application.port.in.asset.AssetSnapshotQuery;
 import com.burty.application.port.in.user.PersonaInferenceUseCase;
-import com.burty.application.port.out.mydata.MyDataPort;
 import com.burty.core.constant.LogMessages;
 import com.burty.domain.asset.model.AssetSnapshot;
 import com.burty.domain.user.entity.PersonaProfileEntity;
@@ -37,15 +37,15 @@ public class PersonaInferenceService implements PersonaInferenceUseCase {
   private static final Logger log = LoggerFactory.getLogger(PersonaInferenceService.class);
 
   private final PersonaProfileRepository repository;
-  private final MyDataPort myDataPort;
+  private final AssetSnapshotQuery assetSnapshots;
   private final PersonaHeuristics personaHeuristics;
 
   public PersonaInferenceService(
       PersonaProfileRepository repository,
-      MyDataPort myDataPort,
+      AssetSnapshotQuery assetSnapshots,
       PersonaHeuristics personaHeuristics) {
     this.repository = repository;
-    this.myDataPort = myDataPort;
+    this.assetSnapshots = assetSnapshots;
     this.personaHeuristics = personaHeuristics;
   }
 
@@ -123,7 +123,7 @@ public class PersonaInferenceService implements PersonaInferenceUseCase {
   }
 
   private void applyInferred(PersonaProfileEntity entity, String userId) {
-    AssetSnapshot snapshot = myDataPort.fetchAssetSnapshot(userId);
+    AssetSnapshot snapshot = assetSnapshots.fetchAssetSnapshot(userId);
     entity.setOccupationCode(personaHeuristics.inferOccupationCode(snapshot));
     entity.setMonthlyIncomeAvg(personaHeuristics.estimateMonthlyIncome(snapshot));
     entity.setIncomeVariabilityPct(snapshot.volatilityPercent());

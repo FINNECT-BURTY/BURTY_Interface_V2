@@ -20,8 +20,8 @@
 package com.burty.application.service.cashflow;
 
 import com.burty.application.port.in.admin.BaseCodeUseCase;
+import com.burty.application.port.in.asset.AssetSnapshotQuery;
 import com.burty.application.port.in.cashflow.CashflowForecastUseCase;
-import com.burty.application.port.out.mydata.MyDataPort;
 import com.burty.application.service.support.AuditLogger;
 import com.burty.core.code.CodeGroups;
 import com.burty.core.constant.AppMessages;
@@ -49,7 +49,7 @@ public class CashflowForecastService implements CashflowForecastUseCase {
   private static final long DEFAULT_LOW_BALANCE_THRESHOLD = 50_000L;
   private static final long DEFAULT_NEGATIVE_THRESHOLD = 0L;
 
-  private final MyDataPort myDataPort;
+  private final AssetSnapshotQuery assetSnapshots;
   private final BaseCodeUseCase baseCodeUseCase;
   private final CashflowUserCriteriaStore criteriaStore;
   private final CashflowEventAssembler eventAssembler;
@@ -58,7 +58,7 @@ public class CashflowForecastService implements CashflowForecastUseCase {
 
   @Override
   public CashflowForecast forecast(String userId) {
-    AssetSnapshot snapshot = myDataPort.fetchAssetSnapshot(userId);
+    AssetSnapshot snapshot = assetSnapshots.fetchAssetSnapshot(userId);
     LocalDate startDate = LocalDate.now();
     boolean openingBalanceOverridden =
         criteriaStore.settingLong(userId, CashflowUserCriteriaStore.SETTING_OPENING_BALANCE)

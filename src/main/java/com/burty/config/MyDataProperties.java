@@ -30,7 +30,10 @@ public class MyDataProperties {
   private String authorizeUrl = "https://sandbox.mydata.local/oauth2/authorize";
   private String tokenUrl = "https://sandbox.mydata.local/oauth2/token";
   private String refreshUrl = "https://sandbox.mydata.local/oauth2/token";
-  private String assetUrl = "https://sandbox.mydata.local/api/v1/assets";
+
+  /** 은행 정보제공자 표준 API 의 기본 주소. 경로(/v1/bank/...)는 어댑터가 붙인다. */
+  private String apiBaseUrl = "https://sandbox.mydata.local";
+
   private String redirectUri = "http://localhost:8080/api/v1/mydata/oauth/callback";
   private String scope = "asset.read transfer.read";
   private boolean stubMode = true;
@@ -74,12 +77,12 @@ public class MyDataProperties {
     this.tokenUrl = tokenUrl;
   }
 
-  public String getAssetUrl() {
-    return assetUrl;
+  public String getApiBaseUrl() {
+    return apiBaseUrl;
   }
 
-  public void setAssetUrl(String assetUrl) {
-    this.assetUrl = assetUrl;
+  public void setApiBaseUrl(String apiBaseUrl) {
+    this.apiBaseUrl = apiBaseUrl;
   }
 
   public String getRefreshUrl() {
