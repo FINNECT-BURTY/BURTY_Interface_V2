@@ -36,6 +36,12 @@ public class MyDataProperties {
   private boolean stubMode = true;
   private int retryCount = 2;
 
+  /** 토큰 폐기(개별인증) — 철회·해제 때 정보제공자에도 무효화를 요청한다. */
+  private String revokeUrl = "https://sandbox.mydata.local/oauth/2.0/revoke";
+
+  /** 우리(마이데이터사업자)의 기관코드 10자리. 표준 API 거래고유번호 앞자리에 쓴다. */
+  private String orgCode = "BURTYMYD01";
+
   public String getClientId() {
     return clientId;
   }
@@ -114,5 +120,21 @@ public class MyDataProperties {
 
   public void setRetryCount(int retryCount) {
     this.retryCount = retryCount;
+  }
+
+  public String getRevokeUrl() {
+    return revokeUrl;
+  }
+
+  public void setRevokeUrl(String revokeUrl) {
+    this.revokeUrl = revokeUrl;
+  }
+
+  public String getOrgCode() {
+    return orgCode;
+  }
+
+  public void setOrgCode(String orgCode) {
+    this.orgCode = orgCode;
   }
 }

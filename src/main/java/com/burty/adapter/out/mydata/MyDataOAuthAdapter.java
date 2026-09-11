@@ -1,6 +1,7 @@
 package com.burty.adapter.out.mydata;
 
 import com.burty.adapter.out.mydata.dto.MyDataTokenResponse;
+import com.burty.adapter.out.mydata.standard.MyDataTranId;
 import com.burty.adapter.out.store.TokenStore;
 import com.burty.application.port.out.mydata.MyDataOAuthPort;
 import com.burty.config.MyDataProperties;
@@ -14,6 +15,8 @@ import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
+import org.springframework.util.LinkedMultiValueMap;
+import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
 
@@ -122,6 +125,37 @@ public class MyDataOAuthAdapter implements MyDataOAuthPort {
     LocalDateTime expiresAt = toExpiresAt(response.getExpiresIn());
     storeTokens(scopeKey, response.getAccessToken(), newRefresh, expiresAt);
     return response.getAccessToken();
+  }
+
+  @Override
+  public void revokeGrant(String institutionCode, String token) {
+    if (token == null || token.isBlank()) {
+      return;
+    }
+    if (properties.isStubMode()) {
+      // 모의 정보제공자에는 폐기할 대상이 없다. 요청이 있었다는 사실은 호출부가 전송 로그로 남긴다.
+      return;
+    }
+    HttpHeaders headers = new HttpHeaders();
+    headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
+    headers.set(MyDataTranId.HEADER, MyDataTranId.next(properties.getOrgCode()));
+    MultiValueMap<String, String> form = new LinkedMultiValueMap<>();
+    form.add("org_code", institutionCode);
+    form.add("token", token);
+    form.add("client_id", properties.getClientId());
+    form.add("client_secret", properties.getClientSecret());
+    Map<?, ?> response =
+        restTemplate.postForObject(
+            properties.getRevokeUrl(), new HttpEntity<>(form, headers), Map.class);
+    Object rspCode = response == null ? null : response.get("rsp_code");
+    // HTTP 200 이어도 응답코드가 정상이 아니면 폐기되지 않은 것이다.
+    if (!"00000".equals(rspCode)) {
+      throw new IllegalStateException(
+          "토큰 폐기가 확인되지 않았다 rsp_code="
+              + rspCode
+              + " rsp_msg="
+              + (response == null ? null : response.get("rsp_msg")));
+    }
   }
 
   private MyDataTokenResponse fetchTokenResponse(String code) {
