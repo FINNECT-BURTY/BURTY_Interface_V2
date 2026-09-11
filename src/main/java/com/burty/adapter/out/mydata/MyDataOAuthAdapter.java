@@ -37,8 +37,9 @@ public class MyDataOAuthAdapter implements MyDataOAuthPort {
   }
 
   @Override
-  public String buildAuthorizeUrl(String oauthState) {
+  public String buildAuthorizeUrl(String oauthState, String orgCode) {
     return UriComponentsBuilder.fromUriString(properties.getAuthorizeUrl())
+        .queryParam("org_code", orgCode)
         .queryParam("response_type", "code")
         .queryParam("client_id", properties.getClientId())
         .queryParam("redirect_uri", properties.getRedirectUri())

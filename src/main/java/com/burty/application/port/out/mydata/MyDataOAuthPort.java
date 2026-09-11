@@ -4,7 +4,12 @@ import com.burty.domain.mydata.model.MyDataTokenBundle;
 import java.time.LocalDateTime;
 
 public interface MyDataOAuthPort {
-  String buildAuthorizeUrl(String stateKey);
+  /**
+   * 정보제공자 인가 화면 주소.
+   *
+   * @param orgCode 인가를 요청할 정보제공자 기관코드. 인가 화면이 어느 기관의 동의인지 보여준다.
+   */
+  String buildAuthorizeUrl(String state, String orgCode);
 
   MyDataTokenBundle exchangeTokens(String stateKey, String code);
 

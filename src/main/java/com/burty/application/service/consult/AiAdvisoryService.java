@@ -19,12 +19,12 @@
  */
 package com.burty.application.service.consult;
 
+import com.burty.application.port.in.asset.AssetSnapshotQuery;
 import com.burty.application.port.in.cashflow.RiskAssessmentUseCase;
 import com.burty.application.port.in.consult.AiAdvisoryUseCase;
 import com.burty.application.port.in.user.PersonaInferenceUseCase;
 import com.burty.application.port.out.ai.EasyReadPort;
 import com.burty.application.port.out.ai.LlmPort;
-import com.burty.application.port.out.mydata.MyDataPort;
 import com.burty.domain.asset.model.AssetSnapshot;
 import com.burty.domain.cashflow.model.RiskAssessment;
 import com.burty.domain.consult.model.ConsultationResult;
@@ -35,19 +35,19 @@ import org.springframework.stereotype.Service;
 
 @Service
 public class AiAdvisoryService implements AiAdvisoryUseCase {
-  private final MyDataPort myDataPort;
+  private final AssetSnapshotQuery assetSnapshots;
   private final LlmPort llmPort;
   private final EasyReadPort easyReadPort;
   private final PersonaInferenceUseCase personaInferenceUseCase;
   private final RiskAssessmentUseCase riskAssessmentUseCase;
 
   public AiAdvisoryService(
-      MyDataPort myDataPort,
+      AssetSnapshotQuery assetSnapshots,
       LlmPort llmPort,
       EasyReadPort easyReadPort,
       PersonaInferenceUseCase personaInferenceUseCase,
       RiskAssessmentUseCase riskAssessmentUseCase) {
-    this.myDataPort = myDataPort;
+    this.assetSnapshots = assetSnapshots;
     this.llmPort = llmPort;
     this.easyReadPort = easyReadPort;
     this.personaInferenceUseCase = personaInferenceUseCase;
@@ -56,7 +56,7 @@ public class AiAdvisoryService implements AiAdvisoryUseCase {
 
   @Override
   public ConsultationResult consultWithAi(String userId, String question) {
-    AssetSnapshot snapshot = myDataPort.fetchAssetSnapshot(userId);
+    AssetSnapshot snapshot = assetSnapshots.fetchAssetSnapshot(userId);
     PersonaProfileEntity persona = personaInferenceUseCase.getOrInfer(userId);
     RiskAssessment risk = riskAssessmentUseCase.assess(userId);
 

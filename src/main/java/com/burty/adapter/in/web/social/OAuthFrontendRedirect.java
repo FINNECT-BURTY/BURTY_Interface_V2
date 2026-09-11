@@ -73,6 +73,17 @@ public class OAuthFrontendRedirect {
     }
   }
 
+  /**
+   * 요청된 origin 이 허용되면 그것을, 아니면 기본 FE 주소를 돌려준다. 끝의 {@code /} 는 떼어낸다.
+   *
+   * <p>허용 목록을 다시 확인한다. 값이 서버 쪽 저장소를 거쳐 왔더라도 리다이렉트 대상은 한 번 더 본다.
+   */
+  public String frontendBase(String requestedOrigin) {
+    String resolved = resolveOrigin(requestedOrigin);
+    String base = resolved != null ? resolved : defaultFrontendUrl;
+    return base == null ? "" : base.replaceAll("/+$", "");
+  }
+
   public String resolveOrigin(String requestedOrigin) {
     if (requestedOrigin == null || requestedOrigin.isBlank()) {
       return null;

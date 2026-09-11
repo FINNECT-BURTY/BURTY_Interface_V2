@@ -19,11 +19,11 @@
  */
 package com.burty;
 
+import com.burty.application.port.in.asset.AssetSnapshotQuery;
 import com.burty.application.port.in.cashflow.RiskAssessmentUseCase;
 import com.burty.application.port.in.user.PersonaInferenceUseCase;
 import com.burty.application.port.out.ai.EasyReadPort;
 import com.burty.application.port.out.ai.LlmPort;
-import com.burty.application.port.out.mydata.MyDataPort;
 import com.burty.application.service.consult.AiAdvisoryService;
 import com.burty.domain.asset.model.AssetSnapshot;
 import com.burty.domain.cashflow.model.RiskAssessment;
@@ -36,7 +36,8 @@ class AiAdvisoryServiceTests {
 
   @Test
   void consultWithAi_returnsEasyReadResultWithSignal() {
-    MyDataPort myDataPort = userId -> new AssetSnapshot(100_000_000, 2_000_000, 12.5);
+    AssetSnapshotQuery assetSnapshots =
+        userId -> new AssetSnapshot(100_000_000, 2_000_000, 12.5, 1, 0);
     LlmPort llmPort = (systemPrompt, userPrompt) -> "포트폴리오 상태가 보통이에요. 이번 달 지출이 커졌어요. 자동이체 점검하세요.";
     EasyReadPort easyReadPort =
         new EasyReadPort() {
@@ -82,7 +83,7 @@ class AiAdvisoryServiceTests {
     RiskAssessmentUseCase riskUseCase =
         userId -> new RiskAssessment(userId, "GREEN", 50_000L, "안정", null, 1_500_000L);
     AiAdvisoryService service =
-        new AiAdvisoryService(myDataPort, llmPort, easyReadPort, personaUseCase, riskUseCase);
+        new AiAdvisoryService(assetSnapshots, llmPort, easyReadPort, personaUseCase, riskUseCase);
 
     ConsultationResult result = service.consultWithAi("u1", "이번달 괜찮아?");
 

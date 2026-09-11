@@ -21,8 +21,8 @@ package com.burty.application.service.asset;
 
 import com.burty.application.dto.asset.AssetSummaryResponse;
 import com.burty.application.dto.asset.AssetTrendItemResponse;
+import com.burty.application.port.in.asset.AssetSnapshotQuery;
 import com.burty.application.port.in.asset.AssetSummaryUseCase;
-import com.burty.application.port.out.mydata.MyDataPort;
 import com.burty.domain.asset.model.AssetSnapshot;
 import java.time.YearMonth;
 import java.time.format.DateTimeFormatter;
@@ -35,18 +35,23 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public class AssetSummaryService implements AssetSummaryUseCase {
 
-  private final MyDataPort myDataPort;
+  private final AssetSnapshotQuery assetSnapshots;
 
   @Override
   public AssetSummaryResponse summary(String userId) {
-    AssetSnapshot snapshot = myDataPort.fetchAssetSnapshot(userId);
+    AssetSnapshot snapshot = assetSnapshots.fetchAssetSnapshot(userId);
     return new AssetSummaryResponse(
-        userId, snapshot.totalAsset(), snapshot.monthlySpend(), snapshot.volatilityPercent());
+        userId,
+        snapshot.totalAsset(),
+        snapshot.monthlySpend(),
+        snapshot.volatilityPercent(),
+        snapshot.linkedInstitutionCount(),
+        snapshot.failedInstitutionCount());
   }
 
   @Override
   public List<AssetTrendItemResponse> trend(String userId) {
-    AssetSnapshot snapshot = myDataPort.fetchAssetSnapshot(userId);
+    AssetSnapshot snapshot = assetSnapshots.fetchAssetSnapshot(userId);
     List<AssetTrendItemResponse> trend = new ArrayList<>();
     YearMonth now = YearMonth.now();
     DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM");

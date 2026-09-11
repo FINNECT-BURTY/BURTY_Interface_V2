@@ -1,0 +1,20 @@
+{
+  "priority": 2,
+  "request": {
+    "method": "GET",
+    "urlPath": "/mydata/v1/bank/accounts",
+    "queryParameters": { "next_page": { "absent": true } }
+  },
+  "response": {
+    "status": 200,
+    "headers": { "Content-Type": "application/json" },
+    "jsonBody": {
+      "rsp_code": "00000", "rsp_msg": "정상처리", "search_timestamp": 0, "reg_date": "20250101",
+      "next_page": "2", "account_cnt": 1,
+      "account_list": [
+        { "account_num": "1000000001", "is_consent": true, "seqno": "1", "is_foreign_deposit": false,
+          "prod_name": "스테이징 입출금통장", "is_minus": false, "account_type": "1001", "account_status": "01" }
+      ]
+    }
+  }
+}

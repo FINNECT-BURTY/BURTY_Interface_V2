@@ -19,8 +19,8 @@
  */
 package com.burty.application.service.policy;
 
+import com.burty.application.port.in.asset.AssetSnapshotQuery;
 import com.burty.application.port.in.policy.PolicyMatchUseCase;
-import com.burty.application.port.out.mydata.MyDataPort;
 import com.burty.application.service.support.AuditLogger;
 import com.burty.core.constant.LogMessages;
 import com.burty.domain.asset.model.AssetSnapshot;
@@ -55,26 +55,26 @@ public class PolicyMatchingService implements PolicyMatchUseCase {
 
   private final PolicyRepository policyRepository;
   private final PolicyMatchLogRepository matchLogRepository;
-  private final MyDataPort myDataPort;
+  private final AssetSnapshotQuery assetSnapshots;
   private final AuditLogger auditLogger;
   private final PersonaHeuristics personaHeuristics;
 
   public PolicyMatchingService(
       PolicyRepository policyRepository,
       PolicyMatchLogRepository matchLogRepository,
-      MyDataPort myDataPort,
+      AssetSnapshotQuery assetSnapshots,
       AuditLogger auditLogger,
       PersonaHeuristics personaHeuristics) {
     this.policyRepository = policyRepository;
     this.matchLogRepository = matchLogRepository;
-    this.myDataPort = myDataPort;
+    this.assetSnapshots = assetSnapshots;
     this.auditLogger = auditLogger;
     this.personaHeuristics = personaHeuristics;
   }
 
   @Override
   public List<PolicyMatch> matchForUser(String userId) {
-    AssetSnapshot snapshot = myDataPort.fetchAssetSnapshot(userId);
+    AssetSnapshot snapshot = assetSnapshots.fetchAssetSnapshot(userId);
     int age = personaHeuristics.inferAgeFromUserId(userId);
     long monthlyIncome = personaHeuristics.estimateMonthlyIncome(snapshot);
     String lifeStage = personaHeuristics.inferLifeStage(snapshot);
