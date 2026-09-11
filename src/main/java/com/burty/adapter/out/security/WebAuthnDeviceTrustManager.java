@@ -60,14 +60,13 @@ public class WebAuthnDeviceTrustManager {
         deviceRepository
             .findByUser_UserIdAndDeviceFingerprintAndRevokedAtIsNull(userKey, fingerprint)
             .orElseGet(DeviceEntity::new);
-    String plainToken = existingToken;
+    // 평문은 저장하지 않는다. 같은 기기가 다시 등록하면 돌려줄 평문이 없으므로 새로 발급하고
+    // 해시를 바꾼다 — 옛 토큰의 해시가 남으면 그 토큰이 계속 통한다.
+    String plainToken =
+        blank(existingToken) ? issueDeviceToken(userKey, fingerprint) : existingToken;
+    device.setDeviceTokenHash(accountNumberHasher.hash(plainToken));
     if (device.getDeviceId() == null) {
-      plainToken = blank(plainToken) ? issueDeviceToken(userKey, fingerprint) : plainToken;
-      device.setDeviceTokenHash(accountNumberHasher.hash(plainToken));
-      device.setDeviceToken(plainToken);
       device.setCreatedAt(LocalDateTime.now());
-    } else if (blank(plainToken)) {
-      plainToken = device.getDeviceToken();
     }
     device.setUser(user);
     device.setDeviceFingerprint(fingerprint);

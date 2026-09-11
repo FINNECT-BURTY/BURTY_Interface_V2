@@ -53,11 +53,14 @@ public class DeviceEntity {
   @Column(name = "device_name", length = 100)
   private String deviceName;
 
+  /**
+   * 기기 신뢰 토큰의 해시. 기기는 이 값으로만 찾는다.
+   *
+   * <p>평문은 두지 않는다. 예전에는 같은 행에 평문({@code device_token})도 저장해 해시로 저장한 의미가 없었다 — DB 가 읽히면 모든 기기 토큰이
+   * 그대로 드러났다. 컬럼은 V11 에서 지웠다.
+   */
   @Column(name = "device_token_hash", length = 64, nullable = false)
   private String deviceTokenHash;
-
-  @Column(name = "device_token", length = 500, nullable = false)
-  private String deviceToken;
 
   @Enumerated(EnumType.STRING)
   @Column(name = "platform", nullable = false)
