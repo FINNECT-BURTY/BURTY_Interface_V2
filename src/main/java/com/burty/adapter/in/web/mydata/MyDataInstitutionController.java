@@ -19,6 +19,7 @@
  */
 package com.burty.adapter.in.web.mydata;
 
+import com.burty.adapter.in.web.social.OAuthFrontendRedirect;
 import com.burty.application.dto.mydata.InstitutionResponse;
 import com.burty.application.dto.mydata.InstitutionResultResponse;
 import com.burty.application.dto.mydata.MyDataAuthorizeResponse;
@@ -31,9 +32,11 @@ import com.burty.security.AuthLevel;
 import com.burty.security.RiskLevel;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -43,6 +46,8 @@ import org.springframework.web.bind.annotation.*;
 public class MyDataInstitutionController extends BaseController {
 
   private final MyDataAuthUseCase myDataAuthUseCase;
+  private final MyDataLinkRedirect linkRedirect;
+  private final OAuthFrontendRedirect frontendRedirect;
 
   @GetMapping
   @AuthLevel(RiskLevel.LEVEL_1)
@@ -57,18 +62,27 @@ public class MyDataInstitutionController extends BaseController {
   @AuthLevel(RiskLevel.LEVEL_1)
   @Operation(summary = "기관별 OAuth 인가 URL", description = "특정 기관 코드에 대한 인가 URL을 발급합니다.")
   public ApiResponse<MyDataAuthorizeResponse> authorize(
-      @CurrentUserId String userId, @PathVariable String institutionCode) {
+      @CurrentUserId String userId,
+      @PathVariable String institutionCode,
+      HttpServletRequest request) {
     return ApiResponse.ok(
         new MyDataAuthorizeResponse(
-            myDataAuthUseCase.createAuthorizeUrl(userId, institutionCode), institutionCode));
+            myDataAuthUseCase.createAuthorizeUrl(
+                userId, institutionCode, frontendRedirect.resolveFromRequest(request)),
+            institutionCode));
   }
 
   @GetMapping("/{institutionCode}/callback")
   @Operation(summary = "기관별 OAuth redirect 콜백")
-  public ApiResponse<FlagResultResponse> callbackRedirect(
-      @PathVariable String institutionCode, @RequestParam String code, @RequestParam String state) {
-    boolean linked = myDataAuthUseCase.exchangeAuthorizationCodeByState(state, code);
-    return ApiResponse.ok(FlagResultResponse.of("linked", linked));
+  public ResponseEntity<Void> callbackRedirect(
+      @PathVariable String institutionCode,
+      @RequestParam(required = false) String code,
+      @RequestParam(required = false) String state,
+      @RequestParam(required = false) String error,
+      HttpServletRequest request) {
+    // 기관은 경로가 아니라 state 로 정한다. 경로 값을 믿으면 다른 기관 코드로 콜백을 보내
+    // 연동을 엇갈리게 만들 수 있다.
+    return linkRedirect.to(myDataAuthUseCase.completeAuthorization(state, code, error), request);
   }
 
   @PostMapping("/{institutionCode}/callback")
