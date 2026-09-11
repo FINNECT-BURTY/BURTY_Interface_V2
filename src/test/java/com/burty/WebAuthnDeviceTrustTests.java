@@ -124,4 +124,33 @@ class WebAuthnDeviceTrustTests {
 
     assertNotEquals(first.plainToken(), second.plainToken());
   }
+
+  @Test
+  @DisplayName("같은 기기가 다시 등록하면 새 토큰을 받고, 해시도 새 토큰으로 바뀐다")
+  void reRegistrationRotatesToken() {
+    // 예전에는 평문 토큰을 저장해 두고 다시 등록할 때 그대로 돌려줬다. 평문을 저장하지 않으면
+    // 돌려줄 값이 없으므로 새로 발급한다. 옛 토큰의 해시가 남으면 그 토큰이 계속 통한다 (#158).
+    var first = manager.ensureTrustedDevice(USER_KEY, "fp-a", "WEB", null);
+    DeviceEntity stored = first.device();
+    stored.setDeviceId(7L);
+    String firstHash = stored.getDeviceTokenHash();
+    when(devices.findByUser_UserIdAndDeviceFingerprintAndRevokedAtIsNull(anyLong(), anyString()))
+        .thenReturn(Optional.of(stored));
+
+    var second = manager.ensureTrustedDevice(USER_KEY, "fp-a", "WEB", null);
+
+    assertNotEquals(first.plainToken(), second.plainToken());
+    assertNotEquals(firstHash, second.device().getDeviceTokenHash());
+    assertEquals(
+        new AccountNumberHasher().hash(second.plainToken()), second.device().getDeviceTokenHash());
+  }
+
+  @Test
+  @DisplayName("기기 행에는 평문 토큰을 두지 않는다 — 해시만 남긴다")
+  void deviceHasNoPlaintextToken() {
+    // 해시로 찾는 값을 같은 행에 평문으로 두면, DB 가 읽히는 순간 모든 기기 토큰이 드러난다 (#158).
+    for (var field : DeviceEntity.class.getDeclaredFields()) {
+      assertNotEquals("deviceToken", field.getName(), "기기 행에 평문 토큰 필드가 있다");
+    }
+  }
 }
