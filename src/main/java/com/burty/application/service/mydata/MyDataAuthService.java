@@ -27,9 +27,9 @@ public class MyDataAuthService implements MyDataAuthUseCase {
   private final MyDataTransmissionLogService transmissionLogService;
   private final MyDataConsentHistoryService consentHistoryService;
   private final FinanceOAuthStateService financeOAuthStateService;
-  private final MyDataTokenHydrationService tokenHydrationService;
   private final MyDataProperties myDataProperties;
   private final AuditLogger auditLogger;
+  private final MyDataGrantRevoker grantRevoker;
 
   public MyDataAuthService(
       MyDataOAuthPort myDataOAuthPort,
@@ -39,7 +39,7 @@ public class MyDataAuthService implements MyDataAuthUseCase {
       MyDataTransmissionLogService transmissionLogService,
       MyDataConsentHistoryService consentHistoryService,
       FinanceOAuthStateService financeOAuthStateService,
-      MyDataTokenHydrationService tokenHydrationService,
+      MyDataGrantRevoker grantRevoker,
       MyDataProperties myDataProperties,
       AuditLogger auditLogger) {
     this.myDataOAuthPort = myDataOAuthPort;
@@ -49,7 +49,7 @@ public class MyDataAuthService implements MyDataAuthUseCase {
     this.transmissionLogService = transmissionLogService;
     this.consentHistoryService = consentHistoryService;
     this.financeOAuthStateService = financeOAuthStateService;
-    this.tokenHydrationService = tokenHydrationService;
+    this.grantRevoker = grantRevoker;
     this.myDataProperties = myDataProperties;
     this.auditLogger = auditLogger;
   }
@@ -138,11 +138,9 @@ public class MyDataAuthService implements MyDataAuthUseCase {
         .findByUserIdAndInstitutionCode(userId, inst)
         .map(
             entity -> {
-              entity.setStatus("UNLINKED");
-              entity.setUnlinkedAt(LocalDateTime.now());
-              linkStatusRepository.save(entity);
-              linkedInstitutionPersistence.markRevoked(userId, inst);
-              tokenHydrationService.clearRuntimeTokens(userId, inst);
+              // 해제도 철회와 같은 무효화를 탄다. 예전에는 정보제공자에 폐기를 요청하지 않아
+              // 기관 쪽 토큰이 살아 있었다(#142).
+              grantRevoker.revoke(userId, inst, MyDataGrantRevoker.LINK_UNLINKED);
               consentHistoryService.revokeActiveConsents(userId, inst, "사용자 연동 해제");
               transmissionLogService.logOutbound(userId, inst, "UNLINK", "user requested");
               auditLogger.logSuccess(userId, "MYDATA_UNLINK", inst, "institutionCode=" + inst);
