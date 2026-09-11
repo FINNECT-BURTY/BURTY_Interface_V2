@@ -123,6 +123,32 @@ class ProdStartupValidatorTests {
   }
 
   @Test
+  void blocksDefaultMyDataClientSecretInProd() {
+    // 기본값으로는 실제 정보제공자와 토큰을 교환할 수 없다. 앱은 뜨고, 사용자가 기관을
+    // 연결하는 순간에야 실패한다 (#160).
+    myDataProperties.setClientSecret("burty-secret");
+    IllegalStateException error =
+        assertThrows(IllegalStateException.class, () -> validator.validate());
+    assertTrue(error.getMessage().contains("burty.mydata.client-secret"));
+  }
+
+  @Test
+  void blocksBlankMyDataClientSecretInProd() {
+    myDataProperties.setClientSecret(" ");
+    IllegalStateException error =
+        assertThrows(IllegalStateException.class, () -> validator.validate());
+    assertTrue(error.getMessage().contains("burty.mydata.client-secret"));
+  }
+
+  @Test
+  void blocksDefaultMyDataClientIdInProd() {
+    myDataProperties.setClientId("burty-client");
+    IllegalStateException error =
+        assertThrows(IllegalStateException.class, () -> validator.validate());
+    assertTrue(error.getMessage().contains("burty.mydata.client-id"));
+  }
+
+  @Test
   void passesWhenProdConfigurationIsValid() {
     validator.validate();
     assertEquals("prod", mockEnvironment.getActiveProfiles()[0]);
@@ -131,6 +157,8 @@ class ProdStartupValidatorTests {
   private void configureValidProd() {
     securityProperties.setTrustedProxies(java.util.List.of("10.0.0.0/8"));
     myDataProperties.setStubMode(false);
+    myDataProperties.setClientId("prod-mydata-client");
+    myDataProperties.setClientSecret("prod-mydata-client-secret");
     socialLoginProperties.setStubMode(false);
     externalFinanceProperties.setStubMode(false);
     apiProperties.setSwaggerEnabled(false);
