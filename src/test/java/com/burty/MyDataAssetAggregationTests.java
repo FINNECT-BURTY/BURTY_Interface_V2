@@ -268,4 +268,119 @@ class MyDataAssetAggregationTests {
     assertTrue(snapshot.monthlySpend() > 0, "모의 거래내역에서 이번 달 지출이 잡히지 않았다");
     assertEquals(2, snapshot.linkedInstitutionCount());
   }
+
+  @Test
+  @DisplayName("연결한 내 계좌 사이의 이체는 지출에도 소득에도 넣지 않는다")
+  void transferBetweenLinkedAccountsIsNeitherSpendNorIncome() {
+    // KB 입출금에서 신한 적금으로 매달 30만 원을 옮긴다. 한쪽에서는 출금, 다른 쪽에서는 입금으로
+    // 보이지만 쓴 돈도 번 돈도 아니다.
+    links(link("KB", LinkStatus.ACTIVE), link("SHINHAN", LinkStatus.ACTIVE));
+    LocalDate thisMonth = TODAY.withDayOfMonth(10);
+    LocalDate lastMonth = TODAY.minusMonths(1).withDayOfMonth(10);
+    institution(
+        "KB",
+        1_000_000,
+        tx(Direction.WITHDRAWAL, thisMonth, 300_000),
+        tx(Direction.WITHDRAWAL, lastMonth, 300_000),
+        tx(Direction.WITHDRAWAL, TODAY.withDayOfMonth(3), 50_000));
+    institution(
+        "SHINHAN",
+        2_000_000,
+        tx(Direction.DEPOSIT, thisMonth, 300_000),
+        tx(Direction.DEPOSIT, lastMonth, 300_000));
+
+    AssetSnapshot snapshot = service(bankPort).fetchAssetSnapshot(USER);
+
+    assertEquals(50_000, snapshot.monthlySpend());
+    // 옮긴 돈을 소득으로 세면 8월에만 30만 원 소득이 있는 것처럼 보여 변동성이 141.4% 로 나온다.
+    assertEquals(0.0, snapshot.volatilityPercent());
+  }
+
+  @Test
+  @DisplayName("같은 기관 안의 계좌 사이 이체도 뺀다 — 입출금에서 적금으로")
+  void transferBetweenAccountsOfOneInstitution() {
+    links(link("KB", LinkStatus.ACTIVE));
+    BankAccount checking = new BankAccount("100", "1", "입출금", "1001", "01", true);
+    BankAccount savings = new BankAccount("200", "1", "적금", "1003", "01", true);
+    LocalDate day = TODAY.withDayOfMonth(10);
+    when(bankPort.listAccounts(eq("KB"), anyString())).thenReturn(List.of(checking, savings));
+    when(bankPort.depositBalance(eq("KB"), anyString(), any())).thenReturn(BigDecimal.ZERO);
+    when(bankPort.depositTransactions(eq("KB"), anyString(), eq(checking), any(), any()))
+        .thenReturn(
+            List.of(tx(Direction.WITHDRAWAL, day, 300_000), tx(Direction.WITHDRAWAL, day, 20_000)));
+    when(bankPort.depositTransactions(eq("KB"), anyString(), eq(savings), any(), any()))
+        .thenReturn(List.of(tx(Direction.DEPOSIT, day, 300_000)));
+
+    assertEquals(20_000, service(bankPort).fetchAssetSnapshot(USER).monthlySpend());
+  }
+
+  @Test
+  @DisplayName("짝은 일대일로 맞춘다 — 같은 금액 출금 두 건에 입금 한 건이면 한 건만 이체다")
+  void pairsOneToOne() {
+    links(link("KB", LinkStatus.ACTIVE), link("SHINHAN", LinkStatus.ACTIVE));
+    LocalDate day = TODAY.withDayOfMonth(10);
+    institution(
+        "KB", 0, tx(Direction.WITHDRAWAL, day, 100_000), tx(Direction.WITHDRAWAL, day, 100_000));
+    institution("SHINHAN", 0, tx(Direction.DEPOSIT, day, 100_000));
+
+    assertEquals(100_000, service(bankPort).fetchAssetSnapshot(USER).monthlySpend());
+  }
+
+  @Test
+  @DisplayName("같은 계좌 안의 입출금, 다른 날, 다른 금액은 이체로 보지 않는다")
+  void onlySameDaySameAmountAcrossAccountsIsTransfer() {
+    // 같은 계좌에서 같은 금액이 나갔다 들어온 것은 취소·환불일 수 있다.
+    links(link("KB", LinkStatus.ACTIVE), link("SHINHAN", LinkStatus.ACTIVE));
+    LocalDate day = TODAY.withDayOfMonth(10);
+    institution(
+        "KB",
+        0,
+        tx(Direction.WITHDRAWAL, day, 100_000),
+        tx(Direction.DEPOSIT, day, 100_000), // 같은 계좌
+        tx(Direction.WITHDRAWAL, day, 70_000));
+    institution(
+        "SHINHAN",
+        0,
+        tx(Direction.DEPOSIT, day.plusDays(1), 70_000), // 다음 날
+        tx(Direction.DEPOSIT, day, 69_000)); // 다른 금액
+
+    assertEquals(170_000, service(bankPort).fetchAssetSnapshot(USER).monthlySpend());
+  }
+
+  @Test
+  @DisplayName("모의 거래내역의 적금 납입은 이체로 짝지어져 지출에서 빠진다")
+  void stubSavingsContributionIsTransfer() {
+    // 예전 모의에는 적금 입금에 짝이 되는 출금이 없어서 이 결함이 보이지 않았다.
+    MyDataProperties stub = new MyDataProperties();
+    stub.setStubMode(true);
+    MyDataBankPort stubPort =
+        new MyDataBankApiAdapter(
+            new RestTemplate(),
+            stub,
+            new ResilientHttpExecutor(CircuitBreakerRegistry.ofDefaults()));
+    links(link("KB", LinkStatus.ACTIVE));
+
+    AssetSnapshot snapshot = service(stubPort).fetchAssetSnapshot(USER);
+
+    String checking = StandardBankFixtures.checkingAccount("KB");
+    long withdrawals = 0;
+    boolean contribution = false;
+    String next = null;
+    do {
+      var page =
+          StandardBankFixtures.transactions("KB", checking, TODAY.withDayOfMonth(1), TODAY, next);
+      for (var transaction : page.transList()) {
+        if ("02".equals(transaction.transType())) {
+          withdrawals += transaction.transAmt().longValue();
+          contribution |=
+              transaction.transDtime().startsWith("20260910")
+                  && transaction.transAmt().longValue() == 300_000;
+        }
+      }
+      next = page.nextPage();
+    } while (next != null);
+
+    assertTrue(contribution, "모의 입출금 통장에 적금 납입 출금이 없다");
+    assertEquals(withdrawals - 300_000, (long) snapshot.monthlySpend());
+  }
 }
