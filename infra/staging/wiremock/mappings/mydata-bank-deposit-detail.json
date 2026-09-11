@@ -1,0 +1,14 @@
+{
+  "request": { "method": "POST", "urlPath": "/mydata/v1/bank/accounts/deposit/detail" },
+  "response": {
+    "status": 200,
+    "headers": { "Content-Type": "application/json" },
+    "jsonBody": {
+      "rsp_code": "00000", "rsp_msg": "정상처리", "search_timestamp": 0, "detail_cnt": 1,
+      "detail_list": [
+        { "currency_code": "KRW", "balance_amt": 2000000, "withdrawable_amt": 2000000,
+          "offered_rate": 2.5, "last_paid_in_cnt": 0 }
+      ]
+    }
+  }
+}

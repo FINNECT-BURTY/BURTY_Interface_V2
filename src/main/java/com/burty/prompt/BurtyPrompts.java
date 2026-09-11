@@ -80,7 +80,7 @@ public final class BurtyPrompts {
                 페르소나:
                 - 직업: %s, 거주: %s, 세대: %s, 추정 월소득: %,d원, 소득 변동성: %.1f%%
                 현재 자산:
-                - 총자산: %,.0f원, 월지출: %,.0f원, 변동성: %.1f%%
+                - %s
                 30일 위험 진단:
                 - 위험단계: %s, 최소 잔액: %,d원, 위험일: %s
                 - 사유: %s
@@ -92,13 +92,32 @@ public final class BurtyPrompts {
             household(persona),
             monthlyIncome(persona),
             variability(persona),
-            snapshot.totalAsset(),
-            snapshot.monthlySpend(),
-            snapshot.volatilityPercent(),
+            assetLine(snapshot),
             riskLevel(risk),
             projectedBalance(risk),
             riskDate(risk),
             riskReason(risk));
+  }
+
+  /**
+   * 자산 한 줄. 연동 전이면 수치를 쓰지 않는다.
+   *
+   * <p>연동하지 않은 사용자의 스냅샷은 0 이다. 그대로 넘기면 모델은 "자산이 0원" 이라는 사실로 읽고 그에 맞춰 조언한다.
+   */
+  private static String assetLine(AssetSnapshot snapshot) {
+    if (snapshot == null || !snapshot.linked()) {
+      return "자산 연동 전 — 연결된 금융기관이 없어 총자산·월지출을 모른다. 수치를 추측하지 말 것";
+    }
+    String line =
+        "총자산 %,.0f원, 월지출 %,.0f원, 소득 변동성 %.1f%% (연동 기관 %d곳)"
+            .formatted(
+                snapshot.totalAsset(),
+                snapshot.monthlySpend(),
+                snapshot.volatilityPercent(),
+                snapshot.linkedInstitutionCount());
+    return snapshot.partial()
+        ? line + ", 일부 기관 " + snapshot.failedInstitutionCount() + "곳 조회 실패로 합계가 작을 수 있다"
+        : line;
   }
 
   /** 월간 리포트용 user prompt — 직전 달 핵심 수치 + 위험/행동 요약. */
@@ -112,7 +131,7 @@ public final class BurtyPrompts {
     return """
                 대상 기간: %s
                 페르소나: 직업 %s / 거주 %s / 추정 월소득 %,d원
-                자산 스냅샷: 총자산 %,.0f원 / 월지출 %,.0f원 / 변동성 %.1f%%
+                자산 스냅샷: %s
                 30일 위험: %s / 최소 잔액 %,d원 / 위험일 %s / 사유 %s
                 추천 행동: %s (예상 개선효과 %,d원)
                 """
@@ -121,9 +140,7 @@ public final class BurtyPrompts {
             occupation(persona),
             residence(persona),
             monthlyIncome(persona),
-            snapshot.totalAsset(),
-            snapshot.monthlySpend(),
-            snapshot.volatilityPercent(),
+            assetLine(snapshot),
             riskLevel(risk),
             projectedBalance(risk),
             riskDate(risk),

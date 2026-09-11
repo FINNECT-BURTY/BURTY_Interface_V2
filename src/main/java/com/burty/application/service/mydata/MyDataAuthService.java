@@ -1,10 +1,12 @@
 package com.burty.application.service.mydata;
 
+import com.burty.application.dto.mydata.MyDataLinkResult;
 import com.burty.application.port.in.mydata.MyDataAuthUseCase;
 import com.burty.application.port.out.mydata.MyDataOAuthPort;
 import com.burty.application.service.support.AuditLogger;
 import com.burty.config.MyDataProperties;
 import com.burty.core.constant.AppMessages;
+import com.burty.core.exception.BusinessException;
 import com.burty.domain.mydata.entity.MyDataLinkStatusEntity;
 import com.burty.domain.mydata.model.MyDataTokenBundle;
 import com.burty.domain.mydata.repository.MyDataLinkStatusRepository;
@@ -61,10 +63,16 @@ public class MyDataAuthService implements MyDataAuthUseCase {
 
   @Override
   public String createAuthorizeUrl(String userId, String institutionCode) {
+    return createAuthorizeUrl(userId, institutionCode, null);
+  }
+
+  @Override
+  public String createAuthorizeUrl(String userId, String institutionCode, String frontendOrigin) {
     String inst = nullOrBlank(institutionCode) ? DEFAULT_INSTITUTION : institutionCode;
     String oauthState =
-        financeOAuthStateService.issue(FinanceOAuthStateService.PROVIDER_MYDATA, userId, inst);
-    return myDataOAuthPort.buildAuthorizeUrl(oauthState);
+        financeOAuthStateService.issue(
+            FinanceOAuthStateService.PROVIDER_MYDATA, userId, inst, frontendOrigin);
+    return myDataOAuthPort.buildAuthorizeUrl(oauthState, inst);
   }
 
   @Override
@@ -86,6 +94,32 @@ public class MyDataAuthService implements MyDataAuthUseCase {
     FinanceOAuthStateService.FinanceOAuthContext ctx =
         financeOAuthStateService.consume(FinanceOAuthStateService.PROVIDER_MYDATA, state);
     return doExchange(ctx.userId(), ctx.institutionCode(), code);
+  }
+
+  @Override
+  @Transactional
+  public MyDataLinkResult completeAuthorization(String state, String code, String error) {
+    FinanceOAuthStateService.FinanceOAuthContext ctx;
+    try {
+      // 거절이어도 state 는 소비한다. 남겨 두면 같은 state 로 다시 콜백을 보낼 수 있다.
+      ctx = financeOAuthStateService.consume(FinanceOAuthStateService.PROVIDER_MYDATA, state);
+    } catch (BusinessException e) {
+      return MyDataLinkResult.stateInvalid();
+    }
+    if (!nullOrBlank(error) || nullOrBlank(code)) {
+      transmissionLogService.logInbound(
+          ctx.userId(),
+          ctx.institutionCode(),
+          "AUTHORIZE_DENIED",
+          nullOrBlank(error) ? "no code" : error);
+      return new MyDataLinkResult(
+          MyDataLinkResult.Outcome.DENIED, ctx.institutionCode(), ctx.frontendOrigin());
+    }
+    boolean linked = doExchange(ctx.userId(), ctx.institutionCode(), code);
+    return new MyDataLinkResult(
+        linked ? MyDataLinkResult.Outcome.LINKED : MyDataLinkResult.Outcome.EXCHANGE_FAILED,
+        ctx.institutionCode(),
+        ctx.frontendOrigin());
   }
 
   private boolean doExchange(String userId, String institutionCode, String code) {

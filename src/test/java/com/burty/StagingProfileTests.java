@@ -69,7 +69,7 @@ class StagingProfileTests {
           "burty.external.open-banking-accounts-url",
           "burty.mydata.token-url",
           "burty.mydata.revoke-url",
-          "burty.mydata.asset-url"
+          "burty.mydata.api-base-url"
         }) {
       String value = props.getProperty(key);
       assertTrue(value != null && value.contains("MOCK_BANK_URL"), key + " 가 목을 향하지 않는다: " + value);

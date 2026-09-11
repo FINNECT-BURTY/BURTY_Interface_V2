@@ -114,6 +114,15 @@ class ProdStartupValidatorTests {
   }
 
   @Test
+  void blocksMockConsentAuthorizeUrlInProd() {
+    // 모의 동의 화면은 개발·시연용이다. 운영 사용자가 실제 기관이 아닌 화면에서 동의하면 안 된다.
+    myDataProperties.setAuthorizeUrl("https://burty.co.kr/mydata/mock-consent");
+    IllegalStateException error =
+        assertThrows(IllegalStateException.class, () -> validator.validate());
+    assertTrue(error.getMessage().contains("authorize-url"));
+  }
+
+  @Test
   void passesWhenProdConfigurationIsValid() {
     validator.validate();
     assertEquals("prod", mockEnvironment.getActiveProfiles()[0]);

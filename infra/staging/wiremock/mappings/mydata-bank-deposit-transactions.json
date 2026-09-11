@@ -1,0 +1,19 @@
+{
+  "request": { "method": "POST", "urlPath": "/mydata/v1/bank/accounts/deposit/transactions" },
+  "response": {
+    "status": 200,
+    "headers": { "Content-Type": "application/json" },
+    "jsonBody": {
+      "rsp_code": "00000", "rsp_msg": "정상처리", "trans_cnt": 3,
+      "trans_list": [
+        { "trans_dtime": "{{now format='yyyyMMdd'}}090000", "trans_no": "00000001", "trans_type": "01",
+          "trans_class": "급여", "currency_code": "KRW", "trans_amt": 3000000, "balance_amt": 5000000 },
+        { "trans_dtime": "{{now format='yyyyMMdd'}}120000", "trans_no": "00000002", "trans_type": "02",
+          "trans_class": "체크카드", "currency_code": "KRW", "trans_amt": 45000, "balance_amt": 4955000 },
+        { "trans_dtime": "{{now format='yyyyMMdd'}}180000", "trans_no": "00000003", "trans_type": "02",
+          "trans_class": "자동이체", "currency_code": "KRW", "trans_amt": 550000, "balance_amt": 4405000 }
+      ]
+    },
+    "transformers": ["response-template"]
+  }
+}
