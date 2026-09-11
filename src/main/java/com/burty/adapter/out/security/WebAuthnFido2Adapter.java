@@ -24,6 +24,8 @@ import com.burty.application.port.out.security.BiometricAuthPort;
 import com.burty.application.port.out.security.WebAuthnCeremonyPort;
 import com.burty.application.service.support.AuditLogger;
 import com.burty.config.WebAuthnProperties;
+import com.burty.core.error.enums.ErrorCode;
+import com.burty.core.exception.BusinessException;
 import com.burty.domain.auth.model.BiometricAuthResult;
 import com.burty.domain.user.entity.DeviceEntity;
 import com.burty.security.JwtTokenProvider;
@@ -63,6 +65,9 @@ public class WebAuthnFido2Adapter implements BiometricAuthPort, WebAuthnCeremony
 
   @Override
   public String issueChallenge(String userId, String flowType) {
+    if ("REGISTRATION".equals(flowType)) {
+      requireCredentialKey(userId);
+    }
     String challengeId = UUID.randomUUID().toString();
     challengeStore.put(challengeId, userId + "|" + flowType, properties.getChallengeTtlSeconds());
     return challengeId;
@@ -130,13 +135,12 @@ public class WebAuthnFido2Adapter implements BiometricAuthPort, WebAuthnCeremony
       String deviceFingerprint,
       String platform,
       String biometricType) {
+    // 등록할 수 없는 계정이면 챌린지를 쓰기 전에 그 이유로 끝낸다. 검증부터 하면
+    // 인증기가 거부한 것과 구분되지 않는 authenticated=false 만 남는다.
+    long userKey = requireCredentialKey(userId);
     boolean verified =
         verifyAndConsumeChallenge(userId, challengeId, signedPayload, "REGISTRATION");
     if (!verified) {
-      return new BiometricAuthResult(userId, null, null, null, false, false);
-    }
-    Long userKey = parseUserKey(userId);
-    if (userKey == null) {
       return new BiometricAuthResult(userId, null, null, null, false, false);
     }
     WebAuthnDeviceTrustManager.DeviceTokenPair tokenPair =
@@ -189,13 +193,27 @@ public class WebAuthnFido2Adapter implements BiometricAuthPort, WebAuthnCeremony
   }
 
   /**
+   * 자격증명을 저장할 수 있는 계정의 키.
+   *
+   * <p>등록이 애초에 불가능한 계정이면 챌린지를 내주기 전에 {@link ErrorCode#PASSKEY_UNAVAILABLE} 로 끝낸다. 데모 세션은 사용자 행이 없어
+   * 자격증명을 저장할 곳이 없다. 등록을 막는 것 자체는 의도다 — 데모 세션이 LEVEL_3(이체)에 닿으면 안 된다. 바로잡는 것은 그 이유가 보이지 않던 점이다.
+   */
+  private long requireCredentialKey(String userId) {
+    Long userKey = parseUserKey(userId);
+    if (userKey == null) {
+      throw new BusinessException(ErrorCode.PASSKEY_UNAVAILABLE);
+    }
+    return userKey;
+  }
+
+  /**
    * 사용자 키.
    *
    * <p>자격증명과 기기는 숫자 키로 저장된다. 숫자가 아닌 {@code userId}(데모 세션의 {@code demo-user} 같은)는 여기서 {@code null} 이
-   * 되고, 호출부는 인증 실패로 끝낸다.
+   * 된다. 등록은 {@link #requireCredentialKey} 가 이유를 붙여 거부하고, 인증은 등록된 기기가 없으니 실패로 끝난다.
    *
-   * <p>예전에는 그 실패가 조용했다. 화면에는 "인증이 확인되지 않았습니다" 로만 보여서, <b>등록이 애초에 불가능한 것</b>과 인증기가 거부한 것을 구분할 수 없었다.
-   * 실제로 이 때문에 origin 설정 문제를 찾다가 엉뚱한 곳을 뒤졌다. 원인이 검증이 아니라 여기일 때는 그렇다고 남긴다.
+   * <p>예전에는 등록 실패가 조용했다. 화면에는 "인증이 확인되지 않았습니다" 로만 보여서, <b>등록이 애초에 불가능한 것</b>과 인증기가 거부한 것을 구분할 수
+   * 없었다. 실제로 이 때문에 origin 설정 문제를 찾다가 엉뚱한 곳을 뒤졌다. 원인이 검증이 아니라 여기일 때는 그렇다고 남긴다.
    */
   private Long parseUserKey(String value) {
     try {
