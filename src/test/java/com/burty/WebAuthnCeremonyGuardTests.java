@@ -1,6 +1,9 @@
 package com.burty;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -9,6 +12,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.burty.adapter.out.security.WebAuthnCredentialStore;
@@ -17,6 +21,8 @@ import com.burty.adapter.out.security.WebAuthnFido2Adapter;
 import com.burty.adapter.out.store.ChallengeStore;
 import com.burty.application.service.support.AuditLogger;
 import com.burty.config.WebAuthnProperties;
+import com.burty.core.error.enums.ErrorCode;
+import com.burty.core.exception.BusinessException;
 import com.burty.domain.admin.model.AuditEvent;
 import com.burty.security.JwtTokenProvider;
 import com.burty.security.WebAuthnAssertionVerifier;
@@ -180,6 +186,55 @@ class WebAuthnCeremonyGuardTests {
 
     verify(challengeStore)
         .put(eq(issued), eq(USER_ID + "|AUTHENTICATION"), eq(properties.getChallengeTtlSeconds()));
+  }
+
+  @Test
+  @DisplayName("자격증명을 저장할 수 없는 계정은 등록 챌린지를 받지 못하고, 그 이유를 오류 코드로 받는다")
+  void accountWithoutCredentialKeyCannotStartRegistration() {
+    // 예전에는 챌린지를 내주고 생체인증까지 마치게 한 뒤 authenticated=false 로 끝냈다.
+    // 인증기가 거부한 것과 구분되지 않아 origin·rpId 설정을 헛짚었다 (#119).
+    BusinessException e =
+        assertThrows(
+            BusinessException.class, () -> adapter.issueChallenge("demo-user", "REGISTRATION"));
+
+    assertEquals(ErrorCode.PASSKEY_UNAVAILABLE, e.getErrorCode());
+    verifyNoInteractions(challengeStore);
+  }
+
+  @Test
+  @DisplayName("등록 완료도 챌린지를 쓰기 전에 같은 이유로 거부한다")
+  void accountWithoutCredentialKeyCannotFinishRegistration() {
+    challengeIssuedFor("demo-user", "REGISTRATION");
+    verificationSucceeds();
+
+    BusinessException e =
+        assertThrows(
+            BusinessException.class,
+            () ->
+                adapter.registerTrustedDevice(
+                    "demo-user", CHALLENGE_ID, PAYLOAD, "fingerprint", "WEB", "FACE"));
+
+    assertEquals(ErrorCode.PASSKEY_UNAVAILABLE, e.getErrorCode());
+    verify(challengeStore, never()).consume(CHALLENGE_ID);
+  }
+
+  @Test
+  @DisplayName("숫자 키가 있는 계정은 등록 챌린지를 그대로 받는다")
+  void accountWithCredentialKeyStartsRegistration() {
+    // 위 거부가 "등록 전부 거부" 로 통과하는 것이 아님을 보인다.
+    String issued = adapter.issueChallenge(USER_ID, "REGISTRATION");
+
+    verify(challengeStore)
+        .put(
+            eq(issued),
+            eq(USER_ID + "|REGISTRATION"),
+            eq(new WebAuthnProperties().getChallengeTtlSeconds()));
+  }
+
+  @Test
+  @DisplayName("인증 챌린지 발급은 바꾸지 않는다")
+  void authenticationChallengeIsUnchanged() {
+    assertDoesNotThrow(() -> adapter.issueChallenge("demo-user", "AUTHENTICATION"));
   }
 
   private record SingletonProvider<T>(T instance) implements ObjectProvider<T> {
