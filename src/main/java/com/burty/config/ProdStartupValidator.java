@@ -84,6 +84,13 @@ public class ProdStartupValidator {
       throw new IllegalStateException(
           "PROD startup blocked: burty.redis.enabled must be true for shared auth state.");
     }
+    // 모의 동의 화면은 개발·시연용이다. 운영에서 여기로 보내면 사용자가 실제 기관이 아닌 화면에서
+    // "동의" 를 누르게 된다.
+    String authorizeUrl = myDataProperties.getAuthorizeUrl();
+    if (authorizeUrl != null && authorizeUrl.contains("/mydata/mock-consent")) {
+      throw new IllegalStateException(
+          "PROD startup blocked: burty.mydata.authorize-url must point to the real provider, not the mock consent page.");
+    }
     if (myDataProperties.isStubMode()) {
       throw new IllegalStateException(
           "PROD startup blocked: burty.mydata.stub-mode must be false.");
