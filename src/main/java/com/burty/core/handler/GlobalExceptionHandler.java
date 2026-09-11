@@ -242,10 +242,19 @@ public class GlobalExceptionHandler {
             ApiResponse.error(errorResponse.getMessage(), String.valueOf(errorResponse.getCode())));
   }
 
-  /** 핸들러 찾을 수 없음 예외 처리 */
-  @ExceptionHandler(NoHandlerFoundException.class)
+  /**
+   * 매핑이 없는 경로.
+   *
+   * <p>Spring 6.1 부터 매핑이 없는 경로는 {@code NoHandlerFoundException} 이 아니라 정적 리소스 핸들러를 거쳐 {@code
+   * NoResourceFoundException} 으로 끝난다. 이것을 받지 않으면 마지막 {@code Exception} 핸들러로 떨어져, 없는 경로 하나가 500 과
+   * 스택이 붙은 ERROR 로그가 된다. 모니터링에는 장애로 잡히고 원인도 흐려진다.
+   */
+  @ExceptionHandler({
+    NoHandlerFoundException.class,
+    org.springframework.web.servlet.resource.NoResourceFoundException.class
+  })
   public ResponseEntity<ApiResponse<ErrorResponse>> handleNoHandlerFoundException(
-      NoHandlerFoundException e, HttpServletRequest request) {
+      Exception e, HttpServletRequest request) {
 
     ErrorResponse errorResponse =
         ErrorResponse.of(ErrorCode.ENTITY_NOT_FOUND, request.getRequestURI());
