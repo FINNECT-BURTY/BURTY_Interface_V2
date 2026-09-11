@@ -19,6 +19,7 @@
  */
 package com.burty.config;
 
+import com.burty.adapter.in.web.health.HealthController;
 import com.burty.core.constants.ApiVersions;
 import com.burty.core.constants.CommonConstants;
 import com.burty.security.AuthLevelInterceptor;
@@ -26,6 +27,7 @@ import com.burty.security.RequestBodyOwnershipInterceptor;
 import com.burty.security.ResourceOwnershipInterceptor;
 import com.burty.security.resolver.CurrentUserIdArgumentResolver;
 import java.util.List;
+import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.bind.annotation.RestController;
@@ -45,6 +47,15 @@ public class BurtyWebConfig implements WebMvcConfigurer {
 
   private static final String V1_PACKAGE = "com.burty.adapter.in.web";
   private static final String V2_PACKAGE = "com.burty.adapter.in.web.v2";
+
+  /**
+   * 버전 접두사를 붙이지 않는 컨트롤러.
+   *
+   * <p>{@code /health} 는 API 가 아니라 운영 약속이다. 컨테이너 HEALTHCHECK, compose, nginx, Jenkins 배포 확인이 모두 이
+   * 경로를 부르고, {@code SecurityConfig} 도 이 경로를 무인증으로 연다. 접두사가 붙어 {@code /api/v1/health} 로 옮겨간 뒤로 운영 쪽
+   * 헬스체크가 전부 실패했다.
+   */
+  private static final Set<Class<?>> UNVERSIONED = Set.of(HealthController.class);
 
   /**
    * 패키지로 API 버전을 결정한다.
@@ -72,7 +83,8 @@ public class BurtyWebConfig implements WebMvcConfigurer {
         c ->
             c.isAnnotationPresent(RestController.class)
                 && c.getPackageName().startsWith(V1_PACKAGE)
-                && !c.getPackageName().startsWith(V2_PACKAGE));
+                && !c.getPackageName().startsWith(V2_PACKAGE)
+                && !UNVERSIONED.contains(c));
   }
 
   /**
