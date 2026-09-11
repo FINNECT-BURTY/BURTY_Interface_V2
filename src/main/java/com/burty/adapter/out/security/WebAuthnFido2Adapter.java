@@ -76,22 +76,51 @@ public class WebAuthnFido2Adapter implements BiometricAuthPort, WebAuthnCeremony
   @Override
   public boolean verifyAndConsumeChallenge(
       String userId, String challengeId, String signedPayload, String flowType) {
+    Verification verification = consumeAndVerify(userId, challengeId, signedPayload, flowType);
+    if (verification == null) {
+      return false;
+    }
+    Long userKey = verification.userKey();
+    if (userKey != null) {
+      if ("REGISTRATION".equals(flowType)) {
+        // 기기 정보 없이 등록을 끝내는 경로. 지문을 모르므로 기본 기기에 묶는다.
+        // 기기 정보가 있는 등록은 registerTrustedDevice 가 실제 기기에 바로 묶는다.
+        credentialStore.upsertFromRegistration(
+            userKey,
+            verification.result(),
+            deviceTrustManager.ensureTrustedDevice(
+                userKey, "default-fingerprint-" + userKey, "WEB", null));
+      } else {
+        credentialStore.updateAfterAuthentication(userKey, verification.result());
+      }
+    }
+    return true;
+  }
+
+  /**
+   * 챌린지를 소비하고 서명을 검증한다. 통과하지 못하면 {@code null}.
+   *
+   * <p>자격증명과 기기를 어디에 저장할지는 호출부가 정한다. 예전에는 등록 검증이 기본 기기를 만들고 자격증명을 거기에 묶었고, 이어서 등록 단계가 실제 기기를 또
+   * 만들었다. 등록할 때마다 쓰이지 않는 신뢰 기기가 하나씩 남았다.
+   */
+  private Verification consumeAndVerify(
+      String userId, String challengeId, String signedPayload, String flowType) {
     String session = challengeStore.get(challengeId);
     if (session == null) {
-      return false;
+      return null;
     }
     // 챌린지는 검증 결과와 무관하게 한 번만 쓸 수 있어야 한다. 성공했을 때만 지우면
     // 실패한 시도가 챌린지를 남겨, TTL 이 다할 때까지 같은 챌린지로 몇 번이든 다시 시도할 수 있다.
     // 선점에 실패했다는 것은 다른 요청이 먼저 소비했다는 뜻이다.
     if (!challengeStore.consume(challengeId)) {
-      return false;
+      return null;
     }
     String[] split = session.split("\\|");
     if (split.length != 2) {
-      return false;
+      return null;
     }
     if (!split[0].equals(userId) || !split[1].equals(flowType)) {
-      return false;
+      return null;
     }
     Long userKey = parseUserKey(userId);
     long currentSignCount = credentialStore.findSignCount(userKey);
@@ -110,22 +139,10 @@ public class WebAuthnFido2Adapter implements BiometricAuthPort, WebAuthnCeremony
                 properties.getRpId(),
                 currentSignCount,
                 credentialStore.findStoredCredential(userKey));
-    if (!result.isVerified()) {
-      return false;
-    }
-    if (userKey != null) {
-      if ("REGISTRATION".equals(flowType)) {
-        credentialStore.upsertFromRegistration(
-            userKey,
-            result,
-            deviceTrustManager.ensureTrustedDevice(
-                userKey, "default-fingerprint-" + userKey, "WEB", null));
-      } else {
-        credentialStore.updateAfterAuthentication(userKey, result);
-      }
-    }
-    return true;
+    return result.isVerified() ? new Verification(userKey, result) : null;
   }
+
+  private record Verification(Long userKey, WebAuthnAssertionVerifier.VerificationResult result) {}
 
   @Override
   public BiometricAuthResult registerTrustedDevice(
@@ -138,13 +155,15 @@ public class WebAuthnFido2Adapter implements BiometricAuthPort, WebAuthnCeremony
     // 등록할 수 없는 계정이면 챌린지를 쓰기 전에 그 이유로 끝낸다. 검증부터 하면
     // 인증기가 거부한 것과 구분되지 않는 authenticated=false 만 남는다.
     long userKey = requireCredentialKey(userId);
-    boolean verified =
-        verifyAndConsumeChallenge(userId, challengeId, signedPayload, "REGISTRATION");
-    if (!verified) {
+    Verification verification =
+        consumeAndVerify(userId, challengeId, signedPayload, "REGISTRATION");
+    if (verification == null) {
       return new BiometricAuthResult(userId, null, null, null, false, false);
     }
+    // 실제 기기를 만들고 자격증명을 거기에 바로 묶는다.
     WebAuthnDeviceTrustManager.DeviceTokenPair tokenPair =
         deviceTrustManager.ensureTrustedDevice(userKey, deviceFingerprint, platform, null);
+    credentialStore.upsertFromRegistration(userKey, verification.result(), tokenPair);
     credentialStore.bindCredentialToDevice(userKey, tokenPair, biometricType);
     auditLogger.logSuccess(
         userId, "WEBAUTHN_REGISTER", tokenPair.device().getDeviceId().toString(), platform);
