@@ -20,6 +20,7 @@
 package com.burty.adapter.in.web.user;
 
 import com.burty.application.dto.shared.SimpleResultResponse;
+import com.burty.application.dto.user.DeviceFcmTokenRequest;
 import com.burty.application.dto.user.DeviceNameUpdateRequest;
 import com.burty.application.dto.user.DeviceResponse;
 import com.burty.application.port.in.user.DeviceManagementUseCase;
@@ -48,6 +49,16 @@ public class DeviceManagementController extends BaseController {
   @Operation(summary = "등록 기기 목록", description = "사용자에게 등록된 신뢰 기기 목록을 조회합니다.")
   public ApiResponse<List<DeviceResponse>> devices(@CurrentUserId String userId) {
     return ApiResponse.ok(deviceManagementUseCase.listDevices(userId));
+  }
+
+  @PatchMapping("/{deviceId}/fcm-token")
+  @AuthLevel(RiskLevel.LEVEL_1)
+  @Operation(summary = "푸시 토큰 등록", description = "기기의 FCM 등록 토큰을 저장합니다. 앱이 실행될 때마다 갱신된 토큰으로 덮어씁니다.")
+  public ApiResponse<DeviceResponse> registerFcmToken(
+      @PathVariable String deviceId,
+      @CurrentUserId String userId,
+      @Valid @RequestBody DeviceFcmTokenRequest request) {
+    return ApiResponse.ok(deviceManagementUseCase.registerFcmToken(deviceId, userId, request));
   }
 
   @PatchMapping("/{deviceId}/name")
