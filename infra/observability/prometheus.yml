@@ -6,6 +6,13 @@ global:
 rule_files:
   - /etc/prometheus/alert-rules.yml
 
+# 룰을 평가만 하면 Prometheus 화면에 FIRING 으로 뜰 뿐 아무에게도 가지 않는다.
+# 통지는 Alertmanager 가 한다.
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ["alertmanager:9093"]
+
 scrape_configs:
   - job_name: burty
     metrics_path: /actuator/prometheus

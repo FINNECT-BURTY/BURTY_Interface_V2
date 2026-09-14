@@ -189,6 +189,33 @@ DB_HOST=localhost DB_PASSWORD=... ./infra/scripts/backup-mariadb.sh
 
 
 
+### 알람
+
+룰은 `infra/observability/alert-rules.yml` 에 있고, 통지는 Alertmanager 가 한다. **룰만 있고 Alertmanager 가 없으면 Prometheus 화면에 FIRING 으로 뜰 뿐 아무에게도 가지 않는다.**
+
+| 항목 | 값 |
+|-----|------|
+| 수신 주소 | `ALERT_WEBHOOK_URL` (Slack·Teams·Discord 등) |
+| critical 재통지 | 30분 |
+| 그 외 재통지 | 4시간 |
+| 억제 | 같은 알람의 critical 이 떠 있으면 warning 은 보내지 않는다 |
+
+웹훅 주소는 저장소에 두지 않는다. 컨테이너가 기동할 때 환경변수를 `/alertmanager/webhook-url` 에 쓰고 Alertmanager 가 그 파일을 읽는다. 값이 비어 있으면 컨테이너가 뜨지 않는다 — 알람이 조용히 사라지는 것보다 기동 실패가 낫다.
+
+확인:
+
+```bash
+# 룰이 로드됐나
+curl -s localhost:9090/api/v1/rules | jq '.data.groups[].name'
+
+# Alertmanager 가 Prometheus 에 연결됐나
+curl -s localhost:9090/api/v1/alertmanagers | jq '.data.activeAlertmanagers'
+
+# 통지 경로 시험 (실제로 웹훅이 울린다)
+curl -XPOST localhost:9093/api/v2/alerts -H 'Content-Type: application/json' \
+  -d '[{"labels":{"alertname":"TestAlert","severity":"warning"}}]'
+```
+
 ### Grafana 임베딩 (ADMIN API)
 
 
