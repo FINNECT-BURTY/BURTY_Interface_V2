@@ -85,7 +85,8 @@ class UserOnboardingConsentTests {
   @Test
   @DisplayName("동의한 항목을 전부 기록한다")
   void recordsEveryAgreedConsent() {
-    complete(new SignupConsents(true, true, true, true, true, true), "203.0.113.5", "Mozilla/5.0");
+    complete(
+        new SignupConsents(true, true, true, true, true, true, true), "203.0.113.5", "Mozilla/5.0");
 
     Set<ConsentType> types =
         saved().stream().map(ConsentRecordEntity::getConsentType).collect(Collectors.toSet());
@@ -96,7 +97,8 @@ class UserOnboardingConsentTests {
             ConsentType.CREDIT_COLLECTION,
             ConsentType.MYDATA,
             ConsentType.MARKETING,
-            ConsentType.BENEFIT_NOTICE),
+            ConsentType.BENEFIT_NOTICE,
+            ConsentType.THIRD_PARTY_SHARE),
         types);
   }
 
@@ -105,7 +107,9 @@ class UserOnboardingConsentTests {
   void doesNotRecordRefusedOptionalConsents() {
     // 거부를 "동의함" 으로 적으면 기록이 거짓이 된다. 마케팅은 특히 분쟁이 생기는 항목이다.
     complete(
-        new SignupConsents(true, true, true, true, false, false), "203.0.113.5", "Mozilla/5.0");
+        new SignupConsents(true, true, true, true, false, false, false),
+        "203.0.113.5",
+        "Mozilla/5.0");
 
     Set<ConsentType> types =
         saved().stream().map(ConsentRecordEntity::getConsentType).collect(Collectors.toSet());
@@ -118,7 +122,9 @@ class UserOnboardingConsentTests {
   @DisplayName("동의 시점의 IP 와 User-Agent 를 함께 남긴다")
   void recordsEvidence() throws Exception {
     complete(
-        new SignupConsents(true, true, true, true, false, false), "203.0.113.5", "BurtyApp/1.0");
+        new SignupConsents(true, true, true, true, false, false, false),
+        "203.0.113.5",
+        "BurtyApp/1.0");
 
     ConsentRecordEntity first = saved().get(0);
     assertArrayEquals(InetAddress.getByName("203.0.113.5").getAddress(), first.getIpAddress());
@@ -128,11 +134,25 @@ class UserOnboardingConsentTests {
   @Test
   @DisplayName("IP 를 확인할 수 없으면 비워 둔다 — 틀린 값을 남기지 않는다")
   void leavesIpEmptyWhenUnknown() {
-    complete(new SignupConsents(true, true, true, true, false, false), "unknown", null);
+    complete(new SignupConsents(true, true, true, true, false, false, false), "unknown", null);
 
     ConsentRecordEntity first = saved().get(0);
     assertEquals(null, first.getIpAddress());
     assertEquals(null, first.getUserAgent());
+  }
+
+  @Test
+  @DisplayName("국외 이전에 동의하지 않으면 기록을 남기지 않는다")
+  void doesNotRecordRefusedOverseasTransfer() {
+    // 이 기록이 없으면 운영에서 AI 상담·음성이 막힌다. 거부를 "동의함" 으로 적으면 그 차단이 무의미해진다 (#171).
+    complete(
+        new SignupConsents(true, true, true, true, false, false, false),
+        "203.0.113.5",
+        "Mozilla/5.0");
+
+    Set<ConsentType> types =
+        saved().stream().map(ConsentRecordEntity::getConsentType).collect(Collectors.toSet());
+    assertFalse(types.contains(ConsentType.THIRD_PARTY_SHARE));
   }
 
   @Test

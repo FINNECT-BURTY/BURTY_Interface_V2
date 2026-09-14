@@ -43,6 +43,7 @@ public enum ErrorCode {
   INVALID_CREDENTIALS(2004, "잘못된 인증 정보입니다"),
   PASSKEY_UNAVAILABLE(2005, "이 계정은 패스키를 등록할 수 없습니다"),
   STEP_UP_REQUIRED(2006, "추가 본인확인이 필요합니다"),
+  OVERSEAS_TRANSFER_CONSENT_REQUIRED(2007, "개인정보 국외 이전 동의가 필요합니다"),
 
   // 사용자 관련 에러 (3000번대)
   USER_NOT_FOUND(3000, "사용자를 찾을 수 없습니다"),

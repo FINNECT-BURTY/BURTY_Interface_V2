@@ -43,4 +43,10 @@ public record ProfileOnboardingRequest(
     /** 마케팅 정보 수신 (선택). */
     Boolean marketingAccepted,
     /** 맞춤 혜택 알림 수신 (선택). */
-    Boolean benefitAccepted) {}
+    Boolean benefitAccepted,
+    /**
+     * 개인정보 국외 이전 (선택).
+     *
+     * <p>AI 상담과 음성 인식은 국외 사업자를 거친다. 동의하지 않으면 그 두 기능만 쓸 수 없고 나머지 서비스는 그대로 쓴다.
+     */
+    Boolean overseasTransferAccepted) {}
