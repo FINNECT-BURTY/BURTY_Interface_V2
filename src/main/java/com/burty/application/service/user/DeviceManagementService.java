@@ -20,6 +20,7 @@
 package com.burty.application.service.user;
 
 import com.burty.adapter.in.web.mapper.WebResponseMapper;
+import com.burty.application.dto.user.DeviceFcmTokenRequest;
 import com.burty.application.dto.user.DeviceNameUpdateRequest;
 import com.burty.application.dto.user.DeviceResponse;
 import com.burty.application.port.in.user.DeviceManagementUseCase;
@@ -55,6 +56,25 @@ public class DeviceManagementService implements DeviceManagementUseCase {
 
   @Override
   @Transactional
+  public DeviceResponse registerFcmToken(
+      String deviceId, String userId, DeviceFcmTokenRequest request) {
+    DeviceEntity device =
+        deviceRepository
+            .findById(Long.parseLong(deviceId))
+            .orElseThrow(() -> new BusinessException(ErrorCode.ENTITY_NOT_FOUND, "기기를 찾을 수 없습니다."));
+    assertOwner(device, userId);
+    // 해제된 기기는 사용자가 "더 이상 내 기기가 아니다" 라고 선언한 기기다. 거기로 갈 주소를
+    // 다시 받아 두면 해제가 되돌려진다.
+    if (device.getRevokedAt() != null) {
+      throw new BusinessException(ErrorCode.OPERATION_NOT_ALLOWED, "해제된 기기에는 푸시 토큰을 등록할 수 없습니다.");
+    }
+    device.setFcmToken(request.fcmToken().trim());
+    device.setUpdatedAt(LocalDateTime.now());
+    return webResponseMapper.toResponse(deviceRepository.save(device));
+  }
+
+  @Override
+  @Transactional
   public DeviceResponse updateDeviceName(
       String deviceId, String userId, DeviceNameUpdateRequest request) {
     DeviceEntity device =
@@ -82,6 +102,9 @@ public class DeviceManagementService implements DeviceManagementUseCase {
     device.setIsTrusted(false);
     device.setRevokedAt(now);
     device.setUpdatedAt(now);
+    // 푸시 주소도 함께 지운다. 발송 대상 산정이 이미 해제된 기기를 빼지만, 남겨 둘 이유가
+    // 없는 값을 남기면 다른 경로가 생겼을 때 조용히 되살아난다.
+    device.setFcmToken(null);
     deviceRepository.save(device);
 
     for (BiometricCredentialEntity credential :
