@@ -1,0 +1,46 @@
+# BURTY 알람 수신자
+#
+# 룰(alert-rules.yml)은 있었는데 받는 곳이 없었다. Prometheus 는 룰을 평가해 자기 화면에
+# FIRING 으로 표시만 하고 끝났다. 그 화면을 보고 있지 않으면 아무도 모른다 —
+# 이체 결과 미확정도, 감사 기록 저장 실패도 마찬가지였다.
+#
+# 웹훅 주소는 저장소에 두지 않는다. 컨테이너가 기동할 때 ALERT_WEBHOOK_URL 환경변수를
+# /alertmanager/webhook-url 에 쓰고, 여기서는 그 파일을 읽는다.
+
+global:
+  resolve_timeout: 5m
+
+route:
+  receiver: burty-default
+  # 같은 알람이 여러 인스턴스에서 동시에 올라와도 한 묶음으로 보낸다.
+  group_by: ["alertname"]
+  group_wait: 30s
+  group_interval: 5m
+  # 해결될 때까지 계속 알린다. 한 번 보내고 마는 알람은 놓친 뒤 복구되지 않는다.
+  repeat_interval: 4h
+  routes:
+    # 돈과 규제 기록에 관한 것은 더 자주 다시 알린다.
+    - matchers:
+        - severity="critical"
+      receiver: burty-critical
+      repeat_interval: 30m
+
+receivers:
+  - name: burty-default
+    webhook_configs:
+      - url_file: /alertmanager/webhook-url
+        send_resolved: true
+
+  - name: burty-critical
+    webhook_configs:
+      - url_file: /alertmanager/webhook-url
+        send_resolved: true
+
+# 같은 대상의 critical 이 떠 있는 동안 warning 은 묻는다. 둘 다 울리면 어느 쪽이
+# 급한지 알 수 없고, 알람이 많아지면 사람은 알람을 보지 않게 된다.
+inhibit_rules:
+  - source_matchers:
+      - severity="critical"
+    target_matchers:
+      - severity="warning"
+    equal: ["alertname"]

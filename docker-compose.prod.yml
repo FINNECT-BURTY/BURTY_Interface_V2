@@ -28,6 +28,27 @@ services:
     networks:
       - global-nginx
 
+  # 알람을 실제로 사람에게 보내는 곳. 없으면 룰은 평가만 되고 통지되지 않는다.
+  # 웹훅 주소는 이미지 안에 두지 않고 기동 시 환경변수에서 파일로 쓴다.
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    container_name: burty-alertmanager
+    restart: unless-stopped
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - >-
+        printf '%s' "$${ALERT_WEBHOOK_URL}" > /alertmanager/webhook-url &&
+        exec /bin/alertmanager
+        --config.file=/etc/alertmanager/alertmanager.yml
+        --storage.path=/alertmanager
+    environment:
+      ALERT_WEBHOOK_URL: ${ALERT_WEBHOOK_URL:?ALERT_WEBHOOK_URL is required — 비우면 알람이 아무 곳에도 가지 않는다}
+    volumes:
+      - ./infra/observability/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - burty-alertmanager-data:/alertmanager
+    networks:
+      - global-nginx
+
   loki:
     image: grafana/loki:3.3.2
     container_name: burty-loki
@@ -88,5 +109,6 @@ services:
 
 volumes:
   burty-prometheus-data:
+  burty-alertmanager-data:
   burty-loki-data:
   burty-grafana-data:
