@@ -19,6 +19,7 @@
  */
 package com.burty.application.service.auth;
 
+import com.burty.application.dto.auth.SignupConsents;
 import com.burty.application.port.in.auth.UserOnboardingUseCase;
 import com.burty.application.service.support.AuditLogger;
 import com.burty.config.BurtyOnboardingProperties;
@@ -33,6 +34,8 @@ import com.burty.domain.user.repository.UserProfileRepository;
 import com.burty.domain.user.repository.UserRepository;
 import com.burty.util.AccountNumberHasher;
 import java.math.BigDecimal;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.Period;
@@ -73,8 +76,10 @@ public class UserOnboardingService implements UserOnboardingUseCase {
       LocalDate birthDate,
       Integer ageRange,
       String uxModeRaw,
-      boolean termsAccepted) {
-    if (!termsAccepted) {
+      SignupConsents consents,
+      String ipAddress,
+      String userAgent) {
+    if (consents == null || !consents.terms()) {
       throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE, "필수 약관(LGN-006)에 동의해야 합니다.");
     }
     if (blank(name)) {
@@ -134,37 +139,122 @@ public class UserOnboardingService implements UserOnboardingUseCase {
     profile.setUpdatedAt(now);
     userProfileRepository.save(profile);
 
-    persistSignupConsents(user, now);
+    persistSignupConsents(user, now, consents, ipAddress, userAgent);
 
     auditLogger.logSuccess(userId, "COMPLETE_ONBOARDING", userId, "profile=true");
     return new OnboardingProfileResult(true, false);
   }
 
-  private void persistSignupConsents(UserEntity user, LocalDateTime agreedAt) {
+  /**
+   * 항목별 동의 기록.
+   *
+   * <p>예전에는 화면이 여섯 항목에 동의를 받아도 필수 약관 두 건만 남겼다. 수집·이용, 전송요구, 마케팅, 혜택 동의는 기록이 없어 무엇에 동의했는지 증명할 수 없었다.
+   * 선택 동의는 특히 문제였다 — 기록이 없으면 수신 거부 사용자에게 보내지 않았음을 보일 수 없다.
+   *
+   * <p>동의하지 않은 항목은 남기지 않는다. 거부를 "동의함" 으로 적으면 기록이 거짓이 된다.
+   *
+   * <p>개인신용정보·마케팅 문서는 개인정보 문서와 같은 버전으로 관리한다. 문서 버전이 갈라지면 그때 설정을 나눈다.
+   */
+  private void persistSignupConsents(
+      UserEntity user,
+      LocalDateTime agreedAt,
+      SignupConsents consents,
+      String ipAddress,
+      String userAgent) {
+    String termsVersion = onboardingProperties.getTermsVersion();
+    String privacyVersion = onboardingProperties.getPrivacyVersion();
+
     persistConsent(
-        user,
-        ConsentRecordEntity.ConsentType.TERMS,
-        onboardingProperties.getTermsVersion(),
-        agreedAt);
-    persistConsent(
-        user,
-        ConsentRecordEntity.ConsentType.PRIVACY,
-        onboardingProperties.getPrivacyVersion(),
-        agreedAt);
+        user, ConsentRecordEntity.ConsentType.TERMS, termsVersion, agreedAt, ipAddress, userAgent);
+    if (consents.privacy()) {
+      persistConsent(
+          user,
+          ConsentRecordEntity.ConsentType.PRIVACY,
+          privacyVersion,
+          agreedAt,
+          ipAddress,
+          userAgent);
+    }
+    if (consents.creditCollection()) {
+      persistConsent(
+          user,
+          ConsentRecordEntity.ConsentType.CREDIT_COLLECTION,
+          privacyVersion,
+          agreedAt,
+          ipAddress,
+          userAgent);
+    }
+    if (consents.creditTransfer()) {
+      persistConsent(
+          user,
+          ConsentRecordEntity.ConsentType.MYDATA,
+          privacyVersion,
+          agreedAt,
+          ipAddress,
+          userAgent);
+    }
+    if (consents.marketing()) {
+      persistConsent(
+          user,
+          ConsentRecordEntity.ConsentType.MARKETING,
+          privacyVersion,
+          agreedAt,
+          ipAddress,
+          userAgent);
+    }
+    if (consents.benefit()) {
+      persistConsent(
+          user,
+          ConsentRecordEntity.ConsentType.BENEFIT_NOTICE,
+          privacyVersion,
+          agreedAt,
+          ipAddress,
+          userAgent);
+    }
   }
 
   private void persistConsent(
       UserEntity user,
       ConsentRecordEntity.ConsentType type,
       String version,
-      LocalDateTime agreedAt) {
+      LocalDateTime agreedAt,
+      String ipAddress,
+      String userAgent) {
     ConsentRecordEntity c = new ConsentRecordEntity();
     c.setUser(user);
     c.setConsentType(type);
     c.setConsentVersion(version);
     c.setDocumentHash(accountNumberHasher.hash(type.name() + "|v=" + version));
     c.setAgreedAt(agreedAt);
+    c.setIpAddress(toIpBytes(ipAddress));
+    c.setUserAgent(truncate(userAgent, 255));
     consentRecordRepository.save(c);
+  }
+
+  /**
+   * 동의 시점의 접속 IP.
+   *
+   * <p>이름을 받아 DNS 를 타지 않도록 IP 형태만 받는다. 확인할 수 없으면 비워 둔다 — 틀린 IP 를 남기는 것보다 없는 편이 낫다.
+   */
+  private static byte[] toIpBytes(String ipAddress) {
+    if (ipAddress == null || ipAddress.isBlank() || "unknown".equals(ipAddress)) {
+      return null;
+    }
+    if (!ipAddress.matches("[0-9a-fA-F.:]+")) {
+      return null;
+    }
+    try {
+      return InetAddress.getByName(ipAddress).getAddress();
+    } catch (UnknownHostException e) {
+      return null;
+    }
+  }
+
+  private static String truncate(String value, int max) {
+    if (value == null) {
+      return null;
+    }
+    return value.length() <= max ? value : value.substring(0, max);
   }
 
   private UserProfileEntity.UxMode parseUxMode(String raw) {

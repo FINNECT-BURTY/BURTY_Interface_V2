@@ -21,15 +21,18 @@ package com.burty.adapter.in.web.auth;
 
 import com.burty.application.dto.auth.OnboardingProfileResponse;
 import com.burty.application.dto.auth.ProfileOnboardingRequest;
+import com.burty.application.dto.auth.SignupConsents;
 import com.burty.application.port.in.auth.UserOnboardingUseCase;
 import com.burty.core.controller.BaseController;
 import com.burty.core.dto.response.ApiResponse;
 import com.burty.domain.auth.model.OnboardingProfileResult;
 import com.burty.security.AuthLevel;
 import com.burty.security.RiskLevel;
+import com.burty.util.IpUtil;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -53,10 +56,11 @@ public class UserOnboardingController extends BaseController {
       description = "휴대폰·실명·생년월일 등 추가 프로필 저장 (중복 시 alreadyRegistered).",
       security = {@SecurityRequirement(name = "bearerAuth")})
   public ApiResponse<OnboardingProfileResponse> completeProfile(
-      @Valid @RequestBody ProfileOnboardingRequest request) {
+      @Valid @RequestBody ProfileOnboardingRequest request, HttpServletRequest httpRequest) {
     String userId =
         String.valueOf(SecurityContextHolder.getContext().getAuthentication().getPrincipal());
-    boolean terms = Boolean.TRUE.equals(request.termsAccepted());
+    // 동의 시점의 접속 정보를 함께 남긴다. X-Forwarded-For 를 그대로 믿으면 클라이언트가
+    // 원하는 값이 기록되므로, 신뢰 프록시 판정을 거친 IpUtil 을 쓴다.
     OnboardingProfileResult result =
         userOnboardingUseCase.completeProfile(
             userId,
@@ -65,7 +69,33 @@ public class UserOnboardingController extends BaseController {
             request.birthDate(),
             request.ageRange(),
             request.uxMode(),
-            terms);
+            toConsents(request),
+            IpUtil.getClientIp(httpRequest),
+            httpRequest.getHeader("User-Agent"));
     return ApiResponse.ok(OnboardingProfileResponse.from(result));
+  }
+
+  /**
+   * 요청의 동의 값.
+   *
+   * <p>항목별 값이 하나도 오지 않으면 옛 클라이언트다. FE 와 백엔드는 따로 배포되므로 그 동안 가입이 막히면 안 된다. 예전과 같이 필수 약관 두 건만 기록한다.
+   */
+  private static SignupConsents toConsents(ProfileOnboardingRequest request) {
+    boolean noItemizedConsents =
+        request.privacyAccepted() == null
+            && request.creditCollectionAccepted() == null
+            && request.creditTransferAccepted() == null
+            && request.marketingAccepted() == null
+            && request.benefitAccepted() == null;
+    if (noItemizedConsents) {
+      return SignupConsents.legacy(Boolean.TRUE.equals(request.termsAccepted()));
+    }
+    return new SignupConsents(
+        Boolean.TRUE.equals(request.termsAccepted()),
+        Boolean.TRUE.equals(request.privacyAccepted()),
+        Boolean.TRUE.equals(request.creditCollectionAccepted()),
+        Boolean.TRUE.equals(request.creditTransferAccepted()),
+        Boolean.TRUE.equals(request.marketingAccepted()),
+        Boolean.TRUE.equals(request.benefitAccepted()));
   }
 }

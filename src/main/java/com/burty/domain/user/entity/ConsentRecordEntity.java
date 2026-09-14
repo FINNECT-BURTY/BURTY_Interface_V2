@@ -68,9 +68,14 @@ public class ConsentRecordEntity {
   public enum ConsentType {
     TERMS,
     PRIVACY,
+    /** 개인신용정보 수집·이용. 가입 화면의 필수 항목인데 기록되지 않고 있었다. */
+    CREDIT_COLLECTION,
+    /** 개인신용정보 전송요구 (마이데이터). */
     MYDATA,
     FAMILY_SHARE,
     MARKETING,
+    /** 맞춤 혜택 알림 수신 (선택). */
+    BENEFIT_NOTICE,
     THIRD_PARTY_SHARE,
     SECURITY_LOG,
     LOCATION_POLICY_MATCH
