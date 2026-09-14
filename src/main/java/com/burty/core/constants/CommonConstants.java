@@ -46,8 +46,6 @@ public class CommonConstants {
   public static final String DATE_FORMAT = "yyyy-MM-dd";
   public static final String DATETIME_FORMAT = "yyyy-MM-dd HH:mm:ss";
 
-  // 파일 업로드 한도·허용 확장자는 file.storage.* (FileStorageProperties / FileUtil) 사용
-
   private CommonConstants() {
     // 유틸리티 클래스이므로 인스턴스화 방지
   }

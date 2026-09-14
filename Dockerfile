@@ -47,7 +47,7 @@ LABEL org.opencontainers.image.revision="${GIT_SHA}" \
 
 COPY --from=build /app/build/libs/*.jar app.jar
 
-RUN mkdir -p /app/logs /app/uploads /app/secrets && \
+RUN mkdir -p /app/logs /app/secrets && \
     chown -R spring:spring /app
 
 # UID 를 숫자로 고정한다. Kubernetes 는 securityContext.runAsNonRoot 를 검증할 때
