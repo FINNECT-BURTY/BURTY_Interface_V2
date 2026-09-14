@@ -56,6 +56,18 @@ docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --build
 
 Promtail이 `HOST_LOG_DIR`(기본 `./logs`)의 `application.log`, `error.log` 를 Loki로 전송합니다.
 
+### 로그 보관
+
+| env | 기본값 | 운영 compose |
+|-----|--------|--------------|
+| `LOG_MAX_HISTORY_DAYS` | 30일 | 180일 |
+| `LOG_ERROR_MAX_HISTORY_DAYS` | 90일 | 365일 |
+| `LOG_TOTAL_SIZE_CAP` | 1GB | 5GB |
+
+**총량이 기간보다 먼저 걸립니다.** 총량에 닿으면 보관 기간이 남아 있어도 오래된 파일부터 지워집니다. 기간을 늘릴 때는 총량과 디스크 여유를 함께 올려야 합니다.
+
+금융 서비스의 접속기록 보관 요구에 이 기간이 맞는지는 **법률 검토가 필요합니다.** 지금 값은 그 전까지의 임시값입니다. 감사 기록(`tbl_audit_log`)은 DB 에 있고 해시 체인으로 보호되며 이 설정과 무관합니다.
+
 
 
 ### ADMIN API로 로그 대시보드 임베딩
