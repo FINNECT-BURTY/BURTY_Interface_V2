@@ -66,6 +66,24 @@ const PROFILES = {
     readP95: 1500,
     writeP95: 5000,
   },
+  // 포화 탐색. full 로는 "무엇이 먼저 무너지는지" 를 알 수 없었다 — VU 를 80 까지 올려도
+  // 요청 사이에 1~3초를 쉬므로 실제 부하가 초당 수십 건에 머물렀고, 커넥션 풀은 20 중
+  // 4 까지만 쓰였다. 무너지는 지점을 보려면 VU 수가 아니라 **도착률**을 직접 올려야 한다.
+  saturation: {
+    readArrivalStages: [
+      { duration: '1m', target: 50 },
+      { duration: '1m', target: 150 },
+      { duration: '1m', target: 300 },
+      { duration: '1m', target: 600 },
+      { duration: '1m', target: 1000 },
+    ],
+    // 생각시간을 두지 않는다. 도착률을 정하는 실행기에서 쉬면 VU 만 더 필요해질 뿐이다.
+    thinkTime: false,
+    transferRate: 5,
+    transferDuration: '5m',
+    readP95: 500,
+    writeP95: 3000,
+  },
 };
 
 const P = PROFILES[PROFILE];
@@ -77,16 +95,37 @@ if (!P) {
 // 거기까지 준비되지 않은 환경에서는 조회만 돌린다.
 const TRANSFERS_ENABLED = __ENV.TRANSFERS !== 'off';
 
+// 조회 시나리오의 부하 형태.
+//
+// `readArrivalStages` 가 있으면 **초당 반복 수**를 직접 정한다(포화 탐색). 없으면 VU 수를
+// 올린다(사용 패턴 재현). 둘은 다른 질문에 답한다 — VU 램프는 "이 정도 동시 사용자에서
+// 응답이 어떤가", 도착률 램프는 "초당 몇 건에서 무너지는가" 다.
+//
+// 반복 한 번은 조회 3건이므로, 도착률 N 은 대략 3N req/s 다.
+const READ_SCENARIO = P.readArrivalStages
+  ? {
+      executor: 'ramping-arrival-rate',
+      exec: 'readScenario',
+      startRate: 0,
+      timeUnit: '1s',
+      // 지연이 늘면 같은 도착률을 유지하는 데 더 많은 VU 가 필요하다. 부족하면 k6 가
+      // 도착률을 맞추지 못하고, 그 결과는 서버가 아니라 부하 생성기의 한계다.
+      preAllocatedVUs: 200,
+      maxVUs: 1500,
+      stages: P.readArrivalStages,
+    }
+  : {
+      executor: 'ramping-vus',
+      exec: 'readScenario',
+      startVUs: 0,
+      stages: P.readStages,
+    };
+
 export const options = {
   scenarios: Object.assign(
     {
       // 대부분의 트래픽은 조회다. 실제 사용 패턴에 맞춘다.
-      reads: {
-        executor: 'ramping-vus',
-        exec: 'readScenario',
-        startVUs: 0,
-        stages: P.readStages,
-      },
+      reads: READ_SCENARIO,
     },
     TRANSFERS_ENABLED
       ? {
@@ -133,7 +172,9 @@ export function readScenario() {
     readLatency.add(limits.timings.duration);
     check(limits, { '한도 200': (r) => r.status === 200 });
   });
-  sleep(Math.random() * 2 + 1);
+  if (P.thinkTime !== false) {
+    sleep(Math.random() * 2 + 1);
+  }
 }
 
 export function transferScenario() {
