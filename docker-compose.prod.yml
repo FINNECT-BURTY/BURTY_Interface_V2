@@ -16,6 +16,11 @@ services:
       MANAGEMENT_OTLP_TRACING_ENDPOINT: ${MANAGEMENT_OTLP_TRACING_ENDPOINT:-http://otel-collector:4318/v1/traces}
       BURTY_GRAFANA_ENABLED: ${BURTY_GRAFANA_ENABLED:-true}
       BURTY_GRAFANA_PUBLIC_BASE_URL: ${GRAFANA_PUBLIC_URL:-http://127.0.0.1:3001}
+      # 운영은 기본값보다 길게 보관한다. 총량이 기간보다 먼저 걸리므로 디스크 여유를
+      # 함께 확인해야 한다. 법정 보관 기간은 법률 검토 전까지 이 값이 임시값이다.
+      LOG_MAX_HISTORY_DAYS: ${LOG_MAX_HISTORY_DAYS:-180}
+      LOG_ERROR_MAX_HISTORY_DAYS: ${LOG_ERROR_MAX_HISTORY_DAYS:-365}
+      LOG_TOTAL_SIZE_CAP: ${LOG_TOTAL_SIZE_CAP:-5GB}
 
   prometheus:
     image: prom/prometheus:v2.55.1
