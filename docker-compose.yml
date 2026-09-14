@@ -56,7 +56,6 @@ services:
       MAIL_USERNAME: ${MAIL_USERNAME:-}
       MAIL_PASSWORD: ${MAIL_PASSWORD:-}
 
-      UPLOAD_PATH: /app/uploads/
       LOG_PATH: /app/logs
       LOG_FILE: /app/logs/application.log
       JAVA_OPTS: >-
@@ -65,7 +64,6 @@ services:
         -Dio.grpc.netty.shaded.io.netty.handler.ssl.noOpenSsl=true
     volumes:
       - ${HOST_LOG_DIR:-./logs}:/app/logs
-      - ${HOST_UPLOAD_DIR:-./uploads}:/app/uploads
     networks:
       - global-nginx
     healthcheck:
