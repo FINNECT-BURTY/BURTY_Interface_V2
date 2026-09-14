@@ -211,6 +211,16 @@ public class UserOnboardingService implements UserOnboardingUseCase {
           ipAddress,
           userAgent);
     }
+    // AI 상담·음성은 국외 사업자를 거친다. 이 기록이 없으면 운영에서 그 두 기능이 막힌다 (#171).
+    if (consents.overseasTransfer()) {
+      persistConsent(
+          user,
+          ConsentRecordEntity.ConsentType.THIRD_PARTY_SHARE,
+          privacyVersion,
+          agreedAt,
+          ipAddress,
+          userAgent);
+    }
   }
 
   private void persistConsent(

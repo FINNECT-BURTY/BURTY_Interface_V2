@@ -15,6 +15,7 @@ package com.burty.application.dto.auth;
  * @param creditTransfer 개인신용정보 전송요구 (필수)
  * @param marketing 마케팅 정보 수신 (선택)
  * @param benefit 맞춤 혜택 알림 수신 (선택)
+ * @param overseasTransfer 개인정보 국외 이전 — AI 상담·음성 (선택)
  */
 public record SignupConsents(
     boolean terms,
@@ -22,7 +23,8 @@ public record SignupConsents(
     boolean creditCollection,
     boolean creditTransfer,
     boolean marketing,
-    boolean benefit) {
+    boolean benefit,
+    boolean overseasTransfer) {
 
   /**
    * 항목별 값을 보내지 않는 옛 클라이언트용.
@@ -31,6 +33,6 @@ public record SignupConsents(
    * 수집·이용과 전송요구 동의 기록이 없다는 뜻이다.
    */
   public static SignupConsents legacy(boolean termsAccepted) {
-    return new SignupConsents(termsAccepted, termsAccepted, false, false, false, false);
+    return new SignupConsents(termsAccepted, termsAccepted, false, false, false, false, false);
   }
 }

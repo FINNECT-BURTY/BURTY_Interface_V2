@@ -25,12 +25,17 @@ import com.burty.application.port.in.user.PersonaInferenceUseCase;
 import com.burty.application.port.out.ai.EasyReadPort;
 import com.burty.application.port.out.ai.LlmPort;
 import com.burty.application.service.consult.AiAdvisoryService;
+import com.burty.application.service.consult.ExternalAiConsentGuard;
+import com.burty.config.AiProperties;
+import com.burty.config.VoiceProperties;
 import com.burty.domain.asset.model.AssetSnapshot;
 import com.burty.domain.cashflow.model.RiskAssessment;
 import com.burty.domain.consult.model.ConsultationResult;
 import com.burty.domain.user.entity.PersonaProfileEntity;
+import com.burty.domain.user.repository.ConsentRecordRepository;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
 
 class AiAdvisoryServiceTests {
 
@@ -82,8 +87,13 @@ class AiAdvisoryServiceTests {
         };
     RiskAssessmentUseCase riskUseCase =
         userId -> new RiskAssessment(userId, "GREEN", 50_000L, "안정", null, 1_500_000L);
+    // 모의 모드(기본값)에서는 프롬프트가 밖으로 나가지 않으므로 게이트가 동의를 요구하지 않는다.
+    ExternalAiConsentGuard consentGuard =
+        new ExternalAiConsentGuard(
+            Mockito.mock(ConsentRecordRepository.class), new AiProperties(), new VoiceProperties());
     AiAdvisoryService service =
-        new AiAdvisoryService(assetSnapshots, llmPort, easyReadPort, personaUseCase, riskUseCase);
+        new AiAdvisoryService(
+            assetSnapshots, llmPort, easyReadPort, personaUseCase, riskUseCase, consentGuard);
 
     ConsultationResult result = service.consultWithAi("u1", "이번달 괜찮아?");
 

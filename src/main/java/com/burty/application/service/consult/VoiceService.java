@@ -26,18 +26,23 @@ import org.springframework.stereotype.Service;
 @Service
 public class VoiceService implements VoiceUseCase {
   private final VoicePort voicePort;
+  private final ExternalAiConsentGuard consentGuard;
 
-  public VoiceService(VoicePort voicePort) {
+  public VoiceService(VoicePort voicePort, ExternalAiConsentGuard consentGuard) {
     this.voicePort = voicePort;
+    this.consentGuard = consentGuard;
   }
 
   @Override
   public String stt(String userId, String audioBase64) {
+    // 사용자의 발화가 그대로 제공자에게 간다. 국외 이전 동의 없이 보내지 않는다.
+    consentGuard.requireConsentForVoice(userId);
     return voicePort.speechToText(audioBase64);
   }
 
   @Override
   public String tts(String userId, String text) {
+    consentGuard.requireConsentForVoice(userId);
     return voicePort.textToSpeech(text);
   }
 }

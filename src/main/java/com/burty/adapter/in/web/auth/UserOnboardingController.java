@@ -86,7 +86,8 @@ public class UserOnboardingController extends BaseController {
             && request.creditCollectionAccepted() == null
             && request.creditTransferAccepted() == null
             && request.marketingAccepted() == null
-            && request.benefitAccepted() == null;
+            && request.benefitAccepted() == null
+            && request.overseasTransferAccepted() == null;
     if (noItemizedConsents) {
       return SignupConsents.legacy(Boolean.TRUE.equals(request.termsAccepted()));
     }
@@ -96,6 +97,7 @@ public class UserOnboardingController extends BaseController {
         Boolean.TRUE.equals(request.creditCollectionAccepted()),
         Boolean.TRUE.equals(request.creditTransferAccepted()),
         Boolean.TRUE.equals(request.marketingAccepted()),
-        Boolean.TRUE.equals(request.benefitAccepted()));
+        Boolean.TRUE.equals(request.benefitAccepted()),
+        Boolean.TRUE.equals(request.overseasTransferAccepted()));
   }
 }

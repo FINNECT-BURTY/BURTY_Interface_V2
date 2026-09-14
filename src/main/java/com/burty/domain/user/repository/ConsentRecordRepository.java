@@ -27,4 +27,12 @@ public interface ConsentRecordRepository extends JpaRepository<ConsentRecordEnti
   List<ConsentRecordEntity> findByUser_UserId(Long userId);
 
   List<ConsentRecordEntity> findByUser_UserIdOrderByAgreedAtDesc(Long userId);
+
+  /**
+   * 살아 있는 동의가 있는가.
+   *
+   * <p>철회한 동의는 없는 것으로 본다. 개인정보를 외부로 보내기 전에 이 값을 확인한다 — 동의 화면에서 체크했는지가 아니라 <b>기록이 남아 있는지</b>가 기준이다.
+   */
+  boolean existsByUser_UserIdAndConsentTypeAndRevokedAtIsNull(
+      Long userId, ConsentRecordEntity.ConsentType consentType);
 }

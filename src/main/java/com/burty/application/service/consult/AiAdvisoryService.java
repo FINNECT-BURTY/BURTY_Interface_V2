@@ -40,22 +40,28 @@ public class AiAdvisoryService implements AiAdvisoryUseCase {
   private final EasyReadPort easyReadPort;
   private final PersonaInferenceUseCase personaInferenceUseCase;
   private final RiskAssessmentUseCase riskAssessmentUseCase;
+  private final ExternalAiConsentGuard consentGuard;
 
   public AiAdvisoryService(
       AssetSnapshotQuery assetSnapshots,
       LlmPort llmPort,
       EasyReadPort easyReadPort,
       PersonaInferenceUseCase personaInferenceUseCase,
-      RiskAssessmentUseCase riskAssessmentUseCase) {
+      RiskAssessmentUseCase riskAssessmentUseCase,
+      ExternalAiConsentGuard consentGuard) {
     this.assetSnapshots = assetSnapshots;
     this.llmPort = llmPort;
     this.easyReadPort = easyReadPort;
     this.personaInferenceUseCase = personaInferenceUseCase;
     this.riskAssessmentUseCase = riskAssessmentUseCase;
+    this.consentGuard = consentGuard;
   }
 
   @Override
   public ConsultationResult consultWithAi(String userId, String question) {
+    // 프롬프트에는 총자산·월지출·페르소나가 들어간다. 국외 이전 동의 없이 보내지 않는다.
+    consentGuard.requireConsentForAi(userId);
+
     AssetSnapshot snapshot = assetSnapshots.fetchAssetSnapshot(userId);
     PersonaProfileEntity persona = personaInferenceUseCase.getOrInfer(userId);
     RiskAssessment risk = riskAssessmentUseCase.assess(userId);
