@@ -19,7 +19,15 @@
  */
 package com.burty.application.port.in.user;
 
+import com.burty.application.dto.user.UserSettingsResponse;
+import com.burty.application.dto.user.UserSettingsUpdateRequest;
+
 public interface UserProfileUseCase {
 
   String getUserName(Long userId);
+
+  UserSettingsResponse getSettings(Long userId);
+
+  /** 비워 둔 값은 바꾸지 않는다. */
+  UserSettingsResponse updateSettings(Long userId, UserSettingsUpdateRequest request);
 }
