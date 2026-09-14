@@ -12,6 +12,7 @@ import com.burty.config.MyDataProperties;
 import com.burty.config.NotifyProperties;
 import com.burty.config.ProdStartupValidator;
 import com.burty.config.SocialLoginProperties;
+import com.burty.config.VoiceProperties;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -29,6 +30,7 @@ class ProdStartupValidatorTests {
   private IdentityProperties identityProperties;
   private NotifyProperties notifyProperties;
   private BurtySecurityProperties securityProperties;
+  private VoiceProperties voiceProperties;
   private ProdStartupValidator validator;
 
   @BeforeEach
@@ -42,6 +44,7 @@ class ProdStartupValidatorTests {
     identityProperties = new IdentityProperties();
     notifyProperties = new NotifyProperties();
     securityProperties = new BurtySecurityProperties();
+    voiceProperties = new VoiceProperties();
     validator =
         new ProdStartupValidator(
             mockEnvironment,
@@ -51,7 +54,8 @@ class ProdStartupValidatorTests {
             apiProperties,
             identityProperties,
             notifyProperties,
-            securityProperties);
+            securityProperties,
+            voiceProperties);
     configureValidProd();
   }
 
@@ -152,6 +156,33 @@ class ProdStartupValidatorTests {
   void passesWhenProdConfigurationIsValid() {
     validator.validate();
     assertEquals("prod", mockEnvironment.getActiveProfiles()[0]);
+  }
+
+  @Test
+  void blocksVoiceEnabledWithPlaceholderEndpointInProd() {
+    // 자리표시자 주소(api.voice.local)를 그대로 두고 스텁만 끄면 앱은 정상 기동하고,
+    // 사용자가 마이크를 누르는 순간에야 실패한다 (#129).
+    voiceProperties.setStubMode(false);
+    IllegalStateException error =
+        assertThrows(IllegalStateException.class, () -> validator.validate());
+    assertTrue(error.getMessage().contains("burty.voice"));
+  }
+
+  @Test
+  void allowsVoiceStubModeInProd() {
+    // 음성은 선택 기능이다. 마이데이터·본인확인과 달리 켜지 않았다고 배포를 막으면
+    // 제공자가 정해지기 전까지 아무것도 띄울 수 없다.
+    voiceProperties.setStubMode(true);
+    validator.validate();
+  }
+
+  @Test
+  void allowsVoiceWithRealProviderInProd() {
+    voiceProperties.setStubMode(false);
+    voiceProperties.setSttUrl("https://stt.example.com/v1/recognize");
+    voiceProperties.setTtsUrl("https://tts.example.com/v1/synthesize");
+    voiceProperties.setApiKey("real-key");
+    validator.validate();
   }
 
   private void configureValidProd() {

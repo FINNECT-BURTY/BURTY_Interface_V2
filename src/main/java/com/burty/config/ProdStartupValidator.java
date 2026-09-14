@@ -22,6 +22,7 @@ public class ProdStartupValidator {
   private final IdentityProperties identityProperties;
   private final NotifyProperties notifyProperties;
   private final BurtySecurityProperties securityProperties;
+  private final VoiceProperties voiceProperties;
 
   public ProdStartupValidator(
       Environment environment,
@@ -31,7 +32,8 @@ public class ProdStartupValidator {
       BurtyApiProperties apiProperties,
       IdentityProperties identityProperties,
       NotifyProperties notifyProperties,
-      BurtySecurityProperties securityProperties) {
+      BurtySecurityProperties securityProperties,
+      VoiceProperties voiceProperties) {
     this.environment = environment;
     this.myDataProperties = myDataProperties;
     this.socialLoginProperties = socialLoginProperties;
@@ -40,6 +42,7 @@ public class ProdStartupValidator {
     this.identityProperties = identityProperties;
     this.notifyProperties = notifyProperties;
     this.securityProperties = securityProperties;
+    this.voiceProperties = voiceProperties;
   }
 
   /**
@@ -171,6 +174,14 @@ public class ProdStartupValidator {
     }
     if (!notifyProperties.getPush().isConfigured()) {
       throw new IllegalStateException("PROD startup blocked: FCM credentials required.");
+    }
+    // 음성은 선택 기능이라 켜지 않아도 뜬다 — 마이데이터처럼 없으면 서비스가 성립하지 않는
+    // 연동이 아니다. 다만 켰다면 실제 제공자를 가리켜야 한다. 자리표시자(api.voice.local)를
+    // 그대로 두고 스텁만 끄면 앱은 뜨고, 사용자가 마이크를 누르는 순간에야 실패한다.
+    if (!voiceProperties.isStubMode() && !voiceProperties.isConfigured()) {
+      throw new IllegalStateException(
+          "PROD startup blocked: burty.voice.stt-url/tts-url/api-key must point to the real provider "
+              + "when burty.voice.stub-mode is false.");
     }
   }
 
