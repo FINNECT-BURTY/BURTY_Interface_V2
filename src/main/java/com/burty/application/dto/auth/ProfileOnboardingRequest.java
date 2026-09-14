@@ -32,4 +32,15 @@ public record ProfileOnboardingRequest(
     @JsonFormat(pattern = "yyyy-MM-dd") LocalDate birthDate,
     Integer ageRange,
     String uxMode,
-    Boolean termsAccepted) {}
+    /** 서비스 이용약관 (필수). */
+    Boolean termsAccepted,
+    /** 개인정보 처리 안내 (필수). */
+    Boolean privacyAccepted,
+    /** 개인신용정보 수집·이용 (필수). */
+    Boolean creditCollectionAccepted,
+    /** 개인신용정보 전송요구 (필수). */
+    Boolean creditTransferAccepted,
+    /** 마케팅 정보 수신 (선택). */
+    Boolean marketingAccepted,
+    /** 맞춤 혜택 알림 수신 (선택). */
+    Boolean benefitAccepted) {}
