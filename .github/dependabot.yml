@@ -5,6 +5,15 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 10
+    # 버전을 공유하는 artifact 는 한 PR 로 묶는다. 따로 올라오면 같은 변경에 PR 이
+    # 두 개 열린다 - shedlock 이 그랬다 (#181, #182 가 같은 두 줄을 바꿨다).
+    groups:
+      shedlock:
+        patterns:
+          - "net.javacrumbs.shedlock:*"
+      webauthn4j:
+        patterns:
+          - "com.webauthn4j:*"
   - package-ecosystem: github-actions
     directory: /
     schedule:
@@ -20,3 +29,11 @@ updates:
     open-pull-requests-limit: 5
     commit-message:
       prefix: "CHORE"
+    # 런타임 JRE 의 메이저는 빌드 JDK·CI 와 함께 올려야 한다. 이유는 Dockerfile 에
+    # 적혀 있다 - 셋이 갈라지면 운영이 쓰는 런타임에서 테스트가 한 번도 돌지 않는다.
+    #
+    # 막는 것은 메이저뿐이다. CVE 패치는 그대로 받는다 - Trivy 게이트가 HIGH/CRITICAL
+    # 을 막고 있어서 패치까지 멈추면 배포가 멈춘다.
+    ignore:
+      - dependency-name: eclipse-temurin
+        update-types: ["version-update:semver-major"]
