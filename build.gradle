@@ -34,6 +34,15 @@ ext['netty.version'] = '4.2.17.Final'
 // 이체·자산 조회가 인증에 걸려 있는 서비스라 그대로 둘 수 없다.
 ext['tomcat.version'] = '11.0.25'
 
+// Jackson 2 와 3 이 함께 올라온다. Spring Boot 4.1.1 이 고정하는 버전에 HIGH 10건이
+// 잡혀 CI 의 Trivy 게이트가 모든 PR 을 떨어뜨리고 있었다 - 바뀐 의존성 때문이 아니라
+// 공용 게이트가 모두를 막던 것이다.
+//
+// CVE-2026-89407, 89425 (core) / 68497, 91776, 91777 (databind).
+// 속성 이름이 둘로 갈린다 - jackson-2-bom 은 com.fasterxml, jackson-bom 은 tools.jackson.
+ext['jackson-2-bom.version'] = '2.21.7'
+ext['jackson-bom.version'] = '3.1.7'
+
 dependencies {
     implementation 'org.springframework:spring-aspects'
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
